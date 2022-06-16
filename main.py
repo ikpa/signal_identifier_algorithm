@@ -8,43 +8,64 @@ import pandas as pd
 methods = ["Pelt", "Dynp", "Binseg", "Window"]
 datadir = "example_data_for_patrik/"
 
-def reorganize_signal(signal):
-    size = len(signal)
-    new_sig = np.zeros(size)
-    print(size)
+def firstver():
+    fname = datadir + "many_failed.npz"
+    data = fr.load_all(fname).subpool(["MEG*1"]).clip((0.210, 0.50))
+    time = data.time
+    categories, fracs = sa.analyse_all(data)
+    n = data.n_channels
 
-    for i in range(len(signal)):
-        new_sig[i] = signal[i][0]
+    print(np.shape(categories))
 
-    return new_sig
+    for i in range(n):
+        name = data.names[i]
+        signal = data.data[:, i]
+        category = categories[i]
+        frac = fracs[i]
+        print(category)
+
+        plt.figure()
+        plt.plot(time, signal)
+        if category == 0:
+            status = "bad"
+
+        if category == 1:
+            status = "ambiguous"
+
+        if category == 2:
+            status = "good"
+
+        plt.title(name + ": " + status + ", " + str(frac))
+        plt.grid()
+        plt.show()
 
 def dataload():
-    fname = datadir + "many_failed.npz"
-    data = fr.load_all(fname)
-    chan_name = "MEG1921"
-    data = data.clip((0.210, 0.50))
-    signal = data.subpool([chan_name]).data
-    time = data.subpool([chan_name]).time
+    fname = datadir + "many_successful.npz"
+    data = fr.load_all(fname).subpool(["MEG*1"]).clip((0.210, 0.50))
+    names = data.names
+    n = data.n_channels
+    #time = data.subpool([chan_name]).time
 
-    #print(len(time))
+    for j in range(n):
+        signal = data.data[:, j]
+        vals, lens, start_is, end_is = sa.find_uniq_segments(signal, 4)
+        print(vals)
+        print(lens)
+        print()
+        #print(len(lens))
+        #print(len(start_is))
 
-    signal = reorganize_signal(signal)
-    method = methods[3]
+        #print(len(np.unique(signal)))
 
+        plt.plot(signal, ".-")
+        plt.title(names[j])
+        for i in range(len(start_is)):
+            # plt.axvline(x=start_is[i], linestyle="--", color="black")
+            # plt.axvline(x=end_is[i], linestyle="--", color="black")
+            plt.axvspan(start_is[i], end_is[i], alpha=.5)
 
+        plt.show()
 
-    dsig = np.gradient(signal)
-
-    points = sa.find_changes(dsig, method)
-    sa.rpt_plot(signal, points)
-    plt.title(method)
-
-    #fig, (ax1, ax2) = plt.subplots(2, 1)
-    #ax1.plot(time, signal)
-
-    #ax2.plot(time, dsig)
-
-    plt.show()
 
 def analysis():
     window = 10
@@ -63,7 +84,7 @@ def analysis():
 
     for method in methods:
         print("calculating with method " + method)
-        points = sa.find_changes(signal, method)
+        points = sa.find_changes_rpt(signal, method)
         sa.rpt_plot(signal, points)
         plt.title(method)
         print("predicted breakpoint(s)", points)
@@ -98,6 +119,7 @@ if __name__ == '__main__':
     #basic()
     #analysis()
     dataload()
+    #firstver()
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
