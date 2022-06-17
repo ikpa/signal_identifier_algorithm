@@ -1,6 +1,7 @@
 import ruptures as rpt
 import numpy as np
 import pandas as pd
+import time
 
 bkps=8
 
@@ -14,18 +15,24 @@ def reorganize_signal(signal):
 
     return new_sig
 
-def find_uniq_segments(signal, sensitive_length):
+def find_uniq_segments(signal, sensitive_length = 220, relative_sensitivity = 0.015,
+                       badness_sensitivity = 0.8):
     vals = []
     lengths = []
     start_is = []
     end_is = []
-    prevval = None
+    lock_val = None
 
     length = 1
     for i in range(len(signal)):
         val = signal[i]
 
-        if val != prevval or (val == prevval and i == len(signal) - 1):
+        if lock_val == None:
+            is_close = False
+        else:
+            is_close = abs(abs(val - lock_val) / lock_val) < relative_sensitivity
+
+        if not is_close or (is_close and i == len(signal) - 1):
             if length > sensitive_length:
                 start_is.append(start_i)
                 end_is.append(i)
@@ -33,52 +40,52 @@ def find_uniq_segments(signal, sensitive_length):
                 lengths.append(length)
             start_i = i
             length = 1
+            lock_val = val
 
-        if val == prevval:
+        if is_close:
             length += 1
 
-        prevval = val
+    same_sum = sum(lengths)
+    same_frac = same_sum / len(signal)
 
-    return vals, lengths, start_is, end_is
+    bad = same_frac > badness_sensitivity
 
-#0 = bad
-#1 = ambiguous
-#2 = good
-def uniq_filter(signal, sensitivity = [0.15, 0.7]):
+    return [vals, lengths, start_is, end_is], bad
+
+def uniq_filter(signal, sensitivity = 0.2):
     uniquevals = len(np.unique(signal))
     totvals = len(signal)
     frac_of_uniq = uniquevals / totvals
 
-    if frac_of_uniq <= sensitivity[0]:
-        category = 0
-    elif sensitivity[0] <= frac_of_uniq <= sensitivity[1]:
-        category = 1
-    else:
-        category = 2
-
-    return frac_of_uniq, category
+    return frac_of_uniq, frac_of_uniq <= sensitivity
 
 def analyse_all(data):
-    #names = data.names
     signals = data.data
-    #print(np.shape(signals)[1])
-    #chan_num = np.shape(signals)[1]
     chan_num = data.n_channels
 
+    exec_times = []
     signal_status = []
     fracs = []
+    uniq_stats_list = []
     for i in range(chan_num):
-        #print(names[i])
         signal = signals[:,i]
 
-        frac_of_uniq, category = uniq_filter(signal)
+        start_time = time.time()
+        frac_of_uniq, bad = uniq_filter(signal)
 
-        signal_status.append(category)
+        if not bad:
+            uniq_stats, bad = find_uniq_segments(signal)
+        else:
+            uniq_stats = []
+
+        end_time = time.time()
+
+        exec_times.append(end_time - start_time)
+        signal_status.append(bad)
         fracs.append(frac_of_uniq)
+        uniq_stats_list.append(uniq_stats)
 
-    return signal_status, fracs
-
-
+    return signal_status, fracs, uniq_stats_list, exec_times
 
 def pd_get_changes(signal):
     print(signal)
