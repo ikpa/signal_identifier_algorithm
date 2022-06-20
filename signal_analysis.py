@@ -15,9 +15,72 @@ def reorganize_signal(signal):
 
     return new_sig
 
-def find_uniq_segments(signal, sensitive_length = 220, relative_sensitivity = 0.015,
+def averages_are_close(signal, start_is, end_is, averages = [], std_sensitivity = 10**(-7)):
+    for i in range(len(start_is)):
+        segment = signal[start_is[i] : end_is[i]]
+        av = sum(segment) / len(segment)
+        print(av)
+        averages.append(av)
+
+    #av_of_avs = sum(averages) / len(averages)
+    std = np.std(averages)
+    print("std", std)
+
+    return std <= std_sensitivity
+
+def find_start_of_seg(signal, end_i):
+    averages = np.zeros_like(signal)
+    averages[end_i] = signal[end_i]
+
+    for i in range(end_i - 1, -1, -1):
+        seg = signal[i : end_i]
+        ave = sum(seg) / len(seg)
+        averages[i] = ave
+
+    return averages
+
+#the proper one for now
+def multi_seg_analysis(signal, start_is, end_is, badness_sensitivity):
+    final_i = len(signal) - 1
+    final_segment_i = end_is[len(end_is) - 1]
+
+    end_of_segment = final_segment_i
+
+    if final_i != final_segment_i:
+        segment = signal[final_segment_i:]
+        ave = sum(segment) / len(segment)
+
+        if averages_are_close(signal, start_is, end_is, averages=[ave]):
+            end_of_segment = final_i
+
+    tot_length = end_of_segment - start_is[0]
+    same_frac = tot_length / len(signal)
+    bad = same_frac > badness_sensitivity
+    print("same_frac", same_frac)
+    print("bad", bad)
+    return bad
+
+#not used
+def average_analysis(signal, start_is, end_is):
+    final_i = len(signal) - 1
+    final_segment_i = end_is[len(end_is) - 1]
+
+    end_of_segment = final_segment_i
+
+    if final_i != final_segment_i:
+        segment = signal[final_segment_i :]
+        ave = sum(segment) / len(segment)
+
+        if averages_are_close(signal, start_is, end_is, averages=[ave]):
+            end_of_segment = final_i
+
+    start_of_segment = start_is[0]
+
+    return start_of_segment, end_of_segment
+
+
+def find_uniq_segments(signal, sensitive_length = 220, relative_sensitivity = 0.02,
                        badness_sensitivity = 0.8):
-    vals = []
     lengths = []
     start_is = []
     end_is = []
@@ -36,7 +99,6 @@ def find_uniq_segments(signal, sensitive_length = 220, relative_sensitivity = 0.
             if length > sensitive_length:
                 start_is.append(start_i)
                 end_is.append(i)
-                vals.append(val)
                 lengths.append(length)
             start_i = i
             length = 1
@@ -50,7 +112,10 @@ def find_uniq_segments(signal, sensitive_length = 220, relative_sensitivity = 0.
 
     bad = same_frac > badness_sensitivity
 
-    return [vals, lengths, start_is, end_is], bad
+    if not bad and not len(start_is) <= 1 and averages_are_close(signal, start_is, end_is):
+        bad = multi_seg_analysis(signal, start_is, end_is, badness_sensitivity)
+
+    return [lengths, start_is, end_is], bad
 
 def uniq_filter(signal, sensitivity = 0.2):
     uniquevals = len(np.unique(signal))
@@ -60,6 +125,7 @@ def uniq_filter(signal, sensitivity = 0.2):
     return frac_of_uniq, frac_of_uniq <= sensitivity
 
 def analyse_all(data):
+    names = data.names
     signals = data.data
     chan_num = data.n_channels
 
@@ -68,6 +134,7 @@ def analyse_all(data):
     fracs = []
     uniq_stats_list = []
     for i in range(chan_num):
+        print(names[i])
         signal = signals[:,i]
 
         start_time = time.time()
@@ -79,6 +146,8 @@ def analyse_all(data):
             uniq_stats = []
 
         end_time = time.time()
+
+        print()
 
         exec_times.append(end_time - start_time)
         signal_status.append(bad)
