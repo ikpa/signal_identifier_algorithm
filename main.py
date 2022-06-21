@@ -9,7 +9,7 @@ methods = ["Pelt", "Dynp", "Binseg", "Window"]
 datadir = "example_data_for_patrik/"
 
 def firstver():
-    fname = datadir + "many_successful.npz"
+    fname = datadir + "many_many_successful2.npz"
     data = fr.load_all(fname).subpool(["MEG*1"]).clip((0.210, 0.50))
     time = data.time
     statuses, fracs, uniq_stats_list, exec_times = sa.analyse_all(data)
@@ -24,7 +24,7 @@ def firstver():
         exec_time = exec_times[i]
 
         print(name)
-        if bad:
+        if bad[0]:
             #print("bad, skipping")
             #print()
             #continue
@@ -32,20 +32,24 @@ def firstver():
         else:
             status = "good"
 
-        plt.figure()
-        plt.plot(signal)
+        fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
+        ax1.plot(signal)
+        ax1.axvline(x=sa.filter_start(signal), linestyle="--")
+        ax2.plot(np.gradient(signal))
+        title = name + ": " + status
         if not len(uniq_stats) == 0:
 
             print(uniq_stats[0])
-            same_sum = sum(uniq_stats[0])
-            same_frac = same_sum / len(signal)
-            for j in range(len(uniq_stats[0])):
-                # plt.axvline(x=start_is[i], linestyle="--", color="black")
-                # plt.axvline(x=end_is[i], linestyle="--", color="black")
-                plt.axvspan(uniq_stats[1][j], uniq_stats[2][j], alpha=.5)
-            plt.title(name + ": " + status + ", frac: " + str(same_frac))
-        else:
-            plt.title(name + ": " + status)
+            if not len(uniq_stats[0]) == 0:
+                same_sum = uniq_stats[2][len(uniq_stats[2]) - 1] - uniq_stats[1][0]
+                same_frac = same_sum / len(signal)
+                for j in range(len(uniq_stats[0])):
+                    # plt.axvline(x=start_is[i], linestyle="--", color="black")
+                    # plt.axvline(x=end_is[i], linestyle="--", color="black")
+                    ax1.axvspan(uniq_stats[1][j], uniq_stats[2][j], alpha=.5)
+                title += ", confidence: " + str(bad[1])
+
+        plt.title(title)
 
 
         plt.grid()
@@ -62,7 +66,7 @@ def averagetest():
     data = fr.load_all(fname).subpool([channame]).clip((0.210, 0.50))
     signal = sa.reorganize_signal(data.data)
     print(signal)
-    uniq_stats, bad = sa.find_uniq_segments(signal)
+    uniq_stats, bad = sa.segment_filter(signal)
     averages = sa.find_start_of_seg(signal, uniq_stats[1][0])
 
     print(len(signal))
@@ -85,7 +89,7 @@ def dataload():
     for j in range(n):
         signal = data.data[:, j]
         #vals, lens, start_is, end_is = sa.find_uniq_segments(signal, 4)
-        uniq_stats = sa.find_uniq_segments(signal, 4)
+        uniq_stats = sa.segment_filter(signal, 4)
         print(uniq_stats[0])
         print(uniq_stats[1])
         print()
