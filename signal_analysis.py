@@ -16,6 +16,14 @@ def reorganize_signal(signal):
 
     return new_sig
 
+def reorganize_signals(signals, n):
+    new_signals = []
+    for i in range(n):
+        signal = signals[:, i]
+        new_signals.append(signal)
+
+    return new_signals
+
 #filter the jump in the beginning of the signal. works better on good signals
 def filter_start(signal, offset=20):
     grad = np.gradient(signal)
@@ -25,7 +33,11 @@ def filter_start(signal, offset=20):
     return farther_i + offset
 
 #check if the values of segments are close to eachother.
-def averages_are_close(signal, start_is, end_is, averages = [], std_sensitivity = 10**(-7)):
+def averages_are_close(signal, start_is, end_is, averages = [], std_sensitivity = 10**(-10)):
+    if len(start_is) == 1 and len(averages) == 0:
+        return True
+
+    print("start is", len(start_is))
     #print(start_is)
     for i in range(len(start_is)):
         #print(i)
@@ -35,10 +47,11 @@ def averages_are_close(signal, start_is, end_is, averages = [], std_sensitivity 
         averages.append(av)
 
     print(averages)
-    #av_of_avs = sum(averages) / len(averages)
-    std = np.std(averages)
+    av_of_avs = sum(averages) / len(averages)
+    std = np.std(averages)/abs(av_of_avs)
     print("std", std)
 
+    std_sensitivity = 0.01
     return std <= std_sensitivity
 
 #UNUSED
@@ -60,10 +73,28 @@ def average_of_gradient(signal, start_i, end_i, offset_percentage = 0.05):
     grad = np.gradient(segment)
     return sum(grad) / len(grad)
 
+def cal_confidence(grad_average, rel_len, rel_dist,
+                   len_w=1.5, grad_w=10**12, dist_w=1,
+                   grad_lock = 0.5*10**(-13)):
+    if grad_average < grad_lock:
+        grad_conf = 0
+    else:
+        grad_conf = - grad_w * grad_average
+
+    len_conf = len_w * rel_len
+    dist_conf = - dist_w * rel_dist
+
+    print("grad conf", grad_conf)
+    print("len conf", len_conf)
+    print("dist conf", dist_conf)
+
+    confidence = grad_conf + len_conf + dist_conf
+
+    return confidence
+
 #the proper one for now
 #further analyse segments which stay around one value for too long
-def multi_seg_analysis(signal, start_is, end_is, badness_sensitivity,
-                       len_w=1, grad_w=2, dist_w=0.5, grad_lock = 2 * 10**(-13)):
+def multi_seg_analysis(signal, start_is, end_is, badness_sensitivity):
     final_i = len(signal) - 1
     final_segment_i = end_is[len(end_is) - 1]
 
@@ -83,19 +114,12 @@ def multi_seg_analysis(signal, start_is, end_is, badness_sensitivity,
     #print("bad", bad)
 
     if bad:
-        return (bad, 0), end_of_segment
+        return (bad, 2), end_of_segment
 
     grad_average = average_of_gradient(signal, start_is[0], end_of_segment)
-
-    grad_conf = grad_w * (1 - np.exp(abs(grad_average) / grad_lock))
-    len_conf = len_w * (end_of_segment - start_is[0]) / len(signal)
-    dist_conf = dist_w * (final_i - end_of_segment) / len(signal)
-
-    print("grad conf", grad_conf)
-    print("len conf", len_conf)
-    print("dist conf", dist_conf)
-
-    confidence = grad_conf + len_conf + dist_conf
+    rel_len = (end_of_segment - start_is[0]) / len(signal)
+    rel_dist = (final_i - end_of_segment) / len(signal)
+    confidence = cal_confidence(grad_average, rel_len, rel_dist)
 
     return (bad, confidence), end_of_segment
 
@@ -137,15 +161,29 @@ def segment_filter(signal, badness_sensitivity = 0.8):
 
     prebad = same_frac > badness_sensitivity
 
-    if not prebad and len(start_is) != 0 and averages_are_close(signal, start_is, end_is, averages=[]):
-        print("doing multiseg")
-        bad, new_end = multi_seg_analysis(signal, start_is, end_is, badness_sensitivity)
-        end_is.append(new_end)
+    #TODO signal considered bad even if segments dont have similar averages
+    #fix (?)
+    if not prebad and len(start_is) != 0:
+        print("more than one uniq segment, checking similarity")
+
+        if averages_are_close(signal, start_is, end_is, averages=[]):
+            print("averages close, doing multiseg")
+            bad, new_end = multi_seg_analysis(signal, start_is, end_is, badness_sensitivity)
+            start_is = [start_is[0]]
+            end_is = [new_end]
+        else:
+            print("averages not close, no multiseg")
+            bad = (prebad, 2)
+
     else:
         print("no multiseg")
-        bad = (prebad, 0)
+        bad = (prebad, 2)
 
+
+    #TODO broken, fix
     return [lengths, start_is, end_is], bad
+
+
 
 #check the percentage of the signal where the value stays the same
 def uniq_filter(signal, sensitivity = 0.2):
@@ -153,12 +191,9 @@ def uniq_filter(signal, sensitivity = 0.2):
     totvals = len(signal)
     frac_of_uniq = uniquevals / totvals
 
-    return frac_of_uniq, (frac_of_uniq <= sensitivity, 0)
+    return frac_of_uniq, (frac_of_uniq <= sensitivity, 2)
 
-def analyse_all(data):
-    names = data.names
-    signals = data.data
-    chan_num = data.n_channels
+def analyse_all(signals, names, chan_num):
 
     exec_times = []
     signal_status = []
@@ -166,7 +201,7 @@ def analyse_all(data):
     uniq_stats_list = []
     for i in range(chan_num):
         print(names[i])
-        signal = signals[:,i]
+        signal = signals[i]
 
         start_time = time.time()
         frac_of_uniq, bad = uniq_filter(signal)

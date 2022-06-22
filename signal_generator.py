@@ -15,6 +15,36 @@ sig_size = 500
 
 ranerr_sigma = .05
 
+def simple_one_flat(x, n):
+    jump_points = [int(n * ran.random()), int(n * ran.random())]
+    jump_points.sort()
+    print(jump_points)
+    x1 = jump_points[0]
+    x2 = jump_points[1]
+    y = 3 * 10**(-8) * ran.random()
+    y1 = 3 * 10**(-8) * ran.random()
+    y2 = 3 * 10**(-8) * ran.random()
+
+    y_arr = []
+
+    for x_val in x:
+        if x_val > x1 and x_val < x2:
+            slope = 0
+            b = y
+
+        if x_val < x1:
+            slope = (y1 / x1)
+            b = y - slope * x1
+
+        if x_val > x2:
+            slope = (y2 - y) / (n - x2)
+            b = y - slope * x2
+
+        val = slope * x_val + b
+        y_arr.append(val)
+
+    return y_arr
+
 def signal_func(t, a, tau, const, b, w, phi):
     return a * np.exp(-t/tau) + b * np.sin(w * t + phi) + const
 

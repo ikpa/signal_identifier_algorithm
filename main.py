@@ -8,22 +8,16 @@ import pandas as pd
 methods = ["Pelt", "Dynp", "Binseg", "Window"]
 datadir = "example_data_for_patrik/"
 
-def firstver():
-    fname = datadir + "many_many_successful2.npz"
-    data = fr.load_all(fname).subpool(["MEG*1"]).clip((0.210, 0.50))
-    time = data.time
-    statuses, fracs, uniq_stats_list, exec_times = sa.analyse_all(data)
-    n = data.n_channels
-
-    for i in range(n):
-        name = data.names[i]
-        signal = data.data[:, i]
+def plot_in_order(signals, names, n_chan, statuses, fracs, uniq_stats_list, exec_times):
+    for i in range(n_chan):
+        name = names[i]
+        signal = signals[i]
         bad = statuses[i]
         frac = fracs[i]
         uniq_stats = uniq_stats_list[i]
         exec_time = exec_times[i]
 
-        print(name)
+        #print(name)
         if bad[0]:
             #print("bad, skipping")
             #print()
@@ -39,24 +33,85 @@ def firstver():
         title = name + ": " + status
         if not len(uniq_stats) == 0:
 
-            print(uniq_stats[0])
+            #print(uniq_stats[0])
             if not len(uniq_stats[0]) == 0:
-                same_sum = uniq_stats[2][len(uniq_stats[2]) - 1] - uniq_stats[1][0]
+                same_sum = uniq_stats[2] - uniq_stats[1]
                 same_frac = same_sum / len(signal)
-                for j in range(len(uniq_stats[0])):
-                    # plt.axvline(x=start_is[i], linestyle="--", color="black")
-                    # plt.axvline(x=end_is[i], linestyle="--", color="black")
-                    ax1.axvspan(uniq_stats[1][j], uniq_stats[2][j], alpha=.5)
+                ax1.axvspan(uniq_stats[1], uniq_stats[2], alpha=.5)
                 title += ", confidence: " + str(bad[1])
 
         plt.title(title)
-
-
         plt.grid()
 
         plt.show()
 
-        print()
+def firstver():
+    fname = datadir + "many_failed.npz"
+    data = fr.load_all(fname).subpool(["MEG*1"]).clip((0.210, 0.50))
+    unorganized_signals = data.data
+    names = data.names
+    n_chan = data.n_channels
+    time = data.time
+    signals = sa.reorganize_signals(unorganized_signals, n_chan)
+    statuses, fracs, uniq_stats_list, exec_times = sa.analyse_all(signals, names, n_chan)
+
+    plot_in_order(signals, names, n_chan, statuses, fracs, uniq_stats_list, exec_times)
+
+    # for i in range(n_chan):
+    #     name = data.names[i]
+    #     signal = signals[i]
+    #     bad = statuses[i]
+    #     frac = fracs[i]
+    #     uniq_stats = uniq_stats_list[i]
+    #     exec_time = exec_times[i]
+    #
+    #     print(name)
+    #     if bad[0]:
+    #         #print("bad, skipping")
+    #         #print()
+    #         #continue
+    #         status = "bad"
+    #     else:
+    #         status = "good"
+    #
+    #     fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
+    #     ax1.plot(signal)
+    #     ax1.axvline(x=sa.filter_start(signal), linestyle="--")
+    #     ax2.plot(np.gradient(signal))
+    #     title = name + ": " + status
+    #     if not len(uniq_stats) == 0:
+    #
+    #         print(uniq_stats[0])
+    #         if not len(uniq_stats[0]) == 0:
+    #             same_sum = uniq_stats[2][len(uniq_stats[2]) - 1] - uniq_stats[1][0]
+    #             same_frac = same_sum / len(signal)
+    #             for j in range(len(uniq_stats[0])):
+    #                 # plt.axvline(x=start_is[i], linestyle="--", color="black")
+    #                 # plt.axvline(x=end_is[i], linestyle="--", color="black")
+    #                 ax1.axvspan(uniq_stats[1][j], uniq_stats[2][j], alpha=.5)
+    #             title += ", confidence: " + str(bad[1])
+    #
+    #     plt.title(title)
+    #     plt.grid()
+    #
+    #     plt.show()
+    #
+    #     print()
+
+def simulation():
+    n = 2900
+    x = np.linspace(0, n, n)
+    n_chan = 20
+
+    signals = []
+    names = []
+
+    for i in range(n_chan):
+        names.append(str(i + 1))
+        signals.append(sg.simple_one_flat(x, n))
+
+    statuses, fracs, uniq_stats_list, exec_times = sa.analyse_all(signals, names, n_chan)
+    plot_in_order(signals, names, n_chan, statuses, fracs, uniq_stats_list, exec_times)
 
 def averagetest():
     fname = datadir + "many_failed.npz"
@@ -161,7 +216,8 @@ if __name__ == '__main__':
     #analysis()
     #dataload()
     #averagetest()
-    firstver()
+    simulation()
+    #firstver()
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
