@@ -45,6 +45,30 @@ def simple_one_flat(x, n):
 
     return y_arr
 
+#TODO figure it out
+def simple_many_flat(x, n, n_flats):
+    jump_points = [0, n]
+    flat_ys = [3 * 10 ** (-8) * ran.random(), 3 * 10 ** (-8) * ran.random()]
+
+    for i in range(n_flats):
+        jump_points.append(int(n * ran.random()))
+        jump_points.append(int(n * ran.random()))
+
+        flat_ys.append(3 * 10 ** (-8) * ran.random())
+
+    jump_points.sort()
+
+    for x_val in x:
+
+        for i in range(n_flats):
+            x1 = jump_points[i]
+            x2 = jump_points[i + 1]
+
+
+
+
+    print(jump_points)
+
 def signal_func(t, a, tau, const, b, w, phi):
     return a * np.exp(-t/tau) + b * np.sin(w * t + phi) + const
 

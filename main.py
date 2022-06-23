@@ -34,10 +34,12 @@ def plot_in_order(signals, names, n_chan, statuses, fracs, uniq_stats_list, exec
         if not len(uniq_stats) == 0:
 
             #print(uniq_stats[0])
-            if not len(uniq_stats[0]) == 0:
-                same_sum = uniq_stats[2] - uniq_stats[1]
-                same_frac = same_sum / len(signal)
-                ax1.axvspan(uniq_stats[1], uniq_stats[2], alpha=.5)
+            if not len(uniq_stats[1]) == 0:
+                #same_sum = uniq_stats[2] - uniq_stats[1]
+                #same_frac = same_sum / len(signal)
+                for j in range(len(uniq_stats[1])):
+                    ax1.axvspan(uniq_stats[1][j], uniq_stats[2][j], alpha=.5)
+
                 title += ", confidence: " + str(bad[1])
 
         plt.title(title)
@@ -216,8 +218,8 @@ if __name__ == '__main__':
     #analysis()
     #dataload()
     #averagetest()
-    simulation()
-    #firstver()
+    #simulation()
+    firstver()
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
