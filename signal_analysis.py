@@ -130,14 +130,15 @@ def multi_seg_analysis(signal, start_is, end_is, badness_sensitivity):
 
     return (bad, confidence), end_of_segment
 
-
+#220
 # finds segments in the signal where the value stays approximately the same for long periods
-def find_uniq_segments(signal, sensitive_length=220, relative_sensitivity=0.02):
+def find_uniq_segments(signal, rel_sensitive_length = 0.07, relative_sensitivity=0.02):
     lengths = []
     start_is = []
     end_is = []
     lock_val = None
 
+    sensitive_length = len(signal) * rel_sensitive_length
     length = 1
     for i in range(len(signal)):
         val = signal[i]
@@ -178,6 +179,7 @@ def segment_filter(signal, badness_sensitivity=0.8):
         if len(start_is) == 1:
             print("one uniq segment, rechecking tail with multiseg")
             bad, new_end = multi_seg_analysis(signal, start_is, end_is, badness_sensitivity)
+            end_is = [new_end]
 
         if len(start_is) > 1:
             print(str(len(start_is)) + " uniq segments, checking similarity")

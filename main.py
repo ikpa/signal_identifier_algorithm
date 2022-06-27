@@ -8,7 +8,7 @@ import pandas as pd
 methods = ["Pelt", "Dynp", "Binseg", "Window"]
 datadir = "example_data_for_patrik/"
 
-def plot_in_order(signals, names, n_chan, statuses, fracs, uniq_stats_list, exec_times):
+def plot_in_order(signals, names, n_chan, statuses, fracs, uniq_stats_list, exec_times, ylims=None):
     for i in range(n_chan):
         name = names[i]
         signal = signals[i]
@@ -29,6 +29,9 @@ def plot_in_order(signals, names, n_chan, statuses, fracs, uniq_stats_list, exec
         fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
         ax1.plot(signal)
         ax1.axvline(x=sa.filter_start(signal), linestyle="--")
+        if ylims != None:
+            ax1.set_ylim(ylims)
+
         ax2.plot(np.gradient(signal))
         title = name + ": " + status
         if not len(uniq_stats) == 0:
@@ -110,10 +113,10 @@ def simulation():
 
     for i in range(n_chan):
         names.append(str(i + 1))
-        signals.append(sg.simple_one_flat(x, n))
+        signals.append(sg.simple_many_flat(x, n, 3))
 
     statuses, fracs, uniq_stats_list, exec_times = sa.analyse_all(signals, names, n_chan)
-    plot_in_order(signals, names, n_chan, statuses, fracs, uniq_stats_list, exec_times)
+    plot_in_order(signals, names, n_chan, statuses, fracs, uniq_stats_list, exec_times, ylims=[-.2 * 10**(-8), 3.2 * 10 ** (-8)])
 
 def averagetest():
     fname = datadir + "many_failed.npz"
