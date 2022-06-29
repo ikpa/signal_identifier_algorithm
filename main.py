@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import file_reader as fr
 import numpy as np
 import pandas as pd
+import helmet_vis as vis
 
 methods = ["Pelt", "Dynp", "Binseg", "Window"]
 datadir = "example_data_for_patrik/"
@@ -216,13 +217,29 @@ def basic():
     plt.legend()
     plt.show()
 
+def plottest():
+    fname = datadir + "many_many_successful.npz"
+    data = fr.load_all(fname).subpool(["MEG*1"]).clip((0.210, 0.50))
+    signals = data.data
+    names = data.names
+    n = data.n_channels
+    signals = sa.reorganize_signals(signals, n)
+
+    points = []
+
+    for signal in signals:
+        points.append(signal[1000])
+    print(np.shape(points))
+    vis.plot_all(names, points)
+
 if __name__ == '__main__':
     #basic()
     #analysis()
     #dataload()
     #averagetest()
     #simulation()
-    firstver()
+    #firstver()
+    plottest()
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/

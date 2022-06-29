@@ -1,0 +1,133 @@
+Metadata-Version: 2.1
+Name: pyface
+Version: 7.4.1
+Summary: traits-capable windowing framework
+Home-page: http://docs.enthought.com/pyface
+Author: David C. Morrill, et al.
+Author-email: dmorrill@enthought.com
+Maintainer: ETS Developers
+Maintainer-email: enthought-dev@enthought.com
+License: BSD
+Download-URL: https://github.com/enthought/pyface
+Platform: Windows
+Platform: Linux
+Platform: Mac OS-X
+Platform: Unix
+Platform: Solaris
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Operating System :: MacOS
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Operating System :: OS Independent
+Classifier: Operating System :: POSIX
+Classifier: Operating System :: Unix
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Topic :: Scientific/Engineering
+Classifier: Topic :: Software Development
+Classifier: Topic :: Software Development :: Libraries
+Requires-Python: >=3.6
+Description-Content-Type: text/x-rst
+License-File: LICENSE-CC-BY-3.0.txt
+License-File: LICENSE.txt
+Requires-Dist: traits (>=6.2)
+Requires-Dist: importlib-metadata (>=3.6.0) ; python_version < "3.8"
+Requires-Dist: importlib-resources (>=1.1.0) ; python_version < "3.9"
+Provides-Extra: pillow
+Requires-Dist: pillow ; extra == 'pillow'
+Provides-Extra: pyqt
+Requires-Dist: pyqt (>=4.10) ; extra == 'pyqt'
+Requires-Dist: pygments ; extra == 'pyqt'
+Provides-Extra: pyqt5
+Requires-Dist: pyqt5 ; extra == 'pyqt5'
+Requires-Dist: pygments ; extra == 'pyqt5'
+Provides-Extra: pyqt6
+Requires-Dist: pyqt6 ; extra == 'pyqt6'
+Requires-Dist: pygments ; extra == 'pyqt6'
+Provides-Extra: pyside2
+Requires-Dist: pyside2 ; extra == 'pyside2'
+Requires-Dist: shiboken2 ; extra == 'pyside2'
+Requires-Dist: pygments ; extra == 'pyside2'
+Provides-Extra: pyside6
+Requires-Dist: pyside6 ; extra == 'pyside6'
+Requires-Dist: pygments ; extra == 'pyside6'
+Provides-Extra: test
+Requires-Dist: packaging ; extra == 'test'
+Provides-Extra: wx
+Requires-Dist: wxpython (>=4) ; extra == 'wx'
+Requires-Dist: numpy ; extra == 'wx'
+
+==========================================
+Pyface: Traits-capable Windowing Framework
+==========================================
+
+The Pyface project contains a toolkit-independent GUI abstraction layer,
+which is used to support the "visualization" features of the Traits package.
+Thus, you can write code in terms of the Traits API (views, items, editors,
+etc.), and let Pyface and your selected toolkit and back-end take care of
+the details of displaying them.
+
+The following GUI backends are supported:
+
+- PySide2 (stable) and PySide6 (experimental)
+- PyQt5 (stable) and PyQt6 (in development)
+- wxPython 4 (experimental)
+
+Installation
+------------
+
+GUI backends are marked as optional dependencies of Pyface. Some features
+or infrastructures may also require additional dependencies.
+
+To install with PySide2 dependencies::
+
+    $ pip install pyface[pyside2]
+
+To install with PySide6 dependencies (experimental)::
+
+    $ pip install pyface[pyside6]
+
+To install with PyQt5 dependencies::
+
+    $ pip install pyface[pyqt5]
+
+To install with wxPython4 dependencies (experimental)::
+
+    $ pip install pyface[wx]
+
+``pillow`` is an optional dependency for the PILImage class::
+
+    $ pip install pyface[pillow]
+
+To install with additional test dependencies::
+
+    $ pip install pyface[test]
+
+Documentation
+-------------
+
+* `Online Documentation <http://docs.enthought.com/pyface/>`_.
+
+* `API Documentation <http://docs.enthought.com/pyface/api/pyface.html>`_.
+
+Prerequisites
+-------------
+
+Pyface depends on:
+
+* `Traits <https://github.com/enthought/traits>`_
+
+* a GUI toolkit as described above
+
+* Pygments for syntax highlighting in the Qt code editor widget.
+
+* some widgets may have additional optional dependencies such as NumPy or
+  Pillow.
+
+
+

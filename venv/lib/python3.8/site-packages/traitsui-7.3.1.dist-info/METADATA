@@ -1,0 +1,157 @@
+Metadata-Version: 2.1
+Name: traitsui
+Version: 7.3.1
+Summary: traitsui: traits-capable user interfaces
+Home-page: http://docs.enthought.com/traitsui
+Author: David C. Morrill, et. al.
+Author-email: dmorrill@enthought.com
+Maintainer: ETS Developers
+Maintainer-email: enthought-dev@enthought.com
+License: BSD
+Download-URL: https://github.com/enthought/traitsui
+Platform: Windows
+Platform: Linux
+Platform: Mac OS-X
+Platform: Unix
+Platform: Solaris
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Operating System :: MacOS
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Operating System :: OS Independent
+Classifier: Operating System :: POSIX
+Classifier: Operating System :: Unix
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Topic :: Scientific/Engineering
+Classifier: Topic :: Software Development
+Classifier: Topic :: Software Development :: Libraries
+Requires-Python: >=3.6
+Description-Content-Type: text/x-rst
+License-File: LICENSE.txt
+Requires-Dist: traits (>=6.2.0)
+Requires-Dist: pyface (>=7.4.1)
+Provides-Extra: demo
+Requires-Dist: configobj ; extra == 'demo'
+Requires-Dist: docutils ; extra == 'demo'
+Provides-Extra: docs
+Requires-Dist: enthought-sphinx-theme ; extra == 'docs'
+Requires-Dist: sphinx ; extra == 'docs'
+Provides-Extra: editors
+Requires-Dist: numpy ; extra == 'editors'
+Requires-Dist: pandas ; extra == 'editors'
+Provides-Extra: examples
+Requires-Dist: apptools ; extra == 'examples'
+Requires-Dist: h5py ; extra == 'examples'
+Requires-Dist: numpy ; extra == 'examples'
+Requires-Dist: pandas ; extra == 'examples'
+Requires-Dist: tables ; extra == 'examples'
+Provides-Extra: pyqt
+Requires-Dist: pyqt (>=4.10) ; extra == 'pyqt'
+Requires-Dist: pygments ; extra == 'pyqt'
+Provides-Extra: pyqt5
+Requires-Dist: pyqt5 ; extra == 'pyqt5'
+Requires-Dist: pygments ; extra == 'pyqt5'
+Provides-Extra: pyside2
+Requires-Dist: pyside2 ; extra == 'pyside2'
+Requires-Dist: shiboken2 ; extra == 'pyside2'
+Requires-Dist: pygments ; extra == 'pyside2'
+Provides-Extra: pyside6
+Requires-Dist: pyside6 ; extra == 'pyside6'
+Requires-Dist: shiboken6 ; extra == 'pyside6'
+Requires-Dist: pygments ; extra == 'pyside6'
+Provides-Extra: test
+Requires-Dist: packaging ; extra == 'test'
+Requires-Dist: numpy ; extra == 'test'
+Provides-Extra: wx
+Requires-Dist: wxpython (>=4) ; extra == 'wx'
+Requires-Dist: numpy ; extra == 'wx'
+
+============================================
+TraitsUI: Traits-capable windowing framework
+============================================
+
+The TraitsUI project provides a toolkit-independent GUI abstraction layer,
+which is used to support the "visualization" features of the
+`Traits <http://github.com/enthought/traits>`__ package.
+You can write a model using the Traits API and specify a GUI using the TraitsUI
+API (views, items, editors, etc.), and let TraitsUI and your selected toolkit
+back-end (Qt or Wx) take care of the details of displaying them.
+
+Example
+-------
+
+Given a Traits model like the following::
+
+    from traits.api import HasTraits, Str, Range, Enum
+
+    class Person(HasTraits):
+        name = Str('Jane Doe')
+        age = Range(low=0)
+        gender = Enum('female', 'male')
+
+    person = Person(age=30)
+
+And using TraitsUI to specify and display a GUI view::
+
+    from traitsui.api import Item, RangeEditor, View
+
+    person_view = View(
+        Item('name'),
+        Item('gender'),
+        Item('age', editor=RangeEditor(mode='spinner', low=0, high=150)),
+        buttons=['OK', 'Cancel'],
+        resizable=True,
+    )
+
+    person.configure_traits(view=person_view)
+
+It creates a GUI which looks like this:
+
+.. image:: https://raw.github.com/enthought/traitsui/main/README_example.png
+
+Important Links
+---------------
+
+- Website and Documentation: `<http://docs.enthought.com/traitsui>`__
+
+  * User Manual `<http://docs.enthought.com/traitsui/traitsui_user_manual>`__
+  * Tutorial `<http://docs.enthought.com/traitsui/tutorials>`__
+  * API Documentation `<http://docs.enthought.com/traitsui/api>`__
+
+- Source code repository: `<https://github.com/enthought/traitsui>`__
+
+  * Issue tracker: `<https://github.com/enthought/traitsui/issues>`__
+
+- Download releases: `<https://pypi.python.org/pypi/traitsui>`__
+
+- Mailing list: `<https://groups.google.com/forum/#!forum/ets-users>`__
+
+Installation
+------------
+
+If you want to run traitsui, you must also install:
+
+- Traits `<https://github.com/enthought/traits>`__
+- Pyface `<https://github.com/enthought/pyface>`__
+
+You will also need one of the following backends:
+
+- wxPython
+- PySide2
+- PyQt5
+
+Backends have additional dependencies and there are optional dependencies on
+NumPy and Pandas for some editors.
+
+TraitsUI along with all dependencies can be installed in a straightforward way
+using the `Enthought Deployment Manager <http://docs.enthought.com/edm/>`__,
+``pip`` or other .
+
+
+
