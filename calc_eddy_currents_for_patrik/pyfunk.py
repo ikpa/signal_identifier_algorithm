@@ -18,7 +18,8 @@ expect this to be useful in a variety of contexts.
 """
 from __future__ import unicode_literals, division, print_function
 
-from tags import *
+from calc_eddy_currents_for_patrik.tags import *
+#from tags import *
 import numpy as np
 
 # TODO force fill values on left and right side (i.e. constant outside bounds)

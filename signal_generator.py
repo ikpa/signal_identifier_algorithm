@@ -1,5 +1,9 @@
 import random as ran
 import numpy as np
+import calc_eddy_currents_for_patrik.pyfunk as pf
+from calc_eddy_currents_for_patrik.coils.eddycurrents0 import diagonalize, transient_amplitudes, SplitBoxRoom, UNIT
+from calc_eddy_currents_for_patrik.coils.coils import ScalarCoilPlate, DipoleSet
+import matplotlib.pyplot as plt
 
 errtypes = ["saturation", "jump"]
 
@@ -166,3 +170,121 @@ def gen_signal(containsError = False, containsNoise=True):
 
 
     return signal, t_space, start_index
+
+
+def inv_step_response(system, coil, field_p, field_dir, length, mode_selection=None):
+    """Get inverse step response of an eddy-current system to pulsed coil.
+
+    Arguments:
+        system: the eddy current system (CoilSystem object)
+        coil: an CoilSystem object representing the coil
+        field_p: the point at which the field is measured
+        field_dir: a unit vector in the direction of the field measurement
+        length: length of the inverse step response in seconds
+    """
+
+    def mode_responses():
+        from functools import partial
+        fun = lambda t, tau: np.exp(-t / tau)
+        for lambda_, tau in zip(system.lambdas, system.tau):
+            yield pf.Function(partial(fun, tau=tau), (0.0, length))
+
+    basis = FunctionBasis(mode_responses())
+
+    coil_c = coil.mutual_inductances(system).flatten()
+    field_c = system.generated_fields(field_p).T.dot(field_dir.flatten())
+
+    mode_input = system.V.T.dot(coil_c) / system.lambdas
+    mode_output = system.V.T.dot(field_c)
+
+    return basis.get_waveform(mode_input * mode_output)
+
+
+def calc_response(pulse, resp_function):
+    """Get system response to pulse, based on given inverse step response."""
+    return -pulse.differentiate().convolve(resp_function)
+
+
+class LinearCombination(pf.Waveform):
+    """A waveform that is a linear combination of other waveforms."""
+
+    def __init__(self, functions, coefficients):
+        self.coefficients = coefficients
+        self.functions = functions
+        self.bound_tags = \
+            tuple((max((b.bound_tags[0] for b in self.functions), key=lambda x: x.value),
+                   min((b.bound_tags[1] for b in self.functions), key=lambda x: x.value)))
+
+    def sample(self, positions):
+        return np.sum([bf.sample(positions) * c
+                       for bf, c in zip(self.functions, self.coefficients)], axis=0)
+
+
+class FunctionBasis(object):
+    """A waveform function basis"""
+
+    def __init__(self, basis_waveforms):
+        self.functions = list(basis_waveforms)
+
+    def get_waveform(self, coefficients):
+        """Get the waveform based on a coefficient or 'coordinate' vector."""
+        return LinearCombination(self.functions, coefficients)
+
+
+def simulate_eddy(detectors):
+    # Some ft units are used to define this, because it is how the Berkeley
+    # shielded room was built, but everything gets quickly converted to SI units
+    room = SplitBoxRoom(detail_scale=UNIT.FOOT,
+                        thickness=10e-3)
+    diagonalize(room)
+
+    # polarizing coil (modeled as a dipole)
+    # 2022-06: tämän suuntaa on myös helppo kääntää t. Koos
+
+    p_n = 240.0
+    p_r = 0.19
+    p_I = 200.0
+
+    p_center = np.array([0, 0, -3.0 * 0.0254])  # position of coil center
+    p_dipole = np.array([0, 0, 1.]) * p_n * np.pi * p_r ** 2  # dipole moment
+    p_coil = DipoleSet(p_center, p_dipole)
+
+    # DynaCAN coil (larger square)
+    c_side = 1.85
+    c_turns = 30
+    c_res = 100
+    c_R = 30. / 40 * 1.2
+    c_L = (30. / 40) ** 2 * 10e-3
+    c_center = -4 * UNIT.FOOT + 1.125
+    c_coil = ScalarCoilPlate(c_center,
+                             (np.array([c_side, 0, 0]), np.array([0, c_side, 0])),
+                             np.ones((1, c_res, c_res)) * c_turns,
+                             label="dynacan_coil")
+
+    isr_length = 500e-3
+    p_ramp_time = 11.6e-3
+    p_pulse = p_I * pf.RampedBox(1.0,
+                                 (-0.2, -p_ramp_time),
+                                 (10e-3, p_ramp_time),
+                                 (pf.LinearRamp, pf.QuarterCosineRamp))
+
+    responses = []
+    for name in detectors:
+        detector = detectors[name]
+        r = detector[:3, 3]
+        v = detector[:3, 2]
+
+        print("calculating response for " + name)
+
+        p_isr = inv_step_response(room, p_coil,
+                                  r, v, isr_length).to_samples()
+        #c_isr = inv_step_response(room, c_coil,
+        #                          r, v, isr_length).to_samples()
+
+        p_trans = calc_response(p_pulse, p_isr)
+        responses.append(p_trans)
+        #p_trans.plot()
+        #plt.show()
+
+    return responses
+

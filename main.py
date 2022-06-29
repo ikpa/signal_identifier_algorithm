@@ -5,6 +5,7 @@ import file_reader as fr
 import numpy as np
 import pandas as pd
 import helmet_vis as vis
+import re
 
 methods = ["Pelt", "Dynp", "Binseg", "Window"]
 datadir = "example_data_for_patrik/"
@@ -218,7 +219,7 @@ def basic():
     plt.show()
 
 def plottest():
-    fname = datadir + "many_many_successful.npz"
+    fname = datadir + "many_many_successful2.npz"
     data = fr.load_all(fname).subpool(["MEG*1"]).clip((0.210, 0.50))
     signals = data.data
     names = data.names
@@ -230,7 +231,58 @@ def plottest():
     for signal in signals:
         points.append(signal[1000])
     print(np.shape(points))
-    vis.plot_all(names, points)
+    vis.plot_all(names, points, cmap="Purples")
+
+def animtest():
+    from mayavi import mlab
+    x, y = np.mgrid[0:3:1, 0:3:1]
+    s = mlab.surf(x, y, np.asarray(x * 0.1, 'd'), color=(0,0,0), colormap="Greens")
+    tex = mlab.text(0, 0, "xd")
+
+    @mlab.animate
+    def anim():
+        for i in range(100):
+            c = i/100
+            print(c)
+            color = (c, c, c)
+            s.mlab_source.trait_set(color=color)
+            tex.set(text=str(c))
+            yield
+
+    anim()
+    mlab.show()
+
+def regex_filter(list, regex):
+    new_list = []
+
+    for item in list:
+        if re.match(regex, item):
+            new_list.append(item)
+
+    return new_list
+
+def simo():
+    detecs = np.load("array120_trans_newnames.npz")
+    detecs = regex_filter(detecs, "1$")
+    print(detecs)
+
+    #for detec in detecs:
+    #    print(detec)
+
+    signals = sg.simulate_eddy(detecs)
+
+
+    points = []
+
+    for signal in signals:
+        arr = signal.to_samples()._samples
+        point = arr[800]
+        print(np.shape(arr))
+        print(point)
+        points.append(point)
+
+    print(np.shape(points))
+    vis.plot_all(detecs, points, cmap="Purples")
 
 if __name__ == '__main__':
     #basic()
@@ -239,7 +291,9 @@ if __name__ == '__main__':
     #averagetest()
     #simulation()
     #firstver()
-    plottest()
+    #plottest()
+    #animtest()
+    simo()
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
