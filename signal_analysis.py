@@ -16,7 +16,6 @@ def reorganize_signal(signal):
 
     return new_sig
 
-
 def reorganize_signals(signals, n):
     new_signals = []
     for i in range(n):
@@ -24,6 +23,28 @@ def reorganize_signals(signals, n):
         new_signals.append(signal)
 
     return new_signals
+
+def find_nearby_detectors(d_name, detectors, r_sens = 0.06):
+    dut = detectors[d_name]
+    r_dut = dut[:3, 3]
+    v_dut = dut[:3, 2]
+
+    nears = []
+
+    for name in detectors:
+        if name == d_name or name.endswith("4"):
+            continue
+
+        detector = detectors[name]
+        r = detector[:3, 3]
+        delta_r = np.sqrt((r_dut[0] - r[0])**2 +
+                          (r_dut[1] - r[1])**2 +
+                          (r_dut[2] - r[2])**2)
+
+        if delta_r < r_sens:
+            nears.append(name)
+
+    return nears
 
 
 # filter the jump in the beginning of the signal. works better on good signals

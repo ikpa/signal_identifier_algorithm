@@ -143,7 +143,8 @@ def plot_sensor_data(channels, data, cmap = 'viridis',
         else:
             color = pcolor
         mlab.plot3d(*p, color=color, tube_radius=0.0005)
-        if name in channels and name not in bads:
+        #if name in channels and name not in bads:
+        if name in channels:
             verts.extend(p[:,:-1].T)
             tris.append(tris_pickup[0] + jj)
             tris.append(tris_pickup[1] + jj)
@@ -166,8 +167,13 @@ def plot_sensor_data(channels, data, cmap = 'viridis',
                 @ rotationmat(np.pi/2*np.array([0,0,1])))
         Rtext2 = rotationmat(np.pi/2*np.array([0,0,1]))
         for p,n,t in zip(points_names,names,transforms.values()):
-            if "MEG" in n:
+
+            if n in bads:
+                n = "BAD"
+                color = (1, 0, 0)
+            elif "MEG" in n:
                 n = n[3:]
+                color = (0,0,0)
             angles = rotationToVtk(t[:3,:3] @ Rtext)
             angles2 = rotationToVtk(t[:3,:3] @ Rtext2)
     #            print(angles)
@@ -175,10 +181,10 @@ def plot_sensor_data(channels, data, cmap = 'viridis',
             pn2 = p + pickup_R*(0.9*t[:3,0] - t[:3,1])*0.9  +t[:3,2]*0.001
     #            mlab.plot3d([p[0], pn[0]],[p[1], pn[1]],[p[2], pn[2]],
     #                        color=(0,0,0), tube_radius=None)
-            t1 = mlab.text3d(*pn, n, color=(0,0,0), scale=0.006,
+            t1 = mlab.text3d(*pn, n, color=color, scale=0.006,
                         orient_to_camera=False, orientation=angles)
             t1.actor.property.backface_culling = True
-            t2 = mlab.text3d(*pn2, n, color=(0,0,0), scale=0.006,
+            t2 = mlab.text3d(*pn2, n, color=color, scale=0.006,
                         orient_to_camera=False, orientation=angles2)
             t2.actor.property.backface_culling = True
 

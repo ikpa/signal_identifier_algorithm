@@ -231,7 +231,7 @@ class FunctionBasis(object):
         return LinearCombination(self.functions, coefficients)
 
 
-def simulate_eddy(detectors):
+def simulate_eddy(detectors, names):
     # Some ft units are used to define this, because it is how the Berkeley
     # shielded room was built, but everything gets quickly converted to SI units
     room = SplitBoxRoom(detail_scale=UNIT.FOOT,
@@ -269,8 +269,9 @@ def simulate_eddy(detectors):
                                  (pf.LinearRamp, pf.QuarterCosineRamp))
 
     responses = []
-    for name in detectors:
-        detector = detectors[name]
+    for i in range(len(detectors)):
+        detector = detectors[i]
+        name = names[i]
         r = detector[:3, 3]
         v = detector[:3, 2]
 
@@ -282,9 +283,7 @@ def simulate_eddy(detectors):
         #                          r, v, isr_length).to_samples()
 
         p_trans = calc_response(p_pulse, p_isr)
-        responses.append(p_trans)
-        #p_trans.plot()
-        #plt.show()
+        responses.append(p_trans.to_samples()._samples)
 
     return responses
 

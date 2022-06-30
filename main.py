@@ -5,19 +5,21 @@ import file_reader as fr
 import numpy as np
 import pandas as pd
 import helmet_vis as vis
+from mayavi import mlab
 import re
 
 methods = ["Pelt", "Dynp", "Binseg", "Window"]
 datadir = "example_data_for_patrik/"
 
-def plot_in_order(signals, names, n_chan, statuses, fracs, uniq_stats_list, exec_times, ylims=None):
+def plot_in_order(signals, names, n_chan, statuses, fracs=[], uniq_stats_list=[],
+                  exec_times=[], ylims=None):
     for i in range(n_chan):
         name = names[i]
         signal = signals[i]
         bad = statuses[i]
-        frac = fracs[i]
-        uniq_stats = uniq_stats_list[i]
-        exec_time = exec_times[i]
+        frac = fracs[i] if not len(fracs) == 0 else 0
+        uniq_stats = uniq_stats_list[i] if not len(uniq_stats_list) == 0 else []
+        exec_time = exec_times[i] if not len(exec_times) == 0 else 0
 
         #print(name)
         if bad[0]:
@@ -64,47 +66,6 @@ def firstver():
 
     plot_in_order(signals, names, n_chan, statuses, fracs, uniq_stats_list, exec_times)
 
-    # for i in range(n_chan):
-    #     name = data.names[i]
-    #     signal = signals[i]
-    #     bad = statuses[i]
-    #     frac = fracs[i]
-    #     uniq_stats = uniq_stats_list[i]
-    #     exec_time = exec_times[i]
-    #
-    #     print(name)
-    #     if bad[0]:
-    #         #print("bad, skipping")
-    #         #print()
-    #         #continue
-    #         status = "bad"
-    #     else:
-    #         status = "good"
-    #
-    #     fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
-    #     ax1.plot(signal)
-    #     ax1.axvline(x=sa.filter_start(signal), linestyle="--")
-    #     ax2.plot(np.gradient(signal))
-    #     title = name + ": " + status
-    #     if not len(uniq_stats) == 0:
-    #
-    #         print(uniq_stats[0])
-    #         if not len(uniq_stats[0]) == 0:
-    #             same_sum = uniq_stats[2][len(uniq_stats[2]) - 1] - uniq_stats[1][0]
-    #             same_frac = same_sum / len(signal)
-    #             for j in range(len(uniq_stats[0])):
-    #                 # plt.axvline(x=start_is[i], linestyle="--", color="black")
-    #                 # plt.axvline(x=end_is[i], linestyle="--", color="black")
-    #                 ax1.axvspan(uniq_stats[1][j], uniq_stats[2][j], alpha=.5)
-    #             title += ", confidence: " + str(bad[1])
-    #
-    #     plt.title(title)
-    #     plt.grid()
-    #
-    #     plt.show()
-    #
-    #     print()
-
 def simulation():
     n = 2900
     x = np.linspace(0, n, n)
@@ -120,81 +81,6 @@ def simulation():
     statuses, fracs, uniq_stats_list, exec_times = sa.analyse_all(signals, names, n_chan)
     plot_in_order(signals, names, n_chan, statuses, fracs, uniq_stats_list, exec_times, ylims=[-.2 * 10**(-8), 3.2 * 10 ** (-8)])
 
-def averagetest():
-    fname = datadir + "many_failed.npz"
-    channame = "MEG0631"
-    channame = "MEG1421"
-    channame = "MEG1731"
-    data = fr.load_all(fname).subpool([channame]).clip((0.210, 0.50))
-    signal = sa.reorganize_signal(data.data)
-    print(signal)
-    uniq_stats, bad = sa.segment_filter(signal)
-    averages = sa.find_start_of_seg(signal, uniq_stats[1][0])
-
-    print(len(signal))
-    print(len(averages))
-
-    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex= True)
-    ax1.plot(signal)
-    ax2.plot(averages)
-    ax3.plot(np.gradient(signal))
-
-    plt.show()
-
-def dataload():
-    fname = datadir + "many_failed.npz"
-    data = fr.load_all(fname).subpool(["MEG*1"]).clip((0.210, 0.50))
-    names = data.names
-    n = data.n_channels
-    #time = data.subpool([chan_name]).time
-
-    for j in range(n):
-        signal = data.data[:, j]
-        #vals, lens, start_is, end_is = sa.find_uniq_segments(signal, 4)
-        uniq_stats = sa.segment_filter(signal, 4)
-        print(uniq_stats[0])
-        print(uniq_stats[1])
-        print()
-        #print(len(lens))
-        #print(len(start_is))
-
-        #print(len(np.unique(signal)))
-
-        plt.plot(signal, ".-")
-        plt.title(names[j])
-        for i in range(len(uniq_stats[0])):
-            # plt.axvline(x=start_is[i], linestyle="--", color="black")
-            # plt.axvline(x=end_is[i], linestyle="--", color="black")
-            plt.axvspan(uniq_stats[2][i], uniq_stats[3][i], alpha=.5)
-
-        plt.show()
-
-
-def analysis():
-    window = 10
-    signal, t, i = sg.gen_signal(containsError=True, containsNoise=True)
-    #i = i - (window - 1)
-    #print(type(signal))
-    #print(len(signal))
-    #signal = pd.Series(signal).rolling(window=window).mean()
-    #signal = signal[~np.isnan(signal)]
-    #print(len(signal))
-    #dsig = np.gradient(signal)
-    #print(dsig)
-    #print(type(signal))
-    print()
-    print("actual breakpoint", i)
-
-    for method in methods:
-        print("calculating with method " + method)
-        points = sa.find_changes_rpt(signal, method)
-        sa.rpt_plot(signal, points)
-        plt.title(method)
-        print("predicted breakpoint(s)", points)
-
-
-    #sa.rpt_plot(dsig, points, [i])
-    plt.show()
 
 def basic():
     signal, t, i = sg.gen_signal(containsNoise=True, containsError=True)
@@ -219,70 +105,88 @@ def basic():
     plt.show()
 
 def plottest():
-    fname = datadir + "many_many_successful2.npz"
+    fname = datadir + "many_many_successful.npz"
     data = fr.load_all(fname).subpool(["MEG*1"]).clip((0.210, 0.50))
     signals = data.data
     names = data.names
     n = data.n_channels
     signals = sa.reorganize_signals(signals, n)
+    statuses, fracs, uniq_stats_list, exec_times = sa.analyse_all(signals, names, n)
+    bad_list = bad_list_for_anim(names, statuses)
 
-    points = []
+    vis.helmet_animation(names, signals, frames=1000, bads=bad_list)
 
-    for signal in signals:
-        points.append(signal[1000])
-    print(np.shape(points))
-    vis.plot_all(names, points, cmap="Purples")
+def regex_filter(npz_data):
+    names = []
+    signals = []
+    bads = []
 
-def animtest():
-    from mayavi import mlab
-    x, y = np.mgrid[0:3:1, 0:3:1]
-    s = mlab.surf(x, y, np.asarray(x * 0.1, 'd'), color=(0,0,0), colormap="Greens")
-    tex = mlab.text(0, 0, "xd")
+    for item in npz_data:
+        if item.endswith("1"):
+            names.append(item)
+            signals.append(npz_data[item])
+        else:
+            bads.append(item)
 
+
+    return signals, names, bads
+
+def bad_list_for_anim(names, bads):
+    bad_names = []
+    for i in range(len(names)):
+
+        if bads[i][0]:
+            bad_names.append(names[i])
+
+    return bad_names
+
+def simo():
+    detecs = np.load("array120_trans_newnames.npz")
+    #print(detecs)
+    matrixes, names, bads = regex_filter(detecs)
+    #print(detecs)
+    chan_num = len(names)
+    #statuses = np.full((len(names), 2), (True, 2))
+    signals = sg.simulate_eddy(matrixes, names)
+    signal_len = len(signals[0])
+    # statuses, fracs, uniq_stats_list, exec_times = sa.analyse_all(signals, names, chan_num)
+    # plot_in_order(signals,names, chan_num, statuses,
+    #               fracs=fracs, uniq_stats_list=uniq_stats_list,
+    #               exec_times=exec_times)
+    min = np.amin(signals)
+    max = np.amax(signals)
+
+    points = vis.get_single_point(signals, 0)
+
+    s = vis.plot_all(detecs, points, bads=bads, cmap="PiYG",
+                 vmax=max, vmin=min)
+    #print(s.mlab_source.scalars)
+   # print(points)
+
+    n = 100
     @mlab.animate
     def anim():
-        for i in range(100):
-            c = i/100
-            print(c)
-            color = (c, c, c)
-            s.mlab_source.trait_set(color=color)
-            tex.set(text=str(c))
+        for i in range(1, n):
+            j = int(signal_len * (i / n))
+            print("j= ", j)
+
+            points = vis.get_single_point(signals, j, n=4)
+            s.mlab_source.scalars = points
             yield
 
     anim()
     mlab.show()
 
-def regex_filter(list, regex):
-    new_list = []
-
-    for item in list:
-        if re.match(regex, item):
-            new_list.append(item)
-
-    return new_list
-
-def simo():
+def nearby():
     detecs = np.load("array120_trans_newnames.npz")
-    detecs = regex_filter(detecs, "1$")
-    print(detecs)
+    dut = "MEG1011"
+    nears = sa.find_nearby_detectors(dut, detecs)
+    print(nears)
+    matrixes, names, bads = regex_filter(detecs)
+    bads.append(nears)
+    print(bads)
 
-    #for detec in detecs:
-    #    print(detec)
-
-    signals = sg.simulate_eddy(detecs)
-
-
-    points = []
-
-    for signal in signals:
-        arr = signal.to_samples()._samples
-        point = arr[800]
-        print(np.shape(arr))
-        print(point)
-        points.append(point)
-
-    print(np.shape(points))
-    vis.plot_all(detecs, points, cmap="Purples")
+    vis.plot_all(names, np.full(np.shape(names), 1), nears)
 
 if __name__ == '__main__':
     #basic()
@@ -293,7 +197,8 @@ if __name__ == '__main__':
     #firstver()
     #plottest()
     #animtest()
-    simo()
+    #simo()
+    nearby()
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
