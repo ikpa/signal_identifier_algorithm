@@ -56,7 +56,7 @@ def plot_in_order(signals, names, n_chan, statuses, fracs=[], uniq_stats_list=[]
 
 def firstver():
     fname = datadir + "many_failed.npz"
-    data = fr.load_all(fname).subpool(["MEG*1"]).clip((0.210, 0.50))
+    data = fr.load_all(fname).subpool(["MEG*1", "MEG*4"]).clip((0.210, 0.50))
     unorganized_signals = data.data
     names = data.names
     n_chan = data.n_channels
@@ -105,12 +105,18 @@ def basic():
     plt.show()
 
 def plottest():
-    fname = datadir + "many_many_successful.npz"
-    data = fr.load_all(fname).subpool(["MEG*1"]).clip((0.210, 0.50))
-    signals = data.data
+    fname = datadir + "many_failed.npz"
+    data = fr.load_all(fname).subpool(["MEG*1", "MEG*4"]).clip((0.210, 0.50))
+    unorganized_signals = data.data
     names = data.names
     n = data.n_channels
-    signals = sa.reorganize_signals(signals, n)
+    signals = sa.reorganize_signals(unorganized_signals, n)
+    detecs = np.load("array120_trans_newnames.npz")
+
+    names, signals = order_lists(detecs, names, signals)
+
+    #n = data.n_channels
+    #signals = sa.reorganize_signals(signals, n)
     statuses, fracs, uniq_stats_list, exec_times = sa.analyse_all(signals, names, n)
     bad_list = bad_list_for_anim(names, statuses)
 
@@ -143,39 +149,16 @@ def bad_list_for_anim(names, bads):
 def simo():
     detecs = np.load("array120_trans_newnames.npz")
     #print(detecs)
-    matrixes, names, bads = regex_filter(detecs)
     #print(detecs)
-    chan_num = len(names)
-    #statuses = np.full((len(names), 2), (True, 2))
-    signals = sg.simulate_eddy(matrixes, names)
+    #chan_num = len(names)
+    #statuses = np.full((len(names), 2), (False, 2))
+    signals = sg.simulate_eddy(detecs)
     signal_len = len(signals[0])
     # statuses, fracs, uniq_stats_list, exec_times = sa.analyse_all(signals, names, chan_num)
     # plot_in_order(signals,names, chan_num, statuses,
     #               fracs=fracs, uniq_stats_list=uniq_stats_list,
     #               exec_times=exec_times)
-    min = np.amin(signals)
-    max = np.amax(signals)
-
-    points = vis.get_single_point(signals, 0)
-
-    s = vis.plot_all(detecs, points, bads=bads, cmap="PiYG",
-                 vmax=max, vmin=min)
-    #print(s.mlab_source.scalars)
-   # print(points)
-
-    n = 100
-    @mlab.animate
-    def anim():
-        for i in range(1, n):
-            j = int(signal_len * (i / n))
-            print("j= ", j)
-
-            points = vis.get_single_point(signals, j, n=4)
-            s.mlab_source.scalars = points
-            yield
-
-    anim()
-    mlab.show()
+    vis.helmet_animation(detecs, signals, 1000)
 
 def nearby():
     detecs = np.load("array120_trans_newnames.npz")
@@ -188,17 +171,46 @@ def nearby():
 
     vis.plot_all(names, np.full(np.shape(names), 1), nears)
 
+def order_lists(pos_list, dat_names, signals):
+    new_signals = []
+    new_names = []
+
+    n = 0
+    for name in pos_list:
+        i = dat_names.index(name)
+        new_names.append(dat_names[i])
+        new_signals.append(signals[i])
+        n += 1
+
+    return new_names, new_signals
+
+
+def nameorder():
+    fname = datadir + "many_many_successful2.npz"
+    data = fr.load_all(fname).subpool(["MEG*1", "MEG*4"]).clip((0.210, 0.50))
+
+    detecs = np.load("array120_trans_newnames.npz")
+
+    names_dat, signals = order_lists(detecs, data)
+
+    i = 0
+    for detec in detecs:
+        print("data: " + names_dat[i])
+        print("pos: " + detec)
+        print()
+        i += 1
+
 if __name__ == '__main__':
     #basic()
     #analysis()
     #dataload()
     #averagetest()
-    #simulation()
     #firstver()
     #plottest()
     #animtest()
-    #simo()
-    nearby()
+    simo()
+    #nearby()
+    #names()
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
