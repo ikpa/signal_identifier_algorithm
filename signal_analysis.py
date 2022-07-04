@@ -49,8 +49,9 @@ def find_nearby_detectors(d_name, detectors, r_sens = 0.06):
 
 # filter the jump in the beginning of the signal. works better on good signals
 #TODO fix
-def filter_start(signal, offset=20):
-    grad = np.gradient(signal)
+def filter_start(signal, offset=20, max_rel=0.05):
+    max_i = int(max_rel * len(signal))
+    grad = np.gradient(signal[:max_i])
     max_grad_i = np.argmax(grad)
     min_grad_i = np.argmin(grad)
     farther_i = np.amax([max_grad_i, min_grad_i])
@@ -183,8 +184,30 @@ def find_uniq_segments(signal, rel_sensitive_length = 0.07, relative_sensitivity
 
     return lengths, start_is, end_is
 
+# check the percentage of the signal where the value stays exactly the same
+def uniq_filter(signal, sensitivity=0.2):
+    uniqs, indices, counts = np.unique(signal, return_index=True, return_counts=True)
+    uniq_is = np.where(counts > 1)
+    max_vals = uniqs[uniq_is]
 
-def segment_filter(signal, badness_sensitivity=0.8):
+    where_repeat = []
+    for max_val in max_vals:
+        i_arr = np.where(signal == max_val)
+        where_repeat.append(i_arr)
+
+    uniquevals = len(uniqs)
+    totvals = len(signal)
+    frac_of_uniq = uniquevals / totvals
+
+    #return frac_of_uniq, indices, counts[uniq_is], where_repeat, (frac_of_uniq <= sensitivity, 2)
+    return frac_of_uniq, where_repeat, (frac_of_uniq <= sensitivity, 2)
+
+#confidence 2 = bad
+#confidence < 0.01 = good
+#confidence 1.5 - 0.01 = sus
+#TODO figure out how to use where_repeat
+def segment_filter(signal, where_repeat, badness_sensitivity=0.8,
+                   confidence_sensitivity=0.01):
     lengths, start_is, end_is = find_uniq_segments(signal)
 
     same_sum = sum(lengths)
@@ -220,15 +243,33 @@ def segment_filter(signal, badness_sensitivity=0.8):
 
     return [lengths, start_is, end_is], bad
 
+#TODO continue
+def gradient_filter(signal, filter_i, grad_sensitivity=10**(-10)):
+    #gradient = np.gradient(signal)
+    #spikes = np.where(abs(gradient[filter_i:]) > grad_sensitivity)
+    #spikes = [x + filter_i for x in spikes]
 
-# check the percentage of the signal where the value stays the same
-def uniq_filter(signal, sensitivity=0.2):
-    uniquevals = len(np.unique(signal))
-    totvals = len(signal)
-    frac_of_uniq = uniquevals / totvals
+    spikes = []
+    all_diffs = []
 
-    return frac_of_uniq, (frac_of_uniq <= sensitivity, 2)
+    diffs = []
+    spike = []
+    for i in range(filter_i, len(signal)):
+        val = abs(signal[i])
 
+        if val > grad_sensitivity:
+            spike.append(i)
+            diffs.append(val - grad_sensitivity)
+            continue
+
+        if i - 1 in spike:
+            spikes.append(spike)
+            spike = []
+
+            all_diffs.append(diffs)
+            diffs = []
+
+    return spikes, all_diffs
 
 def analyse_all(signals, names, chan_num):
     exec_times = []
@@ -240,10 +281,11 @@ def analyse_all(signals, names, chan_num):
         signal = signals[i]
 
         start_time = time.time()
-        frac_of_uniq, bad = uniq_filter(signal)
+        filter_i = filter_start(signal)
+        frac_of_uniq, where_repeat, bad = uniq_filter(signal)
 
         if not bad[0]:
-            segment_stats, bad = segment_filter(signal)
+            segment_stats, bad = segment_filter(signal, where_repeat)
         else:
             print("not enough unique values, bad")
             segment_stats = []

@@ -83,7 +83,7 @@ class FunctionBasis(object):
 def simple_one_flat(x, n):
     jump_points = [int(n * ran.random()), int(n * ran.random())]
     jump_points.sort()
-    print(jump_points)
+    #print(jump_points)
     x1 = jump_points[0]
     x2 = jump_points[1]
     y = 3 * 10**(-8) * ran.random()
@@ -93,7 +93,7 @@ def simple_one_flat(x, n):
     y_arr = []
 
     for x_val in x:
-        if x_val > x1 and x_val < x2:
+        if x_val >= x1 and x_val <= x2:
             slope = 0
             b = y
 
@@ -110,15 +110,21 @@ def simple_one_flat(x, n):
 
     return y_arr
 
-def simple_many_flat(x, n, n_flats):
+def simple_many_flat(x, n, n_flats, flats_same=False):
     jump_points = [0, n]
     flat_ys = [3 * 10 ** (-8) * ran.random(), 3 * 10 ** (-8) * ran.random()]
+
+    if flats_same:
+        y_val = 3 * 10 ** (-8) * ran.random()
 
     for i in range(n_flats):
         jump_points.append(int(n * ran.random()))
         jump_points.append(int(n * ran.random()))
 
-        flat_ys.append(3 * 10 ** (-8) * ran.random())
+        if not flats_same:
+            y_val = 3 * 10 ** (-8) * ran.random()
+
+        flat_ys.append(y_val)
 
     jump_points.sort()
 

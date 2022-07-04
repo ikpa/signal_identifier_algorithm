@@ -67,7 +67,7 @@ def firstver():
     plot_in_order(signals, names, n_chan, statuses, fracs, uniq_stats_list, exec_times)
 
 def simulation():
-    n = 2900
+    n = 290
     x = np.linspace(0, n, n)
     n_chan = 20
 
@@ -75,12 +75,42 @@ def simulation():
     names = []
 
     for i in range(n_chan):
-        names.append(str(i + 1))
-        signals.append(sg.simple_many_flat(x, n, 3))
+        name = str(i + 1)
+        print(name)
+        names.append(name)
+        signal = sg.simple_many_flat(x, n, 4, flats_same=True)
+        signals.append(signal)
+        frac, indices, counts, i_arr, bad = sa.uniq_filter(signal)
+        print("frac", frac)
+        print("indices", indices)
+        print("counts", counts)
+        print("i_arr", i_arr)
+        print()
 
-    statuses, fracs, uniq_stats_list, exec_times = sa.analyse_all(signals, names, n_chan)
-    plot_in_order(signals, names, n_chan, statuses, fracs, uniq_stats_list, exec_times, ylims=[-.2 * 10**(-8), 3.2 * 10 ** (-8)])
 
+
+    #statuses, fracs, uniq_stats_list, exec_times = sa.analyse_all(signals, names, n_chan)
+    plot_in_order(signals, names, n_chan, np.full((n_chan,2), (False, 2)), [], [], [], ylims=[-.2 * 10**(-8), 3.2 * 10 ** (-8)])
+
+def test_uniq():
+    fname = datadir + "many_successful.npz"
+    data = fr.load_all(fname).subpool(["MEG*1", "MEG*4"]).clip((0.210, 0.50))
+    unorganized_signals = data.data
+    names = data.names
+    n_chan = data.n_channels
+    time = data.time
+    signals = sa.reorganize_signals(unorganized_signals, n_chan)
+
+    for i in range(len(signals)):
+        signal = signals[i]
+        name = names[i]
+        print(name)
+        filter_i = sa.filter_start(signal)
+        spikes = sa.gradient_filter(signal, filter_i)
+        print(spikes)
+
+
+    plot_in_order(signals, names, n_chan, np.full((n_chan, 2), (False, 2)), [], [], [])
 
 def basic():
     signal, t, i = sg.gen_signal(containsNoise=True, containsError=True)
@@ -105,7 +135,7 @@ def basic():
     plt.show()
 
 def plottest():
-    fname = datadir + "many_failed.npz"
+    fname = datadir + "many_successful.npz"
     data = fr.load_all(fname).subpool(["MEG*1", "MEG*4"]).clip((0.210, 0.50))
     unorganized_signals = data.data
     names = data.names
@@ -208,9 +238,11 @@ if __name__ == '__main__':
     #firstver()
     #plottest()
     #animtest()
-    simo()
+    #simo()
     #nearby()
     #names()
+    #simulation()
+    test_uniq()
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
