@@ -243,6 +243,7 @@ def segment_filter(signal, where_repeat, badness_sensitivity=0.8,
 
     return [lengths, start_is, end_is], bad
 
+#TODO finish
 def analyse_spikes(spikes, all_diffs, max_sensitivities=[2, 1, .5]):
     n = len(spikes)
 
