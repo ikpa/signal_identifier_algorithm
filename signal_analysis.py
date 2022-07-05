@@ -243,33 +243,72 @@ def segment_filter(signal, where_repeat, badness_sensitivity=0.8,
 
     return [lengths, start_is, end_is], bad
 
-#TODO continue
-def gradient_filter(signal, filter_i, grad_sensitivity=10**(-10)):
-    #gradient = np.gradient(signal)
-    #spikes = np.where(abs(gradient[filter_i:]) > grad_sensitivity)
-    #spikes = [x + filter_i for x in spikes]
+def analyse_spikes(spikes, all_diffs, max_sensitivities=[2, 1, .5]):
+    n = len(spikes)
+
+    if n == 0:
+        return None, None
+
+    score = .5
+
+    first_spike = spikes[0]
+    seg_start = first_spike[0]
+    last_spike = spikes[len(spikes) - 1]
+    seg_end = last_spike[len(last_spike) - 1]
+    seg_len = seg_end - seg_start
+
+    max_diffs = []
+    for i in range(n):
+        diffs = all_diffs[i]
+        max_diffs.append(np.amax(diffs))
+
+    av_max = np.mean(max_diffs)
+
+    if av_max > max_sensitivities[0]:
+        score = 10
+        #bad
+        return
+
+    if av_max > max_sensitivities[1]:
+        score += 1
+
+    if av_max > max_sensitivities[2]:
+        score += .5
+
+
+    return n, av_max
+
+
+def find_spikes(gradient, filter_i, grad_sensitivity, len_sensitivity=10):
 
     spikes = []
     all_diffs = []
 
     diffs = []
     spike = []
-    for i in range(filter_i, len(signal)):
-        val = abs(signal[i])
+    for i in range(filter_i, len(gradient)):
+        val = abs(gradient[i])
 
         if val > grad_sensitivity:
             spike.append(i)
-            diffs.append(val - grad_sensitivity)
+            diffs.append((val - grad_sensitivity) / grad_sensitivity)
             continue
 
         if i - 1 in spike:
-            spikes.append(spike)
-            spike = []
+            if len(spike) < len_sensitivity:
+                spikes.append(spike)
+                all_diffs.append(diffs )
 
-            all_diffs.append(diffs)
+            spike = []
             diffs = []
 
     return spikes, all_diffs
+
+def gradient_filter(signal, filter_i, grad_sensitivity=10 ** (-10)):
+    gradient = np.gradient(signal)
+    spikes, all_diffs = find_spikes(gradient, filter_i, grad_sensitivity)
+    num_spikes, av_diff = analyse_spikes(spikes, all_diffs)
+    return spikes, all_diffs, num_spikes, av_diff
 
 def analyse_all(signals, names, chan_num):
     exec_times = []

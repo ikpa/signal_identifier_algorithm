@@ -93,7 +93,7 @@ def simulation():
     plot_in_order(signals, names, n_chan, np.full((n_chan,2), (False, 2)), [], [], [], ylims=[-.2 * 10**(-8), 3.2 * 10 ** (-8)])
 
 def test_uniq():
-    fname = datadir + "many_successful.npz"
+    fname = datadir + "many_failed.npz"
     data = fr.load_all(fname).subpool(["MEG*1", "MEG*4"]).clip((0.210, 0.50))
     unorganized_signals = data.data
     names = data.names
@@ -106,8 +106,11 @@ def test_uniq():
         name = names[i]
         print(name)
         filter_i = sa.filter_start(signal)
-        spikes = sa.gradient_filter(signal, filter_i)
-        print(spikes)
+        spikes, diffs, num_spikes, av_diff = sa.gradient_filter(signal, filter_i)
+        print("spikes", spikes)
+        print("diffs", diffs)
+        print("num_spikes", num_spikes, "av_diff", av_diff)
+        print()
 
 
     plot_in_order(signals, names, n_chan, np.full((n_chan, 2), (False, 2)), [], [], [])
