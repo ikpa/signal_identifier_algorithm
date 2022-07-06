@@ -49,7 +49,7 @@ def find_nearby_detectors(d_name, detectors, r_sens = 0.06):
 
 # filter the jump in the beginning of the signal. works better on good signals
 #TODO fix
-def filter_start(signal, offset=20, max_rel=0.05):
+def filter_start(signal, offset=50, max_rel=0.05):
     max_i = int(max_rel * len(signal))
     grad = np.gradient(signal[:max_i])
     max_grad_i = np.argmax(grad)
@@ -103,8 +103,8 @@ def average_of_gradient(signal, start_i, end_i, offset_percentage=0.05):
 #TODO check values
 def cal_confidence(grad_average, rel_len, rel_dist,
                    len_w=1.5, grad_w=10 ** 12, dist_w=1,
-                   grad_lock=0.5 * 10 ** (-13)):
-    if grad_average < grad_lock:
+                   grad_sensitivity=0.5 * 10 ** (-13)):
+    if grad_average < grad_sensitivity:
         grad_conf = 0
     else:
         grad_conf = - grad_w * grad_average
@@ -241,14 +241,17 @@ def segment_filter(signal, where_repeat, badness_sensitivity=0.8,
         print("length of segments over sensitivity level, bad")
         bad = (prebad, 2)
 
-    return [lengths, start_is, end_is], bad
+    return [start_is, end_is], bad
 
-#TODO finish
-def analyse_spikes(spikes, all_diffs, max_sensitivities=[2, 1, .5]):
+#TODO check values
+def analyse_spikes(gradient, spikes, all_diffs, max_sensitivities=[1.5, 1, .5],
+                   n_sensitivities=[20, 100], seg_sensitivity=.2,
+                   grad_sensitivity=2 * 10 ** (-13)):
     n = len(spikes)
+    length = len(gradient)
 
     if n == 0:
-        return None, None
+        return [], (False, 0)
 
     score = .5
 
@@ -256,7 +259,7 @@ def analyse_spikes(spikes, all_diffs, max_sensitivities=[2, 1, .5]):
     seg_start = first_spike[0]
     last_spike = spikes[len(spikes) - 1]
     seg_end = last_spike[len(last_spike) - 1]
-    seg_len = seg_end - seg_start
+    seg_len = (seg_end - seg_start) / length
 
     max_diffs = []
     for i in range(n):
@@ -265,22 +268,55 @@ def analyse_spikes(spikes, all_diffs, max_sensitivities=[2, 1, .5]):
 
     av_max = np.mean(max_diffs)
 
-    if av_max > max_sensitivities[0]:
-        score = 10
-        #bad
-        return
+    print("num_spikes", n, "av_diff", av_max, "seg_len", seg_len)
 
-    if av_max > max_sensitivities[1]:
+    #TEST DIFFS----------------------------------------
+    if av_max >= max_sensitivities[0]:
+        score += 3
+        #bad
+        return [[seg_start], [seg_end]], (True, score)
+
+    if av_max >= max_sensitivities[1]:
         score += 1
 
-    if av_max > max_sensitivities[2]:
+    if av_max >= max_sensitivities[2] and av_max <= max_sensitivities[1]:
         score += .5
+    #--------------------------------------------------
 
+    #TEST NUMBER OF SPIKES-----------------------------
+    if n <= n_sensitivities[0]:
+        #good
+        return [[seg_start], [seg_end]], (False, score)
 
-    return n, av_max
+    if n >= n_sensitivities[1]:
+        score += 1
+    else:
+        score += .5
+    #--------------------------------------------------
 
+    #TEST LENGTH OF SEGMENT ---------------------------
+    if seg_len <= seg_sensitivity:
+        #bad
+        return [[seg_start], [seg_end]], (True, score)
 
-def find_spikes(gradient, filter_i, grad_sensitivity, len_sensitivity=10):
+    score += .5
+    #--------------------------------------------------
+
+    grad_ave = abs(np.mean(gradient[seg_start:seg_end]))
+    print("grad_ave", grad_ave)
+
+    #TEST GRADIENT-------------------------------------
+    if grad_ave >= grad_sensitivity:
+        #good
+        score -= .5
+        return [[seg_start], [seg_end]], (False, score)
+
+    score += .5
+    #--------------------------------------------------
+
+    return [[seg_start], [seg_end]], (True, score)
+
+def find_spikes(gradient, filter_i, grad_sensitivity, len_sensitivity=6):
 
     spikes = []
     all_diffs = []
@@ -308,9 +344,12 @@ def find_spikes(gradient, filter_i, grad_sensitivity, len_sensitivity=10):
 def gradient_filter(signal, filter_i, grad_sensitivity=10 ** (-10)):
     gradient = np.gradient(signal)
     spikes, all_diffs = find_spikes(gradient, filter_i, grad_sensitivity)
-    num_spikes, av_diff = analyse_spikes(spikes, all_diffs)
-    return spikes, all_diffs, num_spikes, av_diff
+    seg_is, bad = analyse_spikes(gradient, spikes, all_diffs)
+    print(bad[0])
+    print()
+    return seg_is, bad
 
+#TODO FIX
 def analyse_all(signals, names, chan_num):
     exec_times = []
     signal_status = []
@@ -320,15 +359,29 @@ def analyse_all(signals, names, chan_num):
         print(names[i])
         signal = signals[i]
 
+        segment_stats = [[], []]
+
         start_time = time.time()
         filter_i = filter_start(signal)
+
+        print("testing unique values")
         frac_of_uniq, where_repeat, bad = uniq_filter(signal)
 
         if not bad[0]:
-            segment_stats, bad = segment_filter(signal, where_repeat)
+            print("checking for repetitive segments")
+            stats, bad = segment_filter(signal, where_repeat)
+            segment_stats[0].append(stats[0])
+            segment_stats[1].append(stats[1])
         else:
             print("not enough unique values, bad")
-            segment_stats = []
+
+        if not bad[0]:
+            print("checking for spikes in gradient")
+            stats, bad = gradient_filter(signal, filter_i)
+            segment_stats[0].append(stats[0])
+            segment_stats[1].append(stats[1])
+        else:
+            print("too many repetitive segments, bad")
 
         end_time = time.time()
 

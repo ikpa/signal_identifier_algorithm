@@ -11,14 +11,14 @@ import re
 methods = ["Pelt", "Dynp", "Binseg", "Window"]
 datadir = "example_data_for_patrik/"
 
-def plot_in_order(signals, names, n_chan, statuses, fracs=[], uniq_stats_list=[],
+def plot_in_order(signals, names, n_chan, statuses, fracs=[], seg_is=[],
                   exec_times=[], ylims=None):
     for i in range(n_chan):
         name = names[i]
         signal = signals[i]
         bad = statuses[i]
         frac = fracs[i] if not len(fracs) == 0 else 0
-        uniq_stats = uniq_stats_list[i] if not len(uniq_stats_list) == 0 else []
+        uniq_stats = seg_is[i] if not len(seg_is) == 0 else []
         exec_time = exec_times[i] if not len(exec_times) == 0 else 0
 
         #print(name)
@@ -33,6 +33,7 @@ def plot_in_order(signals, names, n_chan, statuses, fracs=[], uniq_stats_list=[]
         fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
         ax1.plot(signal)
         ax1.axvline(x=sa.filter_start(signal), linestyle="--")
+
         if ylims != None:
             ax1.set_ylim(ylims)
 
@@ -45,9 +46,9 @@ def plot_in_order(signals, names, n_chan, statuses, fracs=[], uniq_stats_list=[]
                 #same_sum = uniq_stats[2] - uniq_stats[1]
                 #same_frac = same_sum / len(signal)
                 for j in range(len(uniq_stats[1])):
-                    ax1.axvspan(uniq_stats[1][j], uniq_stats[2][j], alpha=.5)
+                    ax1.axvspan(uniq_stats[0][j], uniq_stats[1][j], alpha=.5)
 
-                title += ", confidence: " + str(bad[1])
+        title += ", confidence: " + str(bad[1])
 
         plt.title(title)
         plt.grid()
@@ -101,19 +102,22 @@ def test_uniq():
     time = data.time
     signals = sa.reorganize_signals(unorganized_signals, n_chan)
 
+    seg_i_list = []
+    bads = []
+
     for i in range(len(signals)):
         signal = signals[i]
         name = names[i]
         print(name)
         filter_i = sa.filter_start(signal)
-        spikes, diffs, num_spikes, av_diff = sa.gradient_filter(signal, filter_i)
-        print("spikes", spikes)
-        print("diffs", diffs)
-        print("num_spikes", num_spikes, "av_diff", av_diff)
-        print()
+        seg_is, bad = sa.gradient_filter(signal, filter_i)
+
+        seg_i_list.append(seg_is)
+        bads.append(bad)
 
 
-    plot_in_order(signals, names, n_chan, np.full((n_chan, 2), (False, 2)), [], [], [])
+
+    plot_in_order(signals, names, n_chan, bads, seg_is=seg_i_list)
 
 def basic():
     signal, t, i = sg.gen_signal(containsNoise=True, containsError=True)
@@ -238,14 +242,14 @@ if __name__ == '__main__':
     #analysis()
     #dataload()
     #averagetest()
-    #firstver()
+    firstver()
     #plottest()
     #animtest()
     #simo()
     #nearby()
     #names()
     #simulation()
-    test_uniq()
+    #test_uniq()
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
