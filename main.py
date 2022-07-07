@@ -42,13 +42,13 @@ def plot_in_order(signals, names, n_chan, statuses, fracs=[], seg_is=[],
         if not len(uniq_stats) == 0:
 
             #print(uniq_stats[0])
-            if not len(uniq_stats[1]) == 0:
+            if not len(uniq_stats[0]) == 0:
                 #same_sum = uniq_stats[2] - uniq_stats[1]
                 #same_frac = same_sum / len(signal)
-                for j in range(len(uniq_stats[1])):
-                    ax1.axvspan(uniq_stats[0][j], uniq_stats[1][j], alpha=.5)
+                for j in range(len(uniq_stats)):
+                    ax1.axvspan(float(uniq_stats[j][0]), float(uniq_stats[j][1]), alpha=.5)
 
-        title += ", confidence: " + str(bad[1])
+        title += ", badness: " + str(bad[1])
 
         plt.title(title)
         plt.grid()

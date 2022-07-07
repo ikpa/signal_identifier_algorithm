@@ -101,9 +101,13 @@ def average_of_gradient(signal, start_i, end_i, offset_percentage=0.05):
     return sum(grad) / len(grad)
 
 #TODO check values
-def cal_confidence(grad_average, rel_len, rel_dist,
+def cal_confidence(signal, start_i, end_i,
                    len_w=1.5, grad_w=10 ** 12, dist_w=1,
                    grad_sensitivity=0.5 * 10 ** (-13)):
+    grad_average = average_of_gradient(signal, start_i, end_i)
+    rel_len = (end_i - start_i) / len(signal)
+    rel_dist = ((len(signal) - 1) - end_i) / len(signal)
+
     if grad_average < grad_sensitivity:
         grad_conf = 0
     else:
@@ -145,10 +149,8 @@ def multi_seg_analysis(signal, start_is, end_is, badness_sensitivity):
     if bad:
         return (bad, 2), end_of_segment
 
-    grad_average = average_of_gradient(signal, start_is[0], end_of_segment)
-    rel_len = (end_of_segment - start_is[0]) / len(signal)
-    rel_dist = (final_i - end_of_segment) / len(signal)
-    confidence = cal_confidence(grad_average, rel_len, rel_dist)
+
+    confidence = cal_confidence(signal, start_is[0], end_of_segment)
 
     return (bad, confidence), end_of_segment
 
@@ -200,7 +202,48 @@ def uniq_filter(signal, sensitivity=0.2):
     frac_of_uniq = uniquevals / totvals
 
     #return frac_of_uniq, indices, counts[uniq_is], where_repeat, (frac_of_uniq <= sensitivity, 2)
-    return frac_of_uniq, where_repeat, (frac_of_uniq <= sensitivity, 2)
+    bad = frac_of_uniq <= sensitivity
+    if bad:
+        confidence = 2
+    else:
+        confidence = 0
+    return frac_of_uniq, where_repeat, (bad, confidence)
+
+def reformat_stats(start_is, end_is):
+    list = []
+    for i in range(len(start_is)):
+        list.append([start_is[i], end_is[i]])
+
+    return list
+
+def segment_filter_neo(signal, badness_sensitivity=0.8):
+    lengths, start_is, end_is = find_uniq_segments(signal)
+    final_i = end_is(len(end_is) - 1)
+    seg_is = reformat_stats(start_is, end_is)
+
+    #recheck tail
+    # if final_i != len(signal) - 1:
+    #     tail_len, tail_starts, tail_ends = find_uniq_segments(signal[final_i:], rel_sensitive_length=.5)
+    #
+    #     if len(tail_starts) != 0:
+    #         tail_starts = [x + final_i for x in tail_starts]
+    #         tail_ends = [x + final_i for x in tail_ends]
+    #
+    #         for i in range(len(tail_starts)):
+    #             seg_is.append()
+
+    if averages_are_close(signal, start_is, end_is):
+        seg_is = [start_is[0], end_is[len(end_is) - 1]]
+        length = start_is[0] - end_is[len(end_is) - 1]
+
+        if length / len(signal) >= badness_sensitivity:
+            return True, seg_is, []
+
+    confidences = []
+    for segment in seg_is:
+        confidences.append(cal_confidence(signal, segment[0], segment[1]))
+
+    return False, seg_is, confidences
 
 #confidence 2 = bad
 #confidence < 0.01 = good
@@ -215,33 +258,40 @@ def segment_filter(signal, where_repeat, badness_sensitivity=0.8,
 
     prebad = same_frac > badness_sensitivity
 
+    stats = []
+
     if not prebad:
         if len(start_is) == 0:
             print("no segments, good")
-            bad = (prebad, 2)
+            bad = (prebad, 0)
 
         if len(start_is) == 1:
-            print("one uniq segment, rechecking tail with multiseg")
-            bad, new_end = multi_seg_analysis(signal, start_is, end_is, badness_sensitivity)
-            end_is = [new_end]
+             print("one uniq segment, rechecking tail with multiseg")
+        #     bad, new_end = multi_seg_analysis(signal, start_is, end_is, badness_sensitivity)
+        #     end_is = new_end
+        #     #start_is = start_is[0]
+        #     stats = [[start_is[0], new_end]]
 
-        if len(start_is) > 1:
+        if len(start_is) >= 1:
             print(str(len(start_is)) + " uniq segments, checking similarity")
 
             if averages_are_close(signal, start_is, end_is, averages=[]):
                 print("averages close, doing multiseg")
                 bad, new_end = multi_seg_analysis(signal, start_is, end_is, badness_sensitivity)
-                start_is = [start_is[0]]
-                end_is = [new_end]
+                #start_is = start_is[0]
+                #end_is = new_end
+                stats = [[start_is[0], new_end]]
             else:
                 print("averages not close, no multiseg")
-                bad = (prebad, 2)
+                bad = (prebad, 0)
+                stats = reformat_stats(start_is, end_is)
 
     else:
         print("length of segments over sensitivity level, bad")
         bad = (prebad, 2)
+        stats = []
 
-    return [start_is, end_is], bad
+    return stats, bad
 
 #TODO check values
 def analyse_spikes(gradient, spikes, all_diffs, max_sensitivities=[1.5, 1, .5],
@@ -274,7 +324,7 @@ def analyse_spikes(gradient, spikes, all_diffs, max_sensitivities=[1.5, 1, .5],
     if av_max >= max_sensitivities[0]:
         score += 3
         #bad
-        return [[seg_start], [seg_end]], (True, score)
+        return [seg_start, seg_end], (True, score)
 
     if av_max >= max_sensitivities[1]:
         score += 1
@@ -286,7 +336,7 @@ def analyse_spikes(gradient, spikes, all_diffs, max_sensitivities=[1.5, 1, .5],
     #TEST NUMBER OF SPIKES-----------------------------
     if n <= n_sensitivities[0]:
         #good
-        return [[seg_start], [seg_end]], (False, score)
+        return [seg_start, seg_end], (False, score)
 
     if n >= n_sensitivities[1]:
         score += 1
@@ -297,7 +347,7 @@ def analyse_spikes(gradient, spikes, all_diffs, max_sensitivities=[1.5, 1, .5],
     #TEST LENGTH OF SEGMENT ---------------------------
     if seg_len <= seg_sensitivity:
         #bad
-        return [[seg_start], [seg_end]], (True, score)
+        return [seg_start, seg_end], (True, score)
 
     score += .5
     #--------------------------------------------------
@@ -309,12 +359,12 @@ def analyse_spikes(gradient, spikes, all_diffs, max_sensitivities=[1.5, 1, .5],
     if grad_ave >= grad_sensitivity:
         #good
         score -= .5
-        return [[seg_start], [seg_end]], (False, score)
+        return [seg_start, seg_end], (False, score)
 
     score += .5
     #--------------------------------------------------
 
-    return [[seg_start], [seg_end]], (True, score)
+    return [seg_start, seg_end], (True, score)
 
 def find_spikes(gradient, filter_i, grad_sensitivity, len_sensitivity=6):
 
@@ -345,9 +395,78 @@ def gradient_filter(signal, filter_i, grad_sensitivity=10 ** (-10)):
     gradient = np.gradient(signal)
     spikes, all_diffs = find_spikes(gradient, filter_i, grad_sensitivity)
     seg_is, bad = analyse_spikes(gradient, spikes, all_diffs)
-    print(bad[0])
-    print()
-    return seg_is, bad
+    bad = list(bad)
+    bad[1] = bad[1] / 1.75
+
+    if len(seg_is) == 0:
+        return [], bad
+
+    return [seg_is], bad
+
+def append_stats(list, stats):
+    if len(stats) == 0:
+        return False
+
+    for item in stats:
+        list.append(item)
+    return True
+
+def combine_bads(bad_list, confidence_sensitivity=10):
+    confidence = 0
+    final_bad = False
+    for bad in bad_list:
+        print(bad[1])
+        confidence += bad[1]
+
+        if bad[0]:
+            final_bad = True
+
+    if confidence >= confidence_sensitivity:
+        final_bad = True
+
+    return (final_bad, confidence)
+
+#TODO finish and test
+def analyse_all_neo(signals, names, chan_num,
+                    filters=["uniq", "segment", "gradient"]):
+    exec_times = []
+    signal_statuses = []
+    segment_list = []
+    confidence_list = []
+
+    for i in range(chan_num):
+        print(names[i])
+        signal = signals[i]
+        segments = []
+        bad = False
+
+        start_time = time.time()
+        filter_i = filter_start(signal)
+
+        for filter in filters:
+            if bad:
+                print("bad signal")
+                break
+
+            print("beginning analysis with " + filter + " filter")
+
+            if filter == "uniq":
+                frac_of_uniq, where_repeat, result = uniq_filter(signal)
+                bad = result[0]
+
+            if filter == "segment":
+                bad, seg_is, confidences = segment_filter_neo(signal)
+                append_stats(segments, seg_is)
+                append_stats(confidence_list, confidences)
+
+            if filter == "gradient":
+                pass
+
+        end_time = time.time()
+        exec_time = end_time - start_time
+        print("execution time:", exec_time)
+
+        signal_statuses.append(bad)
 
 #TODO FIX
 def analyse_all(signals, names, chan_num):
@@ -359,33 +478,45 @@ def analyse_all(signals, names, chan_num):
         print(names[i])
         signal = signals[i]
 
-        segment_stats = [[], []]
+        segment_stats = []
 
         start_time = time.time()
         filter_i = filter_start(signal)
 
+        bad_list = []
+
         print("testing unique values")
         frac_of_uniq, where_repeat, bad = uniq_filter(signal)
+        bad_list.append(bad)
 
         if not bad[0]:
             print("checking for repetitive segments")
             stats, bad = segment_filter(signal, where_repeat)
-            segment_stats[0].append(stats[0])
-            segment_stats[1].append(stats[1])
+            append_stats(segment_stats, stats)
+            bad_list.append(bad)
         else:
             print("not enough unique values, bad")
 
         if not bad[0]:
             print("checking for spikes in gradient")
             stats, bad = gradient_filter(signal, filter_i)
-            segment_stats[0].append(stats[0])
-            segment_stats[1].append(stats[1])
+            append_stats(segment_stats, stats)
+            bad_list.append(bad)
+            # if not len(stats) == 0:
+            #     segment_stats.append(stats)
+
         else:
             print("too many repetitive segments, bad")
 
-        end_time = time.time()
+        #print(segment_stats)
 
-        exec_times.append(end_time - start_time)
+        bad = combine_bads(bad_list)
+
+        end_time = time.time()
+        exec_time = end_time - start_time
+        print("execution time:", exec_time)
+
+        exec_times.append(exec_time)
         signal_status.append(bad)
         fracs.append(frac_of_uniq)
         uniq_stats_list.append(segment_stats)
