@@ -119,27 +119,66 @@ def test_uniq():
 
     plot_in_order(signals, names, n_chan, bads, seg_is=seg_i_list)
 
-def basic():
-    signal, t, i = sg.gen_signal(containsNoise=True, containsError=True)
-    signal_smooth = pd.Series(signal).rolling(window=10).mean()
-    dsig = np.gradient(np.gradient(signal))
-    dsig_smooth = pd.Series(dsig).rolling(window=7).mean()
-    # dsig_smooth = np.gradient(signal_smooth)
+def plot_in_order_neo(signals, names, n_chan, statuses, confidence_list,
+                      seg_is, exec_times=[], ylims=None):
+    print(confidence_list)
+    for i in range(n_chan):
+        name = names[i]
+        signal = signals[i]
+        bad = statuses[i]
+        segments = seg_is[i] if not len(seg_is) == 0 else []
+        exec_time = exec_times[i] if not len(exec_times) == 0 else 0
+        confidences = confidence_list[i]
 
-    error_t = t[i]
-    # print(error_t)
+        if bad:
+            #print("bad, skipping")
+            #print()
+            #continue
+            status = "bad"
+        else:
+            status = "good"
 
-    fig, (ax1, ax2) = plt.subplots(2, 1)
-    ax1.plot(t, signal, label="normal")
-    ax1.plot(t, signal_smooth, label="filtered")
+        fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
+        ax1.plot(signal)
+        ax1.axvline(x=sa.filter_start(signal), linestyle="--")
 
-    ax2.plot(t, dsig, label="normal")
-    ax2.plot(t, dsig_smooth, label="filtered")
-    if i != None:
-        ax1.axvline(x=error_t, linestyle="--", c="black")
-        ax2.axvline(x=error_t, linestyle="--", c="black")
-    plt.legend()
-    plt.show()
+        if len(segments) != 0:
+            for j in range(len(segments)):
+                segment = segments[j]
+                if len(segment) == 0:
+                    continue
+                seg_start = segment[0]
+                seg_end = segment[1]
+                ax1.axvspan(seg_start, seg_end, alpha=.5)
+
+                confidence = confidences[j]
+
+                if confidence is not None:
+                    seg_len = seg_end - seg_start
+                    x_pos = seg_start + 0.1 * seg_len
+                    y_pos = 0.9 * np.amax(signal)
+                    ax1.text(x_pos, y_pos, s=str(round(confidence, 2)), fontsize="xx-small")
+
+        if ylims != None:
+            ax1.set_ylim(ylims)
+
+        ax2.plot(np.gradient(signal))
+        title = name + ": " + status
+        plt.title(title)
+        plt.show()
+
+
+def secondver():
+    fname = datadir + "many_failed.npz"
+    data = fr.load_all(fname).subpool(["MEG*1", "MEG*4"]).clip((0.210, 0.50))
+    unorganized_signals = data.data
+    names = data.names
+    n_chan = data.n_channels
+    time = data.time
+    signals = sa.reorganize_signals(unorganized_signals, n_chan)
+
+    signal_statuses, segment_list, confidence_list, exec_times = sa.analyse_all_neo(signals, names, n_chan)
+    plot_in_order_neo(signals, names, n_chan, signal_statuses, confidence_list, segment_list)
 
 def plottest():
     fname = datadir + "many_successful.npz"
@@ -242,7 +281,8 @@ if __name__ == '__main__':
     #analysis()
     #dataload()
     #averagetest()
-    firstver()
+    #firstver()
+    secondver()
     #plottest()
     #animtest()
     #simo()
