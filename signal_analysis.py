@@ -106,6 +106,31 @@ def average_of_gradient(signal, start_i, end_i, offset_percentage=0.05):
     grad = np.gradient(segment)
     return sum(grad) / len(grad)
 
+def cal_confidence_seg(signal, start_i, end_i,
+                       uniq_w=2, grad_sensitivity=0.5 * 10 ** (-13),
+                       grad_w=10**12):
+    segment = signal[start_i : end_i]
+    uniqs = np.unique(segment)
+
+    uniquevals = len(uniqs)
+    totvals = len(segment)
+    frac_of_uniq = 1 - uniquevals / totvals
+
+    uniq_conf = uniq_w * frac_of_uniq
+
+    grad_average = average_of_gradient(signal, start_i, end_i)
+
+    if grad_average < grad_sensitivity:
+        grad_conf = 0
+    else:
+        grad_conf = - grad_w * grad_average
+
+    print("uniq_conf:", uniq_conf)
+    print("grad_conf:", grad_conf)
+
+    tot_conf = uniq_conf + grad_conf
+    return tot_conf
+
 #TODO check values and CHECK LENGTH ELSEWHERE
 def cal_confidence(signal, start_i, end_i,
                    len_w=1.5, grad_w=10 ** 12, dist_w=1,
@@ -130,7 +155,6 @@ def cal_confidence(signal, start_i, end_i,
 
     return confidence
 
-
 # the proper one for now
 # further analyse segments which stay around one value for too long
 def multi_seg_analysis(signal, start_is, end_is, badness_sensitivity):
@@ -154,7 +178,6 @@ def multi_seg_analysis(signal, start_is, end_is, badness_sensitivity):
 
     if bad:
         return (bad, 2), end_of_segment
-
 
     confidence = cal_confidence(signal, start_is[0], end_of_segment)
 
@@ -191,6 +214,24 @@ def find_uniq_segments(signal, rel_sensitive_length = 0.07, relative_sensitivity
             length += 1
 
     return lengths, start_is, end_is
+
+#TODO fix things with filter_i
+def uniq_filter_neo(signal, filter_i):
+    uniqs, indices, counts = np.unique(signal[filter_i:], return_index=True, return_counts=True)
+    print(counts)
+    print(np.amax(counts))
+    max_repeat = np.amax(counts)
+    if max_repeat <= 10:
+        return []
+    uniq_is = np.where(counts == max_repeat)
+
+    max_vals = uniqs[uniq_is]
+    print(max_vals)
+    where_repeat = np.where(signal == max_vals[0])
+
+    #where_repeat = [x + filter_i for x in where_repeat]
+
+    return where_repeat
 
 # check the percentage of the signal where the value stays exactly the same
 def uniq_filter(signal, sensitivity=0.2):
@@ -232,16 +273,6 @@ def segment_filter_neo(signal, badness_sensitivity=0.8):
     seg_is = reformat_stats(start_is, end_is)
 
     #recheck tail
-    # if final_i != len(signal) - 1:
-    #     tail_len, tail_starts, tail_ends = find_uniq_segments(signal[final_i:], rel_sensitive_length=.5)
-    #
-    #     if len(tail_starts) != 0:
-    #         tail_starts = [x + final_i for x in tail_starts]
-    #         tail_ends = [x + final_i for x in tail_ends]
-    #
-    #         for i in range(len(tail_starts)):
-    #             seg_is.append()
-
     if final_i != len(signal) - 1:
         tail_ave = [np.mean(signal[final_i:])]
     else:
@@ -260,7 +291,7 @@ def segment_filter_neo(signal, badness_sensitivity=0.8):
     #print(seg_is)
     for segment in seg_is:
         #print(segment)
-        confidences.append(cal_confidence(signal, segment[0], segment[1]))
+        confidences.append(cal_confidence_seg(signal, segment[0], segment[1]))
 
     return False, seg_is, confidences
 
@@ -311,6 +342,72 @@ def segment_filter(signal, where_repeat, badness_sensitivity=0.8,
         stats = []
 
     return stats, bad
+
+def cal_confidence_grad(gradient, spikes, all_diffs, max_sensitivities=[1.5, 1, .5],
+                   n_sensitivities=[20, 100],
+                   grad_sensitivity=2 * 10 ** (-13),
+                        sdens_sensitivity=0.1):
+    n = len(spikes)
+
+    if n == 0:
+        return [], 0
+
+    score = .5
+
+    first_spike = spikes[0]
+    seg_start = first_spike[0]
+    last_spike = spikes[len(spikes) - 1]
+    seg_end = last_spike[len(last_spike) - 1]
+    seg_len = seg_end - seg_start
+
+    if n == 1:
+        return [seg_start, seg_end], .1
+
+    spike_density = n / seg_len
+
+    max_diffs = []
+    for i in range(n):
+        diffs = all_diffs[i]
+        max_diffs.append(np.amax(diffs))
+
+    av_max = np.mean(max_diffs)
+
+    grad_ave = abs(np.mean(gradient[seg_start:seg_end]))
+
+    print("num_spikes", n, "av_diff", av_max, "grad_ave", grad_ave,
+          "spike_density", spike_density)
+
+    # TEST DIFFS----------------------------------------
+    if av_max >= max_sensitivities[0]:
+        score += 2
+    elif av_max >= max_sensitivities[1]:
+        score += 1
+    elif av_max >= max_sensitivities[2]:
+        score += .5
+    # --------------------------------------------------
+
+    #TEST NUMBER OF SPIKES-----------------------------
+    if n >= n_sensitivities[1]:
+        score += 1
+    elif n >= n_sensitivities[0]:
+        score += .5
+    #--------------------------------------------------
+
+    # TEST GRADIENT-------------------------------------
+    if grad_ave >= grad_sensitivity:
+        score -= .25
+    else:
+        score += .5
+    # --------------------------------------------------
+
+    # TEST SPIKE DENSITY--------------------------------
+    if spike_density >= sdens_sensitivity:
+        score += 1
+
+    print("score", score)
+
+    return [seg_start, seg_end], score / 1.5
+
 
 #TODO score should represent segment only, relative length of bad segment
 #TODO determines badness of signal
@@ -387,7 +484,6 @@ def analyse_spikes(gradient, spikes, all_diffs, max_sensitivities=[1.5, 1, .5],
     return [seg_start, seg_end], (True, score)
 
 def find_spikes(gradient, filter_i, grad_sensitivity, len_sensitivity=6):
-
     spikes = []
     all_diffs = []
 
@@ -410,6 +506,16 @@ def find_spikes(gradient, filter_i, grad_sensitivity, len_sensitivity=6):
             diffs = []
 
     return spikes, all_diffs
+
+def gradient_filter_neo(signal, filter_i, grad_sensitivity=10 ** (-10)):
+    gradient = np.gradient(signal)
+    spikes, all_diffs = find_spikes(gradient, filter_i, grad_sensitivity)
+    seg_is, confidence = cal_confidence_grad(gradient, spikes, all_diffs)
+
+    if len(seg_is) == 0:
+        return [], (False, confidence)
+
+    return [seg_is], (False, confidence)
 
 def gradient_filter(signal, filter_i, grad_sensitivity=10 ** (-10)):
     gradient = np.gradient(signal)
@@ -479,7 +585,7 @@ def analyse_all_neo(signals, names, chan_num,
                 append_stats(confidences, seg_confs)
 
             if filter == "gradient":
-                seg_is, result = gradient_filter(signal, filter_i)
+                seg_is, result = gradient_filter_neo(signal, filter_i)
                 append_stats(segments, seg_is)
                 confidence = result[1]
                 bad = result[0]
@@ -495,7 +601,6 @@ def analyse_all_neo(signals, names, chan_num,
         segment_list.append(segments)
         signal_statuses.append(bad)
         confidence_list.append(confidences)
-        print(confidence_list)
 
         end_time = time.time()
         exec_time = end_time - start_time

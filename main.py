@@ -16,7 +16,7 @@ def plot_in_order(signals, names, n_chan, statuses, fracs=[], seg_is=[],
     for i in range(n_chan):
         name = names[i]
         signal = signals[i]
-        bad = statuses[i]
+        bad = statuses[i] if not len(fracs) == 0 else (False, 0)
         frac = fracs[i] if not len(fracs) == 0 else 0
         uniq_stats = seg_is[i] if not len(seg_is) == 0 else []
         exec_time = exec_times[i] if not len(exec_times) == 0 else 0
@@ -110,12 +110,9 @@ def test_uniq():
         name = names[i]
         print(name)
         filter_i = sa.filter_start(signal)
-        seg_is, bad = sa.gradient_filter(signal, filter_i)
-
-        seg_i_list.append(seg_is)
-        bads.append(bad)
-
-
+        where_repeat = sa.uniq_filter_neo(signal, filter_i)
+        print(where_repeat)
+        print()
 
     plot_in_order(signals, names, n_chan, bads, seg_is=seg_i_list)
 
@@ -260,36 +257,20 @@ def order_lists(pos_list, dat_names, signals):
 
     return new_names, new_signals
 
-
-def nameorder():
-    fname = datadir + "many_many_successful2.npz"
-    data = fr.load_all(fname).subpool(["MEG*1", "MEG*4"]).clip((0.210, 0.50))
-
-    detecs = np.load("array120_trans_newnames.npz")
-
-    names_dat, signals = order_lists(detecs, data)
-
-    i = 0
-    for detec in detecs:
-        print("data: " + names_dat[i])
-        print("pos: " + detec)
-        print()
-        i += 1
-
 if __name__ == '__main__':
     #basic()
     #analysis()
     #dataload()
     #averagetest()
     #firstver()
-    secondver()
+    #secondver()
     #plottest()
     #animtest()
     #simo()
     #nearby()
     #names()
     #simulation()
-    #test_uniq()
+    test_uniq()
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
