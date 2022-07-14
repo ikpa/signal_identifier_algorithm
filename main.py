@@ -11,62 +11,6 @@ import re
 methods = ["Pelt", "Dynp", "Binseg", "Window"]
 datadir = "example_data_for_patrik/"
 
-def plot_in_order(signals, names, n_chan, statuses, fracs=[], seg_is=[],
-                  exec_times=[], ylims=None):
-    for i in range(n_chan):
-        name = names[i]
-        signal = signals[i]
-        bad = statuses[i] if not len(fracs) == 0 else (False, 0)
-        frac = fracs[i] if not len(fracs) == 0 else 0
-        uniq_stats = seg_is[i] if not len(seg_is) == 0 else []
-        exec_time = exec_times[i] if not len(exec_times) == 0 else 0
-
-        #print(name)
-        if bad[0]:
-            #print("bad, skipping")
-            #print()
-            #continue
-            status = "bad"
-        else:
-            status = "good"
-
-        fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
-        ax1.plot(signal)
-        ax1.axvline(x=sa.filter_start(signal), linestyle="--")
-
-        if ylims != None:
-            ax1.set_ylim(ylims)
-
-        ax2.plot(np.gradient(signal))
-        title = name + ": " + status
-        if not len(uniq_stats) == 0:
-
-            #print(uniq_stats[0])
-            if not len(uniq_stats[0]) == 0:
-                #same_sum = uniq_stats[2] - uniq_stats[1]
-                #same_frac = same_sum / len(signal)
-                for j in range(len(uniq_stats)):
-                    ax1.axvspan(float(uniq_stats[j][0]), float(uniq_stats[j][1]), alpha=.5)
-
-        title += ", badness: " + str(bad[1])
-
-        plt.title(title)
-        plt.grid()
-
-        plt.show()
-
-def firstver():
-    fname = datadir + "many_failed.npz"
-    data = fr.load_all(fname).subpool(["MEG*1", "MEG*4"]).clip((0.210, 0.50))
-    unorganized_signals = data.data
-    names = data.names
-    n_chan = data.n_channels
-    time = data.time
-    signals = sa.reorganize_signals(unorganized_signals, n_chan)
-    statuses, fracs, uniq_stats_list, exec_times = sa.analyse_all(signals, names, n_chan)
-
-    plot_in_order(signals, names, n_chan, statuses, fracs, uniq_stats_list, exec_times)
-
 def simulation():
     n = 290
     x = np.linspace(0, n, n)
@@ -91,7 +35,7 @@ def simulation():
 
 
     #statuses, fracs, uniq_stats_list, exec_times = sa.analyse_all(signals, names, n_chan)
-    plot_in_order(signals, names, n_chan, np.full((n_chan,2), (False, 2)), [], [], [], ylims=[-.2 * 10**(-8), 3.2 * 10 ** (-8)])
+    #plot_in_order(signals, names, n_chan, np.full((n_chan,2), (False, 2)), [], [], [], ylims=[-.2 * 10**(-8), 3.2 * 10 ** (-8)])
 
 def test_uniq():
     fname = datadir + "many_failed.npz"
@@ -104,17 +48,36 @@ def test_uniq():
 
     seg_i_list = []
     bads = []
+    confidences = []
 
     for i in range(len(signals)):
+        segments = []
+        seg_confidences = []
         signal = signals[i]
         name = names[i]
         print(name)
         filter_i = sa.filter_start(signal)
-        where_repeat = sa.uniq_filter_neo(signal, filter_i)
-        print(where_repeat)
+
+        where_repeat, conf = sa.uniq_filter_neo(signal, filter_i)
+        segments += where_repeat
+        seg_confidences += conf
+
+        where_repeat, conf = sa.segment_filter_neo(signal)
+        segments += where_repeat
+        seg_confidences += conf
+
+        where_repeat, conf = sa.gradient_filter_neo(signal, filter_i)
+        segments += where_repeat
+        seg_confidences += conf
+
+        print(segments)
+        #print(seg_confidences)
+        seg_i_list.append(sa.combine_segments(segments))
+        #confidences.append(seg_confidences)
+        print(segments)
         print()
 
-    plot_in_order(signals, names, n_chan, bads, seg_is=seg_i_list)
+    plot_in_order_neo(signals, names, n_chan, bads, seg_is=seg_i_list, confidence_list=confidences)
 
 def plot_in_order_neo(signals, names, n_chan, statuses, confidence_list,
                       seg_is, exec_times=[], ylims=None):
@@ -122,10 +85,10 @@ def plot_in_order_neo(signals, names, n_chan, statuses, confidence_list,
     for i in range(n_chan):
         name = names[i]
         signal = signals[i]
-        bad = statuses[i]
+        bad = statuses[i] if not len(statuses) == 0 else False
         segments = seg_is[i] if not len(seg_is) == 0 else []
         exec_time = exec_times[i] if not len(exec_times) == 0 else 0
-        confidences = confidence_list[i]
+        confidences = confidence_list[i] if not len(confidence_list) == 0 else []
 
         if bad:
             #print("bad, skipping")
@@ -148,13 +111,14 @@ def plot_in_order_neo(signals, names, n_chan, statuses, confidence_list,
                 seg_end = segment[1]
                 ax1.axvspan(seg_start, seg_end, alpha=.5)
 
-                confidence = confidences[j]
+                if confidences != []:
+                    confidence = confidences[j]
 
-                if confidence is not None:
-                    seg_len = seg_end - seg_start
-                    x_pos = seg_start + 0.1 * seg_len
-                    y_pos = 0.9 * np.amax(signal)
-                    ax1.text(x_pos, y_pos, s=str(round(confidence, 2)), fontsize="xx-small")
+                    if confidence is not None:
+                        seg_len = seg_end - seg_start
+                        x_pos = seg_start + 0.1 * seg_len
+                        y_pos = 0.9 * np.amax(signal)
+                        ax1.text(x_pos, y_pos, s=str(round(confidence, 2)), fontsize="xx-small")
 
         if ylims != None:
             ax1.set_ylim(ylims)
@@ -164,6 +128,41 @@ def plot_in_order_neo(signals, names, n_chan, statuses, confidence_list,
         plt.title(title)
         plt.show()
 
+def plot_spans(ax, segments, color="blue"):
+    if len(segments) == 0:
+        return
+
+    for segment in segments:
+        ax.axvspan(segment[0], segment[1], color=color, alpha=.5)
+
+    return
+
+def plot_in_order_ver3(signals, names, n_chan, statuses,
+                       bad_seg_list, suspicious_seg_list, exec_times,
+                       ylims=None):
+    for i in range(n_chan):
+        name = names[i]
+        signal = signals[i]
+        bad = statuses[i]
+        bad_segs = bad_seg_list[i]
+        suspicious_segs = suspicious_seg_list[i]
+        exec_time = exec_times[i] if len(exec_times) != 0 else 0
+
+        if bad:
+            status = "bad"
+        else:
+            status = "good"
+
+        fig, ax = plt.subplots()
+        ax.plot(signal)
+
+        plot_spans(ax, bad_segs, color="red")
+        plot_spans(ax, suspicious_segs, color="yellow")
+
+        ax.grid()
+        title = name + ": " + status
+        ax.set_title(title)
+        plt.show()
 
 def secondver():
     fname = datadir + "many_failed.npz"
@@ -174,8 +173,8 @@ def secondver():
     time = data.time
     signals = sa.reorganize_signals(unorganized_signals, n_chan)
 
-    signal_statuses, segment_list, confidence_list, exec_times = sa.analyse_all_neo(signals, names, n_chan)
-    plot_in_order_neo(signals, names, n_chan, signal_statuses, confidence_list, segment_list)
+    signal_statuses, bad_segs, suspicious_segs, exec_times = sa.analyse_all_neo(signals, names, n_chan)
+    plot_in_order_ver3(signals, names, n_chan, signal_statuses, bad_segs, suspicious_segs, exec_times)
 
 def plottest():
     fname = datadir + "many_successful.npz"
@@ -263,14 +262,14 @@ if __name__ == '__main__':
     #dataload()
     #averagetest()
     #firstver()
-    #secondver()
+    secondver()
     #plottest()
     #animtest()
     #simo()
     #nearby()
     #names()
     #simulation()
-    test_uniq()
+    #test_uniq()
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
