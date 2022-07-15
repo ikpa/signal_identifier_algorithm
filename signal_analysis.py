@@ -66,8 +66,6 @@ def averages_are_close(signal, start_is, end_is, averages=[], std_sensitivity=0.
     if len(start_is) == 1 and len(averages) == 0:
         return True
 
-    print("checking averages")
-
     for i in range(len(start_is)):
         segment = signal[start_is[i]: end_is[i]]
         av = np.mean(segment)
@@ -124,9 +122,7 @@ def cal_confidence_seg(signal, start_i, end_i,
 
     len_conf = rel_len * len_w
 
-    print("uniq_conf:", uniq_conf)
-    print("grad_conf:", grad_conf)
-    print("len_conf:", len_conf)
+    print("uniq_conf:", uniq_conf, "grad_conf:", grad_conf, "len_conf:", len_conf)
 
     tot_conf = uniq_conf + grad_conf + len_conf
     return tot_conf
@@ -249,9 +245,6 @@ def cal_confidence_grad(gradient, spikes, all_diffs, max_sensitivities=[1.5, 1, 
 
     grad_ave = abs(np.mean(gradient[seg_start:seg_end]))
 
-    print("num_spikes", n, "av_diff", av_max, "grad_ave", grad_ave,
-          "spike_density", spike_density)
-
     # TEST DIFFS----------------------------------------
     if av_max >= max_sensitivities[0]:
         score += 2
@@ -279,9 +272,13 @@ def cal_confidence_grad(gradient, spikes, all_diffs, max_sensitivities=[1.5, 1, 
     if spike_density >= sdens_sensitivity:
         score += 1
 
-    print("score", score)
 
-    return [seg_start, seg_end], score / 1.5
+    score = score / 1.5
+
+    print("num_spikes", n, "av_diff", av_max, "grad_ave", grad_ave,
+          "spike_density", spike_density, "badness", score)
+
+    return [seg_start, seg_end], score
 
 def find_spikes(gradient, filter_i, grad_sensitivity, len_sensitivity=6):
     spikes = []
@@ -307,7 +304,6 @@ def find_spikes(gradient, filter_i, grad_sensitivity, len_sensitivity=6):
 
     return spikes, all_diffs
 
-#TODO find way to include tail in segments
 def gradient_filter_neo(signal, filter_i, grad_sensitivity=10 ** (-10)):
     gradient = np.gradient(signal)
     spikes, all_diffs = find_spikes(gradient, filter_i, grad_sensitivity)
@@ -327,6 +323,12 @@ def gradient_filter_neo(signal, filter_i, grad_sensitivity=10 ** (-10)):
             seg_is[1] = final_i
 
     return [seg_is], [confidence]
+
+def fifty_hz_filter(signal, filter_i):
+    from scipy.fft import fft
+    ftrans = fft(signal[filter_i:])
+    ftrans_abs = [x.real for x in ftrans]
+    return ftrans_abs
 
 def combine_segments(segments):
     n = len(segments)
@@ -384,12 +386,57 @@ def length_of_segments(segments):
 
     return tot_len
 
-#TODO make it so theres no overlapping sus and bad segments
+def split_into_lists(original_list):
+    n = len(original_list)
+
+    if n == 0:
+        return original_list
+
+    new_lists = []
+    list = [original_list[0]]
+    for i in range(1, n):
+        integer = original_list[i]
+        prev_int = integer - 1
+
+        if prev_int not in list:
+            new_lists.append(list)
+            list = [integer]
+        elif i == n - 1:
+            list.append(integer)
+            new_lists.append(list)
+        else:
+            list.append(integer)
+
+    return new_lists
+
+def fix_overlap(bad_segs, suspicious_segs):
+    if len(bad_segs) == 0 or len(suspicious_segs) == 0:
+        return suspicious_segs
+
+    new_suspicious_segs = []
+    for sus_seg in suspicious_segs:
+        sus_list = list(range(sus_seg[0], sus_seg[1] + 1))
+        for bad_seg in bad_segs:
+            bad_list = list(range(bad_seg[0], bad_seg[1] + 1))
+            sus_list = list(set(sus_list) - set(bad_list))
+
+        split_lists = split_into_lists(sus_list)
+        split_segs = []
+
+        for lst in split_lists:
+            split_segs.append([np.amin(lst), np.amax(lst)])
+
+        new_suspicious_segs += split_segs
+
+    return new_suspicious_segs
+
 def final_analysis(signal_length, segments, confidences, badness_sensitivity=.8):
     bad_segs, suspicious_segs = separate_segments(segments, confidences)
 
     bad_segs = combine_segments(bad_segs)
     suspicious_segs = combine_segments(suspicious_segs)
+
+    suspicious_segs = fix_overlap(bad_segs, suspicious_segs)
 
     tot_bad_length = length_of_segments(bad_segs)
     rel_bad_length = tot_bad_length / signal_length
@@ -427,6 +474,13 @@ def analyse_all_neo(signals, names, chan_num,
             if filter == "gradient":
                 seg_is, confs = gradient_filter_neo(signal, filter_i)
 
+            new_segs = len(seg_is)
+
+            if new_segs == 0:
+                print("no segments found")
+            else:
+                print(new_segs, "segment(s) found")
+
             segments += seg_is
             confidences += confs
             bad, bad_segs, suspicious_segs = final_analysis(signal_length, segments, confidences)
@@ -434,6 +488,13 @@ def analyse_all_neo(signals, names, chan_num,
             if bad:
                 print("bad singal, stopping")
                 break
+
+        num_bad = len(bad_segs)
+        num_sus = len(suspicious_segs)
+        print(num_sus, "suspicious and", num_bad, " bad segment(s) found in total")
+
+        if not bad:
+            print("signal not marked as bad")
 
         signal_statuses.append(bad)
         bad_segment_list.append(bad_segs)

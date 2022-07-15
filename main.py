@@ -164,8 +164,31 @@ def plot_in_order_ver3(signals, names, n_chan, statuses,
         ax.set_title(title)
         plt.show()
 
+def test_hz():
+    fname = datadir + "many_many_successful.npz"
+    data = fr.load_all(fname).subpool(["MEG*1", "MEG*4"]).clip((0.210, 0.50))
+    unorganized_signals = data.data
+    names = data.names
+    n_chan = data.n_channels
+    time = data.time
+    signals = sa.reorganize_signals(unorganized_signals, n_chan)
+
+    for i in range(len(signals)):
+        signal = signals[i]
+        name = names[i]
+        print(name)
+
+        filter_i = sa.filter_start(signal)
+        ftrans = sa.fifty_hz_filter(signal, filter_i)
+
+        fig, (ax1, ax2) = plt.subplots(2, 1)
+        ax1.plot(signal[filter_i:])
+        ax2.plot(ftrans)
+        plt.title(name)
+        plt.show()
+
 def secondver():
-    fname = datadir + "many_failed.npz"
+    fname = datadir + "sample_data02.npz"
     data = fr.load_all(fname).subpool(["MEG*1", "MEG*4"]).clip((0.210, 0.50))
     unorganized_signals = data.data
     names = data.names
@@ -175,6 +198,12 @@ def secondver():
 
     signal_statuses, bad_segs, suspicious_segs, exec_times = sa.analyse_all_neo(signals, names, n_chan)
     plot_in_order_ver3(signals, names, n_chan, signal_statuses, bad_segs, suspicious_segs, exec_times)
+
+def overlap():
+    sus_segs = [[600, 1400]]
+    bad_segs = [[600, 650], [900, 950], [1000, 1300]]
+    sa.fix_overlap(bad_segs, sus_segs)
+
 
 def plottest():
     fname = datadir + "many_successful.npz"
@@ -189,7 +218,7 @@ def plottest():
 
     #n = data.n_channels
     #signals = sa.reorganize_signals(signals, n)
-    statuses, fracs, uniq_stats_list, exec_times = sa.analyse_all(signals, names, n)
+    statuses, bad_segs, sus_segs, exec_times = sa.analyse_all_neo(signals, names, n)
     bad_list = bad_list_for_anim(names, statuses)
 
     vis.helmet_animation(names, signals, frames=1000, bads=bad_list)
@@ -213,7 +242,7 @@ def bad_list_for_anim(names, bads):
     bad_names = []
     for i in range(len(names)):
 
-        if bads[i][0]:
+        if bads[i]:
             bad_names.append(names[i])
 
     return bad_names
@@ -262,7 +291,7 @@ if __name__ == '__main__':
     #dataload()
     #averagetest()
     #firstver()
-    secondver()
+    #secondver()
     #plottest()
     #animtest()
     #simo()
@@ -270,6 +299,8 @@ if __name__ == '__main__':
     #names()
     #simulation()
     #test_uniq()
+    #overlap()
+    test_hz()
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
