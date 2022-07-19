@@ -1,3 +1,5 @@
+import math
+
 import ruptures as rpt
 import numpy as np
 import pandas as pd
@@ -324,11 +326,83 @@ def gradient_filter_neo(signal, filter_i, grad_sensitivity=10 ** (-10)):
 
     return [seg_is], [confidence]
 
-def fifty_hz_filter(signal, filter_i):
+#largest spike usually at 14, others at 42, 70, 127. (2795, 2767, 2739)
+def fifty_hz_filter(signal, filter_i=0):
     from scipy.fft import fft
+
+    if len(signal) == 0:
+        return [0]
+
     ftrans = fft(signal[filter_i:])
     ftrans_abs = [x.real for x in ftrans]
+    ftrans_abs[0] = 0
     return ftrans_abs
+
+def fifty_hz_filter2(signal, win=10):
+    ave = pd.Series(signal).rolling(win).mean()
+    noise = []
+
+    length = len(signal)
+    offset = (win - 1)
+
+    new_ave = []
+
+    for val in ave:
+        if math.isnan(val):
+            continue
+        new_ave.append(val)
+
+    for i in range(length - offset):
+
+        noise.append(signal[i] - new_ave[i])
+
+    return noise, new_ave
+
+def hz_func(x, a, b, c, d):
+    frec = 2 * np.pi * (5 * 10 ** (-3))
+    return a * np.sin(frec * x) + b * np.sin((3 * frec) * x) + c * np.exp(-d * x)
+
+def make_fit(signal):
+    from scipy.optimize import curve_fit
+    length = len(signal)
+    xdat = list(range(0, length))
+    popt, pcov = curve_fit(hz_func, xdat, signal, maxfev=100000)
+    return popt, pcov
+
+def grad_fit_analysis(signal, window=100, num_params=4):
+    length = len(signal)
+    signal_end = length - 1
+    grad = np.gradient(signal)
+
+    params = []
+    sdevs = []
+
+    for i in range(length):
+        window_end = i + window
+        if window_end > signal_end:
+            end_i = signal_end
+        else:
+            end_i = window_end
+
+        if end_i - i <= 4:
+            temp_params = []
+            temp_sdevs = []
+            for i in range(num_params):
+                temp_params.append(0)
+                temp_sdevs.append(0)
+
+            params.append(np.asarray(temp_params))
+            sdevs.append(np.asarray(temp_sdevs))
+            continue
+
+        windowed_grad = grad[i:end_i]
+        popt, pcov = make_fit(windowed_grad)
+
+        params.append(popt)
+        sdevs.append(np.sqrt(np.diag(pcov)))
+
+    return params, sdevs
+
 
 def combine_segments(segments):
     n = len(segments)

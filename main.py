@@ -164,8 +164,47 @@ def plot_in_order_ver3(signals, names, n_chan, statuses,
         ax.set_title(title)
         plt.show()
 
-def test_hz():
-    fname = datadir + "many_many_successful.npz"
+def test_hz4():
+    fname = datadir + "many_many_successful2.npz"
+    data = fr.load_all(fname).subpool(["MEG0624", "MEG0724", "MEG0531", "MEG0541",
+                                       "MEG0634", "MEG0121"]).clip((0.210, 0.50))
+    unorganized_signals = data.data
+    names = data.names
+    n_chan = data.n_channels
+    time = data.time
+    signals = sa.reorganize_signals(unorganized_signals, n_chan)
+
+    def plot_params(ax, params):
+        params = np.asarray(params)
+        n_params = len(params[0])
+        print(np.shape(params))
+        for i in range(n_params - 1):
+            points = params[:,i]
+            print(np.shape(points))
+            ax.plot(points, label=str(i + 1))
+            plt.legend()
+
+
+    for i in range(n_chan):
+        name = names[i]
+        signal = signals[i]
+
+        filter_i = sa.filter_start(signal)
+        filtered_signal = signal[filter_i:]
+
+        print(name)
+        params, errs = sa.grad_fit_analysis(filtered_signal, window=100)
+
+        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
+        ax1.plot(filtered_signal)
+        ax2.plot(np.gradient(filtered_signal))
+        plot_params(ax3, errs)
+        plt.show()
+
+
+#TODO periodicity = 203
+def test_hz3():
+    fname = datadir + "many_successful.npz"
     data = fr.load_all(fname).subpool(["MEG*1", "MEG*4"]).clip((0.210, 0.50))
     unorganized_signals = data.data
     names = data.names
@@ -173,19 +212,136 @@ def test_hz():
     time = data.time
     signals = sa.reorganize_signals(unorganized_signals, n_chan)
 
-    for i in range(len(signals)):
+    from scipy.optimize import curve_fit
+
+    frec = 2 * np.pi * (5 * 10**(-3))
+
+    def func(x, a, b, c, d):
+        return a * np.sin(frec * x) + b * np.sin((3 * frec) * x) + c * np.exp(-d * x)
+
+    for i in range(n_chan):
         signal = signals[i]
         name = names[i]
         print(name)
 
         filter_i = sa.filter_start(signal)
-        ftrans = sa.fifty_hz_filter(signal, filter_i)
+        filtered_signal = signal[filter_i:]
+        length = len(filtered_signal)
+        grad = np.gradient(filtered_signal)
+        xdat = list(range(0, length))
+        x = np.linspace(0, length, length)
+        popt, pcov = curve_fit(func, xdat, grad, maxfev=100000)
+        print(popt)
+        print(np.diag(pcov))
+        print()
+
+        fit = func(x, *popt)
+
+        difference = []
+
+        for i in range(length):
+            fit_val = fit[i]
+            actual_val = grad[i]
+            difference.append(actual_val - fit_val)
+
+        fig, (ax1, ax2, ax3) = plt.subplots(3, 1)
+        ax1.plot(filtered_signal)
+        ax2.plot(grad)
+        ax2.plot(fit)
+        ax3.plot(difference)
+        plt.show()
+
+
+def test_hz2():
+    from matplotlib.animation import FuncAnimation
+    fname = datadir + "many_successful.npz"
+    data = fr.load_all(fname).subpool(["MEG*1", "MEG*4"]).clip((0.210, 0.50))
+    unorganized_signals = data.data
+    names = data.names
+    n_chan = data.n_channels
+    time = data.time
+    signals = sa.reorganize_signals(unorganized_signals, n_chan)
+
+    window = 150
+
+    for j in range(n_chan):
+        signal = signals[j]
+        print(names[j])
+        signal_len = len(signal)
+        max_i = signal_len - 1
+
+        maximums = []
+        for i in range(signal_len):
+            if i + window > max_i:
+                end_i = max_i
+            else:
+                end_i = i + window
+
+            signal_windowed = signal[i: end_i]
+            ftrans = sa.fifty_hz_filter(signal_windowed)
+            max_fft = np.amax(ftrans)
+            #min_fft = abs(np.amin(ftrans))
+            maximums.append(max_fft)
 
         fig, (ax1, ax2) = plt.subplots(2, 1)
-        ax1.plot(signal[filter_i:])
-        ax2.plot(ftrans)
-        plt.title(name)
+        #ax2.set_ylim(-0.01 * 10 ** (-7), 2 * 10 ** (-7))
+        ax1.plot(signal)
+        ax2.plot(maximums)
         plt.show()
+
+
+
+def test_hz():
+    from matplotlib.animation import FuncAnimation
+    fname = datadir + "sample_data20.npz"
+    data = fr.load_all(fname).subpool(["MEG0311"]).clip((0.210, 0.50))
+    unorganized_signals = data.data
+    names = data.names
+    n_chan = data.n_channels
+    time = data.time
+    signals = sa.reorganize_signals(unorganized_signals, n_chan)
+    signal = signals[0]
+
+    window = 1000
+    max_i = len(signal) - 1
+
+    print(range(0, max_i, window))
+
+    signal_windowed = signal[0:window]
+    ftrans = sa.fifty_hz_filter(signal_windowed)
+    maximums = []
+
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1)
+    ax2.set_ylim(-2*10**(-7), 2*10**(-7))
+
+    def animate(i):
+        #i = i * 10
+        if i + window > max_i:
+            end_i = max_i
+        else:
+            end_i = i + window
+
+        signal_windowed = signal[i: end_i]
+        ftrans = sa.fifty_hz_filter(signal_windowed)
+        max_fft = np.amax(ftrans)
+        min_fft = abs(np.amin(ftrans))
+        maximums.append(max(max_fft, min_fft))
+
+        if i % 10 == 0:
+            ax1.clear()
+            ax2.clear()
+            ax3.clear()
+            ax2.set_ylim(-1 * 10 ** (-7), 1 * 10 ** (-7))
+            ax3.set_ylim(-0.5 * 10 ** (-7), 1 * 10 ** (-7))
+            ax1.plot(signal_windowed)
+            ax2.plot(ftrans)
+            ax3.plot(maximums)
+
+
+
+    ani = FuncAnimation(fig, animate, frames=len(signal), interval=.01, repeat=True)
+    plt.show()
+
 
 def secondver():
     fname = datadir + "sample_data02.npz"
@@ -300,7 +456,7 @@ if __name__ == '__main__':
     #simulation()
     #test_uniq()
     #overlap()
-    test_hz()
+    test_hz4()
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
