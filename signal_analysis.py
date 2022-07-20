@@ -8,6 +8,61 @@ from operator import itemgetter
 
 bkps = 8
 
+
+def smooth(x, window_len=21, window='hanning'):
+    """smooth the data using a window with requested size.
+
+    This method is based on the convolution of a scaled window with the signal.
+    The signal is prepared by introducing reflected copies of the signal
+    (with the window size) in both ends so that transient parts are minimized
+    in the begining and end part of the output signal.
+
+    input:
+        x: the input signal
+        window_len: the dimension of the smoothing window; should be an odd integer
+        window: the type of window from 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'
+            flat window will produce a moving average smoothing.
+
+    output:
+        the smoothed signal
+
+    example:
+
+    t=linspace(-2,2,0.1)
+    x=sin(t)+randn(len(t))*0.1
+    y=smooth(x)
+
+    see also:
+
+    numpy.hanning, numpy.hamming, numpy.bartlett, numpy.blackman, numpy.convolve
+    scipy.signal.lfilter
+
+    TODO: the window parameter could be the window itself if an array instead of a string
+    NOTE: length(output) != length(input), to correct this: return y[(window_len/2-1):-(window_len/2)] instead of just y.
+    """
+
+    if x.ndim != 1:
+        raise ValueError("smooth only accepts 1 dimension arrays.")
+
+    if x.size < window_len:
+        raise ValueError("Input vector needs to be bigger than window size.")
+
+    if window_len < 3:
+        return x
+
+    if not window in ['flat', 'hanning', 'hamming', 'bartlett', 'blackman']:
+        raise ValueError("Window is on of 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'")
+
+    s = np.r_[x[window_len - 1:0:-1], x, x[-2:-window_len - 1:-1]]
+    # print(len(s))
+    if window == 'flat':  # moving average
+        w = np.ones(window_len, 'd')
+    else:
+        w = eval('np.' + window + '(window_len)')
+
+    y = np.convolve(w / w.sum(), s, mode='valid')
+    return y
+
 # fixes signals in bad formats (when reading only one channel)
 def reorganize_signal(signal):
     size = len(signal)
@@ -18,14 +73,6 @@ def reorganize_signal(signal):
         new_sig[i] = signal[i][0]
 
     return new_sig
-
-def reorganize_signals(signals, n):
-    new_signals = []
-    for i in range(n):
-        signal = signals[:, i]
-        new_signals.append(signal)
-
-    return new_signals
 
 def find_nearby_detectors(d_name, detectors, r_sens = 0.06):
     dut = detectors[d_name]
@@ -358,18 +405,35 @@ def fifty_hz_filter2(signal, win=10):
 
     return noise, new_ave
 
-def hz_func(x, a, b, c, d):
+def hz_func(x, a, b, c, d, e):
     frec = 2 * np.pi * (5 * 10 ** (-3))
-    return a * np.sin(frec * x) + b * np.sin((3 * frec) * x) + c * np.exp(-d * x)
+    return a * np.sin(frec * x + e) + b * np.sin((3 * frec) * x + e) + c * np.exp(-d * x)
 
 def make_fit(signal):
     from scipy.optimize import curve_fit
     length = len(signal)
     xdat = list(range(0, length))
-    popt, pcov = curve_fit(hz_func, xdat, signal, maxfev=100000)
+    try:
+        popt, pcov = curve_fit(hz_func, xdat, signal, maxfev=1400)
+    except RuntimeError:
+        print("optimal parameters not found")
+        popt = []
+        pcov = []
+
     return popt, pcov
 
-def grad_fit_analysis(signal, window=100, num_params=4):
+def empty_params(num_params, params, sdevs):
+    temp_params = []
+    temp_sdevs = []
+    for i in range(num_params):
+        temp_params.append(0)
+        temp_sdevs.append(0)
+
+    params.append(np.asarray(temp_params))
+    sdevs.append(np.asarray(temp_sdevs))
+
+
+def grad_fit_analysis(signal, window=100, num_params=5):
     length = len(signal)
     signal_end = length - 1
     grad = np.gradient(signal)
@@ -378,6 +442,7 @@ def grad_fit_analysis(signal, window=100, num_params=4):
     sdevs = []
 
     for i in range(length):
+        print(round(i/length, 2))
         window_end = i + window
         if window_end > signal_end:
             end_i = signal_end
@@ -385,21 +450,18 @@ def grad_fit_analysis(signal, window=100, num_params=4):
             end_i = window_end
 
         if end_i - i <= 4:
-            temp_params = []
-            temp_sdevs = []
-            for i in range(num_params):
-                temp_params.append(0)
-                temp_sdevs.append(0)
-
-            params.append(np.asarray(temp_params))
-            sdevs.append(np.asarray(temp_sdevs))
+            empty_params(num_params, params, sdevs)
             continue
 
         windowed_grad = grad[i:end_i]
         popt, pcov = make_fit(windowed_grad)
 
-        params.append(popt)
-        sdevs.append(np.sqrt(np.diag(pcov)))
+        if len(popt) == 0:
+            empty_params(num_params, params, sdevs)
+        else:
+            params.append(popt)
+            sdevs.append(np.sqrt(np.diag(pcov)))
+
 
     return params, sdevs
 

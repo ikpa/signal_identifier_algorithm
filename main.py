@@ -164,22 +164,79 @@ def plot_in_order_ver3(signals, names, n_chan, statuses,
         ax.set_title(title)
         plt.show()
 
+def test_hz5():
+    channels = ["MEG0624", "MEG0724", "MEG0531", "MEG0541",
+                "MEG0634", "MEG0121"]
+    fname = "many_many_successful2.npz"
+    signals, names, time, n_chan = fr.get_signals(fname)
+
+    from scipy.signal import argrelextrema
+
+    for i in range(n_chan):
+        name = names[i]
+        signal = signals[i]
+        print(name)
+
+        filter_i = sa.filter_start(signal)
+        filtered_signal = signal[filter_i:]
+        grad = np.gradient(filtered_signal)
+        smooth_grad = sa.smooth(grad)
+        smooth_x = np.linspace(0, len(filtered_signal) - 1, len(smooth_grad))
+
+        order = 10
+        maxima = argrelextrema(smooth_grad, np.greater, order=order)[0]
+        minima = argrelextrema(smooth_grad, np.less, order=order)[0]
+        extrema = list(maxima) + list(minima)
+        extrema.sort()
+
+        def get_regular_spans(extrema, extrem_grad, change_sensitivities=[25, 40]):
+
+            length = len(extrema)
+
+            if length < 2:
+                return []
+
+            for i in range(length):
+                grad_val = extrem_grad[i]
+
+                if grad_val > change_sensitivities[0] and grad_val < change_sensitivities[1]:
+                    pass
+
+        if len(maxima) > 1:
+            extrem_grad = np.gradient(extrema)
+        else:
+            extrem_grad = []
+
+        print(len(grad))
+        print(len(smooth_grad))
+        print()
+
+        fig, (ax1, ax2, ax3) = plt.subplots(3, 1)
+        ax1.plot(filtered_signal)
+        ax2.plot(grad)
+        ax2.plot(smooth_x, smooth_grad)
+
+        for extrem in extrema:
+            x = smooth_x[extrem]
+            ax2.axvline(x=x, linestyle="--", color="red")
+
+
+        ax3.plot(extrem_grad)
+
+        plt.show()
+
 def test_hz4():
-    fname = datadir + "many_many_successful2.npz"
-    data = fr.load_all(fname).subpool(["MEG0624", "MEG0724", "MEG0531", "MEG0541",
-                                       "MEG0634", "MEG0121"]).clip((0.210, 0.50))
-    unorganized_signals = data.data
-    names = data.names
-    n_chan = data.n_channels
-    time = data.time
-    signals = sa.reorganize_signals(unorganized_signals, n_chan)
+    channels = ["MEG0624", "MEG0724", "MEG0531", "MEG0541",
+                                       "MEG0634", "MEG0121"]
+    fname = "many_many_successful2.npz"
+    signals, names, time, n_chan = fr.get_signals(fname, channels)
 
     def plot_params(ax, params):
         params = np.asarray(params)
         n_params = len(params[0])
-        print(np.shape(params))
-        for i in range(n_params - 1):
-            points = params[:,i]
+        print(len(params))
+        for i in range(n_params):
+            points = params[:, i]
             print(np.shape(points))
             ax.plot(points, label=str(i + 1))
             plt.legend()
@@ -198,26 +255,23 @@ def test_hz4():
         fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
         ax1.plot(filtered_signal)
         ax2.plot(np.gradient(filtered_signal))
-        plot_params(ax3, errs)
+        plot_params(ax3, params)
         plt.show()
 
 
 #TODO periodicity = 203
 def test_hz3():
-    fname = datadir + "many_successful.npz"
-    data = fr.load_all(fname).subpool(["MEG*1", "MEG*4"]).clip((0.210, 0.50))
-    unorganized_signals = data.data
-    names = data.names
-    n_chan = data.n_channels
-    time = data.time
-    signals = sa.reorganize_signals(unorganized_signals, n_chan)
+    channels = ["MEG0624", "MEG0724", "MEG0531", "MEG0541",
+                "MEG0634", "MEG0121"]
+    fname = "many_many_successful2.npz"
+    signals, names, time, n_chan = fr.get_signals(fname, channels)
 
     from scipy.optimize import curve_fit
 
     frec = 2 * np.pi * (5 * 10**(-3))
 
-    def func(x, a, b, c, d):
-        return a * np.sin(frec * x) + b * np.sin((3 * frec) * x) + c * np.exp(-d * x)
+    def func(x, a, b, c, d, e):
+        return a * np.sin(frec * x + e) + b * np.sin((3 * frec) * x + e) + c * np.exp(-d * x)
 
     for i in range(n_chan):
         signal = signals[i]
@@ -232,7 +286,7 @@ def test_hz3():
         x = np.linspace(0, length, length)
         popt, pcov = curve_fit(func, xdat, grad, maxfev=100000)
         print(popt)
-        print(np.diag(pcov))
+        print(np.sqrt(np.diag(pcov)))
         print()
 
         fit = func(x, *popt)
@@ -344,13 +398,8 @@ def test_hz():
 
 
 def secondver():
-    fname = datadir + "sample_data02.npz"
-    data = fr.load_all(fname).subpool(["MEG*1", "MEG*4"]).clip((0.210, 0.50))
-    unorganized_signals = data.data
-    names = data.names
-    n_chan = data.n_channels
-    time = data.time
-    signals = sa.reorganize_signals(unorganized_signals, n_chan)
+    fname = "sample_data02.npz"
+    signals, names, time, n_chan = fr.get_signals(fname)
 
     signal_statuses, bad_segs, suspicious_segs, exec_times = sa.analyse_all_neo(signals, names, n_chan)
     plot_in_order_ver3(signals, names, n_chan, signal_statuses, bad_segs, suspicious_segs, exec_times)
@@ -456,7 +505,7 @@ if __name__ == '__main__':
     #simulation()
     #test_uniq()
     #overlap()
-    test_hz4()
+    test_hz5()
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
