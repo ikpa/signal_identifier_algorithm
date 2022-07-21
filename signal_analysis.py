@@ -466,6 +466,61 @@ def grad_fit_analysis(signal, window=100, num_params=5):
     return params, sdevs
 
 
+def get_regular_spans(extrema, extrem_grad, change_sensitivities=[25, 40],
+                      span=10, num_sensitivity=4, offset=0):
+    length = len(extrema)
+    grad_len = len(extrem_grad)
+    print(length)
+    print(len(extrem_grad))
+
+    if length < 2 or grad_len < 2:
+        return []
+
+    reg_grads = []
+    segments = []
+
+    start_i = -1
+    end_i = -1
+
+    num_extrema = 0
+
+    for i in range(length):
+        grad_val = extrem_grad[i]
+
+        print(start_i, end_i, num_extrema)
+
+        if not (grad_val > change_sensitivities[0] and grad_val < change_sensitivities[1]) \
+                or i == length - 1:
+            if start_i != -1 and end_i != -1:
+                if num_extrema >= num_sensitivity:
+                    segments.append([start_i - offset, end_i - offset])
+
+                start_i = -1
+                end_i = -1
+                num_extrema = 0
+            continue
+
+        current = extrema[i]
+        reg_grads.append(current)
+
+        if start_i == -1:
+            start_i = current - span
+
+        if i == 0:
+            prev = -1
+        else:
+            prev = extrema[i - 1]
+
+        if prev in reg_grads:
+            end_i = -1
+
+        if end_i == -1:
+            num_extrema += 1
+            end_i = current + span
+
+    print(segments)
+    return segments
+
 def combine_segments(segments):
     n = len(segments)
 

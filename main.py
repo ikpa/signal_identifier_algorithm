@@ -167,7 +167,7 @@ def plot_in_order_ver3(signals, names, n_chan, statuses,
 def test_hz5():
     channels = ["MEG0624", "MEG0724", "MEG0531", "MEG0541",
                 "MEG0634", "MEG0121"]
-    fname = "many_many_successful2.npz"
+    fname = "many_failed.npz"
     signals, names, time, n_chan = fr.get_signals(fname)
 
     from scipy.signal import argrelextrema
@@ -180,27 +180,18 @@ def test_hz5():
         filter_i = sa.filter_start(signal)
         filtered_signal = signal[filter_i:]
         grad = np.gradient(filtered_signal)
-        smooth_grad = sa.smooth(grad)
-        smooth_x = np.linspace(0, len(filtered_signal) - 1, len(smooth_grad))
+        window = 51
+        offset = int(window/2)
+        smooth_grad = sa.smooth(grad, window_len=window)
+        #smooth_x = np.linspace(0, len(filtered_signal) - 1, len(smooth_grad))
+        smooth_x = [x - offset for x in list(range(len(smooth_grad)))]
 
         order = 10
         maxima = argrelextrema(smooth_grad, np.greater, order=order)[0]
         minima = argrelextrema(smooth_grad, np.less, order=order)[0]
         extrema = list(maxima) + list(minima)
         extrema.sort()
-
-        def get_regular_spans(extrema, extrem_grad, change_sensitivities=[25, 40]):
-
-            length = len(extrema)
-
-            if length < 2:
-                return []
-
-            for i in range(length):
-                grad_val = extrem_grad[i]
-
-                if grad_val > change_sensitivities[0] and grad_val < change_sensitivities[1]:
-                    pass
+        #extrema = [smooth_x[i] for i in extrema]
 
         if len(maxima) > 1:
             extrem_grad = np.gradient(extrema)
@@ -209,19 +200,26 @@ def test_hz5():
 
         print(len(grad))
         print(len(smooth_grad))
+
+        segments = sa.get_regular_spans(extrema, extrem_grad, offset=offset)
+
         print()
 
-        fig, (ax1, ax2, ax3) = plt.subplots(3, 1)
+        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
         ax1.plot(filtered_signal)
         ax2.plot(grad)
         ax2.plot(smooth_x, smooth_grad)
+        #ax2.plot(smooth_grad)
 
         for extrem in extrema:
             x = smooth_x[extrem]
             ax2.axvline(x=x, linestyle="--", color="red")
 
+        plot_spans(ax2, segments)
 
-        ax3.plot(extrem_grad)
+        if len(extrema) == len(extrem_grad):
+            extrem_x = [x - offset for x in extrema]
+            ax3.plot(extrem_x, extrem_grad, ".-")
 
         plt.show()
 
