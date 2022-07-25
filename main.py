@@ -167,7 +167,7 @@ def plot_in_order_ver3(signals, names, n_chan, statuses,
 def test_hz5():
     channels = ["MEG0624", "MEG0724", "MEG0531", "MEG0541",
                 "MEG0634", "MEG0121"]
-    fname = "many_failed.npz"
+    fname = "many_successful.npz"
     signals, names, time, n_chan = fr.get_signals(fname)
 
     from scipy.signal import argrelextrema
@@ -201,7 +201,7 @@ def test_hz5():
         print(len(grad))
         print(len(smooth_grad))
 
-        segments = sa.get_regular_spans(extrema, extrem_grad, offset=offset)
+        segments = sa.find_regular_spans(extrema, extrem_grad, offset=offset)
 
         print()
 
@@ -220,6 +220,7 @@ def test_hz5():
         if len(extrema) == len(extrem_grad):
             extrem_x = [x - offset for x in extrema]
             ax3.plot(extrem_x, extrem_grad, ".-")
+            ax3.axhspan(25, 40, alpha=.5)
 
         plt.show()
 

@@ -466,8 +466,21 @@ def grad_fit_analysis(signal, window=100, num_params=5):
     return params, sdevs
 
 
-def get_regular_spans(extrema, extrem_grad, change_sensitivities=[25, 40],
-                      span=10, num_sensitivity=4, offset=0):
+def skip(val, num_skipped, not_in_range, change_sensitivities):
+    if not not_in_range:
+        return False
+
+    if val < change_sensitivities[0] and num_skipped < 3:
+        return True
+
+    if val > change_sensitivities[1] and num_skipped < 1:
+        return True
+
+    return False
+
+
+def find_regular_spans(extrema, extrem_grad, change_sensitivities=[25, 40],
+                       span=10, num_sensitivity=4, offset=0):
     length = len(extrema)
     grad_len = len(extrem_grad)
     print(length)
@@ -483,17 +496,38 @@ def get_regular_spans(extrema, extrem_grad, change_sensitivities=[25, 40],
     end_i = -1
 
     num_extrema = 0
+    prev_in_range = False
+    num_skipped = 0
+
+    exclude_len = 0
+    real_end_i = 0
 
     for i in range(length):
         grad_val = extrem_grad[i]
 
         print(start_i, end_i, num_extrema)
 
-        if not (grad_val > change_sensitivities[0] and grad_val < change_sensitivities[1]) \
-                or i == length - 1:
+        not_in_range = not (grad_val >= change_sensitivities[0] and grad_val <= change_sensitivities[1])
+
+        #skip_num = not_in_range and prev_in_range
+        skip_num = skip(grad_val, num_skipped, not_in_range, change_sensitivities)
+
+        if skip_num:
+            num_skipped += 1
+        else:
+            num_skipped = 0
+
+        if not_in_range:
+            prev_in_range = False
+        else:
+            prev_in_range = True
+
+        print("not_in_range", not_in_range, "skip_num", skip_num, "num_skipped", num_skipped)
+
+        if (not_in_range  and not skip_num) or i == length - 1:
             if start_i != -1 and end_i != -1:
                 if num_extrema >= num_sensitivity:
-                    segments.append([start_i - offset, end_i - offset])
+                    segments.append([start_i - offset, end_i - exclude_len - offset])
 
                 start_i = -1
                 end_i = -1
@@ -517,6 +551,11 @@ def get_regular_spans(extrema, extrem_grad, change_sensitivities=[25, 40],
         if end_i == -1:
             num_extrema += 1
             end_i = current + span
+
+            if skip_num:
+                exclude_len = end_i - real_end_i
+            else:
+                real_end_i = end_i
 
     print(segments)
     return segments
