@@ -63,6 +63,7 @@ def smooth(x, window_len=21, window='hanning'):
     y = np.convolve(w / w.sum(), s, mode='valid')
     return y
 
+
 # fixes signals in bad formats (when reading only one channel)
 def reorganize_signal(signal):
     size = len(signal)
@@ -74,7 +75,8 @@ def reorganize_signal(signal):
 
     return new_sig
 
-def find_nearby_detectors(d_name, detectors, r_sens = 0.06):
+
+def find_nearby_detectors(d_name, detectors, r_sens=0.06):
     dut = detectors[d_name]
     r_dut = dut[:3, 3]
     v_dut = dut[:3, 2]
@@ -87,9 +89,9 @@ def find_nearby_detectors(d_name, detectors, r_sens = 0.06):
 
         detector = detectors[name]
         r = detector[:3, 3]
-        delta_r = np.sqrt((r_dut[0] - r[0])**2 +
-                          (r_dut[1] - r[1])**2 +
-                          (r_dut[2] - r[2])**2)
+        delta_r = np.sqrt((r_dut[0] - r[0]) ** 2 +
+                          (r_dut[1] - r[1]) ** 2 +
+                          (r_dut[2] - r[2]) ** 2)
 
         if delta_r < r_sens:
             nears.append(name)
@@ -145,10 +147,11 @@ def average_of_gradient(signal, start_i, end_i, offset_percentage=0.05):
     grad = np.gradient(segment)
     return sum(grad) / len(grad)
 
+
 def cal_confidence_seg(signal, start_i, end_i,
                        uniq_w=1.5, grad_sensitivity=0.5 * 10 ** (-13),
-                       grad_w=10**12, len_w=1):
-    segment = signal[start_i : end_i]
+                       grad_w=10 ** 12, len_w=1):
+    segment = signal[start_i: end_i]
     uniqs = np.unique(segment)
 
     uniquevals = len(uniqs)
@@ -176,9 +179,10 @@ def cal_confidence_seg(signal, start_i, end_i,
     tot_conf = uniq_conf + grad_conf + len_conf
     return tot_conf
 
-#220
+
+# 220
 # finds segments in the signal where the value stays approximately the same for long periods
-def find_uniq_segments(signal, rel_sensitive_length = 0.07, relative_sensitivity=0.02):
+def find_uniq_segments(signal, rel_sensitive_length=0.07, relative_sensitivity=0.02):
     lengths = []
     start_is = []
     end_is = []
@@ -208,6 +212,7 @@ def find_uniq_segments(signal, rel_sensitive_length = 0.07, relative_sensitivity
 
     return lengths, start_is, end_is
 
+
 def uniq_filter_neo(signal, filter_i):
     uniqs, indices, counts = np.unique(signal[:], return_index=True, return_counts=True)
     max_repeat = np.amax(counts)
@@ -228,12 +233,14 @@ def uniq_filter_neo(signal, filter_i):
 
     return [[seg_start, seg_end]], [2]
 
+
 def reformat_stats(start_is, end_is):
     list = []
     for i in range(len(start_is)):
         list.append([start_is[i], end_is[i]])
 
     return list
+
 
 def segment_filter_neo(signal):
     lengths, start_is, end_is = find_uniq_segments(signal)
@@ -244,7 +251,7 @@ def segment_filter_neo(signal):
     final_i = end_is[len(end_is) - 1]
     seg_is = reformat_stats(start_is, end_is)
 
-    #recheck tail
+    # recheck tail
     if final_i != len(signal) - 1:
         tail_ave = [np.mean(signal[final_i:])]
     else:
@@ -256,16 +263,17 @@ def segment_filter_neo(signal):
         seg_is = [[start_is[0], end_is[len(end_is) - 1]]]
 
     confidences = []
-    #print(seg_is)
+    # print(seg_is)
     for segment in seg_is:
-        #print(segment)
+        # print(segment)
         confidences.append(cal_confidence_seg(signal, segment[0], segment[1]))
 
     return seg_is, confidences
 
+
 def cal_confidence_grad(gradient, spikes, all_diffs, max_sensitivities=[1.5, 1, .5],
-                   n_sensitivities=[20, 100],
-                   grad_sensitivity=2 * 10 ** (-13),
+                        n_sensitivities=[20, 100],
+                        grad_sensitivity=2 * 10 ** (-13),
                         sdens_sensitivity=0.1):
     n = len(spikes)
 
@@ -303,12 +311,12 @@ def cal_confidence_grad(gradient, spikes, all_diffs, max_sensitivities=[1.5, 1, 
         score += .5
     # --------------------------------------------------
 
-    #TEST NUMBER OF SPIKES-----------------------------
+    # TEST NUMBER OF SPIKES-----------------------------
     if n >= n_sensitivities[1]:
         score += 1
     elif n >= n_sensitivities[0]:
         score += .5
-    #--------------------------------------------------
+    # --------------------------------------------------
 
     # TEST GRADIENT-------------------------------------
     if grad_ave >= grad_sensitivity:
@@ -321,13 +329,13 @@ def cal_confidence_grad(gradient, spikes, all_diffs, max_sensitivities=[1.5, 1, 
     if spike_density >= sdens_sensitivity:
         score += 1
 
-
     score = score / 1.5
 
     print("num_spikes", n, "av_diff", av_max, "grad_ave", grad_ave,
           "spike_density", spike_density, "badness", score)
 
     return [seg_start, seg_end], score
+
 
 def find_spikes(gradient, filter_i, grad_sensitivity, len_sensitivity=6):
     spikes = []
@@ -346,12 +354,13 @@ def find_spikes(gradient, filter_i, grad_sensitivity, len_sensitivity=6):
         if i - 1 in spike:
             if len(spike) < len_sensitivity:
                 spikes.append(spike)
-                all_diffs.append(diffs )
+                all_diffs.append(diffs)
 
             spike = []
             diffs = []
 
     return spikes, all_diffs
+
 
 def gradient_filter_neo(signal, filter_i, grad_sensitivity=10 ** (-10)):
     gradient = np.gradient(signal)
@@ -373,7 +382,8 @@ def gradient_filter_neo(signal, filter_i, grad_sensitivity=10 ** (-10)):
 
     return [seg_is], [confidence]
 
-#largest spike usually at 14, others at 42, 70, 127. (2795, 2767, 2739)
+
+# largest spike usually at 14, others at 42, 70, 127. (2795, 2767, 2739)
 def fifty_hz_filter(signal, filter_i=0):
     from scipy.fft import fft
 
@@ -384,6 +394,7 @@ def fifty_hz_filter(signal, filter_i=0):
     ftrans_abs = [x.real for x in ftrans]
     ftrans_abs[0] = 0
     return ftrans_abs
+
 
 def fifty_hz_filter2(signal, win=10):
     ave = pd.Series(signal).rolling(win).mean()
@@ -400,14 +411,15 @@ def fifty_hz_filter2(signal, win=10):
         new_ave.append(val)
 
     for i in range(length - offset):
-
         noise.append(signal[i] - new_ave[i])
 
     return noise, new_ave
 
+
 def hz_func(x, a, b, c, d, e):
     frec = 2 * np.pi * (5 * 10 ** (-3))
     return a * np.sin(frec * x + e) + b * np.sin((3 * frec) * x + e) + c * np.exp(-d * x)
+
 
 def make_fit(signal):
     from scipy.optimize import curve_fit
@@ -421,6 +433,7 @@ def make_fit(signal):
         pcov = []
 
     return popt, pcov
+
 
 def empty_params(num_params, params, sdevs):
     temp_params = []
@@ -442,7 +455,7 @@ def grad_fit_analysis(signal, window=100, num_params=5):
     sdevs = []
 
     for i in range(length):
-        print(round(i/length, 2))
+        print(round(i / length, 2))
         window_end = i + window
         if window_end > signal_end:
             end_i = signal_end
@@ -462,7 +475,6 @@ def grad_fit_analysis(signal, window=100, num_params=5):
             params.append(popt)
             sdevs.append(np.sqrt(np.diag(pcov)))
 
-
     return params, sdevs
 
 
@@ -477,6 +489,134 @@ def skip(val, num_skipped, not_in_range, change_sensitivities):
         return True
 
     return False
+
+
+def get_extrema(signal, filter_i=0, window=51, order=10):
+    from scipy.signal import argrelextrema
+    grad = np.gradient(signal)
+    grad_x = [x + filter_i for x in list(range(len(grad)))]
+    offset = int(window / 2)
+    tot_offset = - offset + filter_i
+    smooth_grad = smooth(grad, window_len=window)
+    # smooth_x = np.linspace(0, len(filtered_signal) - 1, len(smooth_grad))
+    smooth_x = [x + tot_offset for x in list(range(len(smooth_grad)))]
+
+    maxima = argrelextrema(smooth_grad, np.greater, order=order)[0]
+    minima = argrelextrema(smooth_grad, np.less, order=order)[0]
+    extrema = list(maxima) + list(minima)
+    extrema.sort()
+    # extrema = [smooth_x[i] for i in extrema]
+
+    if len(maxima) > 1:
+        extrem_grad = np.gradient(extrema)
+    else:
+        extrema = []
+        extrem_grad = []
+
+    return extrema, extrem_grad, grad, grad_x, smooth_grad, smooth_x, tot_offset
+
+
+def find_regular_spans2(signal, filter_i, segment=[], change_sensitivities=[25, 40],
+                        span=10, num_sensitivity=4):
+    if len(segment) == 0:
+        filtered_signal = signal[filter_i:]
+    else:
+        filtered_signal = signal[segment[0]:segment[1]]
+        filter_i = segment[0]
+    extrema, extrem_grad, grad, grad_x, smooth_grad, smooth_x, offset = get_extrema(filtered_signal, filter_i)
+
+    if len(extrema) == 0:
+        return []
+
+    len_extrema = len(extrema)
+
+    real_len = 0
+    skip_len_tot = 0
+    skip_chain = 0
+
+    above_skips = 0
+    below_skips = 0
+
+    included_extrema = []
+    skipped_extrema = []
+
+    segments = []
+
+    for i in range(len_extrema):
+        current_grad = extrem_grad[i]
+        current_extr = extrema[i]
+        above = current_grad > change_sensitivities[1]
+        below = current_grad < change_sensitivities[0]
+        #in_range = change_sensitivities[0] <= current_grad <= change_sensitivities[1]
+        in_range = not above and not below
+
+        print(current_extr, "real_len", real_len, "above_skip", above_skips, "below_skips", below_skips, "skip_chain", skip_chain)
+
+        if skip_chain > max(below_skips, above_skips):
+            skip_val = False
+        elif real_len != 0:
+            if above:
+                skip_val = skip(current_grad, above_skips, not in_range, change_sensitivities)
+            elif below:
+                skip_val = skip(current_grad, below_skips, not in_range, change_sensitivities)
+            else:
+                skip_val = False
+        else:
+            skip_val = False
+
+        print("skip_val", skip_val, "above", above, "below", below, "in_range", in_range)
+
+        if not skip_val:
+            print("ending chain")
+            skip_chain = 0
+            above_skips = 0
+            below_skips = 0
+
+        print()
+
+        if (not in_range and not skip_val) or i == len_extrema:
+            if len(included_extrema) < num_sensitivity:
+                pass
+            else:
+                min_real = np.amin(included_extrema)
+                max_real = np.amax(included_extrema)
+
+                segments.append([min_real - span + offset, max_real + span + offset])
+                print(included_extrema, skipped_extrema, [min_real - span - offset, max_real + span - offset])
+                print()
+
+            real_len = 0
+            skip_len_tot = 0
+            skip_chain = 0
+
+            above_skips = 0
+            below_skips = 0
+
+            skip_val = False
+            in_range = False
+
+            included_extrema = []
+            skipped_extrema = []
+
+        if in_range:
+            included_extrema.append(current_extr)
+            real_len += 1
+
+        if skip_val:
+            skipped_extrema.append(current_extr)
+            skip_len_tot += 1
+
+            if above:
+                above_skips += 1
+                below_skips = 0
+
+            if below:
+                below_skips += 1
+                above_skips = 0
+
+            skip_chain += 1
+
+    return segments
 
 
 def find_regular_spans(extrema, extrem_grad, change_sensitivities=[25, 40],
@@ -505,11 +645,11 @@ def find_regular_spans(extrema, extrem_grad, change_sensitivities=[25, 40],
     for i in range(length):
         grad_val = extrem_grad[i]
 
-        print(start_i, end_i, num_extrema)
+        print(start_i, end_i, real_end_i, num_extrema)
 
         not_in_range = not (grad_val >= change_sensitivities[0] and grad_val <= change_sensitivities[1])
 
-        #skip_num = not_in_range and prev_in_range
+        # skip_num = not_in_range and prev_in_range
         skip_num = skip(grad_val, num_skipped, not_in_range, change_sensitivities)
 
         if skip_num:
@@ -524,9 +664,11 @@ def find_regular_spans(extrema, extrem_grad, change_sensitivities=[25, 40],
 
         print("not_in_range", not_in_range, "skip_num", skip_num, "num_skipped", num_skipped)
 
-        if (not_in_range  and not skip_num) or i == length - 1:
+        if (not_in_range and not skip_num) or i == length - 1:
             if start_i != -1 and end_i != -1:
-                if num_extrema >= num_sensitivity:
+                print(num_extrema - num_skipped)
+                if num_extrema - num_skipped >= num_sensitivity:
+                    print([start_i - offset, end_i - exclude_len - offset])
                     segments.append([start_i - offset, end_i - exclude_len - offset])
 
                 start_i = -1
@@ -560,6 +702,7 @@ def find_regular_spans(extrema, extrem_grad, change_sensitivities=[25, 40],
     print(segments)
     return segments
 
+
 def combine_segments(segments):
     n = len(segments)
 
@@ -591,6 +734,7 @@ def combine_segments(segments):
 
     return combined_segs
 
+
 def separate_segments(segments, confidences, conf_threshold=1):
     n = len(segments)
 
@@ -608,6 +752,7 @@ def separate_segments(segments, confidences, conf_threshold=1):
 
     return bad_segs, suspicious_segs
 
+
 def length_of_segments(segments):
     tot_len = 0
     for segment in segments:
@@ -615,6 +760,7 @@ def length_of_segments(segments):
         tot_len += length
 
     return tot_len
+
 
 def split_into_lists(original_list):
     n = len(original_list)
@@ -639,6 +785,7 @@ def split_into_lists(original_list):
 
     return new_lists
 
+
 def fix_overlap(bad_segs, suspicious_segs):
     if len(bad_segs) == 0 or len(suspicious_segs) == 0:
         return suspicious_segs
@@ -660,6 +807,7 @@ def fix_overlap(bad_segs, suspicious_segs):
 
     return new_suspicious_segs
 
+
 def final_analysis(signal_length, segments, confidences, badness_sensitivity=.8):
     bad_segs, suspicious_segs = separate_segments(segments, confidences)
 
@@ -673,6 +821,7 @@ def final_analysis(signal_length, segments, confidences, badness_sensitivity=.8)
     badness = rel_bad_length >= badness_sensitivity
 
     return badness, bad_segs, suspicious_segs
+
 
 def analyse_all_neo(signals, names, chan_num,
                     filters=["uniq", "segment", "gradient"]):
@@ -739,8 +888,10 @@ def analyse_all_neo(signals, names, chan_num,
 
     return signal_statuses, bad_segment_list, suspicious_segment_list, exec_times
 
+
 def pd_get_changes(signal):
     print(signal)
+
 
 def find_changes_rpt(signal, method):
     if method == "Pelt":

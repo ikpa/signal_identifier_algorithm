@@ -167,7 +167,7 @@ def plot_in_order_ver3(signals, names, n_chan, statuses,
 def test_hz5():
     channels = ["MEG0624", "MEG0724", "MEG0531", "MEG0541",
                 "MEG0634", "MEG0121"]
-    fname = "many_successful.npz"
+    fname = "many_failed.npz"
     signals, names, time, n_chan = fr.get_signals(fname)
 
     from scipy.signal import argrelextrema
@@ -178,36 +178,21 @@ def test_hz5():
         print(name)
 
         filter_i = sa.filter_start(signal)
-        filtered_signal = signal[filter_i:]
-        grad = np.gradient(filtered_signal)
-        window = 51
-        offset = int(window/2)
-        smooth_grad = sa.smooth(grad, window_len=window)
-        #smooth_x = np.linspace(0, len(filtered_signal) - 1, len(smooth_grad))
-        smooth_x = [x - offset for x in list(range(len(smooth_grad)))]
-
-        order = 10
-        maxima = argrelextrema(smooth_grad, np.greater, order=order)[0]
-        minima = argrelextrema(smooth_grad, np.less, order=order)[0]
-        extrema = list(maxima) + list(minima)
-        extrema.sort()
-        #extrema = [smooth_x[i] for i in extrema]
-
-        if len(maxima) > 1:
-            extrem_grad = np.gradient(extrema)
-        else:
-            extrem_grad = []
+        segment = sa.uniq_filter_neo(signal, filter_i)[0][0]
+        filtered_signal = signal[segment[0]:segment[1]]
+        extrema, extrem_grad, grad, grad_x, smooth_grad, smooth_x, offset = sa.get_extrema(filtered_signal, segment[0])
 
         print(len(grad))
         print(len(smooth_grad))
 
-        segments = sa.find_regular_spans(extrema, extrem_grad, offset=offset)
+        segments = sa.find_regular_spans2(signal, filter_i, segment=segment)
 
+        print(segments)
         print()
 
         fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
-        ax1.plot(filtered_signal)
-        ax2.plot(grad)
+        ax1.plot(signal)
+        ax2.plot(grad_x, grad)
         ax2.plot(smooth_x, smooth_grad)
         #ax2.plot(smooth_grad)
 
@@ -218,7 +203,7 @@ def test_hz5():
         plot_spans(ax2, segments)
 
         if len(extrema) == len(extrem_grad):
-            extrem_x = [x - offset for x in extrema]
+            extrem_x = [x + offset for x in extrema]
             ax3.plot(extrem_x, extrem_grad, ".-")
             ax3.axhspan(25, 40, alpha=.5)
 
@@ -227,7 +212,7 @@ def test_hz5():
 def test_hz4():
     channels = ["MEG0624", "MEG0724", "MEG0531", "MEG0541",
                                        "MEG0634", "MEG0121"]
-    fname = "many_many_successful2.npz"
+    fname = "many_failed.npz"
     signals, names, time, n_chan = fr.get_signals(fname, channels)
 
     def plot_params(ax, params):
