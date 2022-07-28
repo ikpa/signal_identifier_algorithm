@@ -167,7 +167,8 @@ def plot_in_order_ver3(signals, names, n_chan, statuses,
 def test_hz5():
     channels = ["MEG0624", "MEG0724", "MEG0531", "MEG0541",
                 "MEG0634", "MEG0121"]
-    fname = "many_failed.npz"
+    fname = "sample_data31.npz"
+    #fname = "many_failed.npz"
     signals, names, time, n_chan = fr.get_signals(fname)
 
     from scipy.signal import argrelextrema
@@ -178,16 +179,15 @@ def test_hz5():
         print(name)
 
         filter_i = sa.filter_start(signal)
-        segment = sa.uniq_filter_neo(signal, filter_i)[0][0]
-        filtered_signal = signal[segment[0]:segment[1]]
-        extrema, extrem_grad, grad, grad_x, smooth_grad, smooth_x, offset = sa.get_extrema(filtered_signal, segment[0])
+        #segment = sa.uniq_filter_neo(signal, filter_i)[0][0]
+        #filtered_signal = signal[segment[0]:segment[1]]
+        filtered_signal = signal[filter_i:]
+        extrema, extrem_grad, grad, grad_x, smooth_grad, smooth_x, offset = sa.get_extrema(filtered_signal, filter_i)
 
-        print(len(grad))
-        print(len(smooth_grad))
+        #print(segments)
+        segments, ext_lens = sa.find_regular_spans2(signal, filter_i)
 
-        segments = sa.find_regular_spans2(signal, filter_i, segment=segment)
-
-        print(segments)
+        print(segments, ext_lens)
         print()
 
         fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
@@ -316,7 +316,7 @@ def test_hz2():
                 end_i = i + window
 
             signal_windowed = signal[i: end_i]
-            ftrans = sa.fifty_hz_filter(signal_windowed)
+            ftrans = sa.get_fft(signal_windowed)
             max_fft = np.amax(ftrans)
             #min_fft = abs(np.amin(ftrans))
             maximums.append(max_fft)
@@ -327,58 +327,105 @@ def test_hz2():
         ax2.plot(maximums)
         plt.show()
 
-
-
-def test_hz():
-    from matplotlib.animation import FuncAnimation
-    fname = datadir + "sample_data20.npz"
-    data = fr.load_all(fname).subpool(["MEG0311"]).clip((0.210, 0.50))
-    unorganized_signals = data.data
-    names = data.names
-    n_chan = data.n_channels
-    time = data.time
-    signals = sa.reorganize_signals(unorganized_signals, n_chan)
-    signal = signals[0]
-
-    window = 1000
-    max_i = len(signal) - 1
-
-    print(range(0, max_i, window))
-
-    signal_windowed = signal[0:window]
-    ftrans = sa.fifty_hz_filter(signal_windowed)
-    maximums = []
-
-    fig, (ax1, ax2, ax3) = plt.subplots(3, 1)
-    ax2.set_ylim(-2*10**(-7), 2*10**(-7))
-
+def animate_fft():
     def animate(i):
-        #i = i * 10
         if i + window > max_i:
             end_i = max_i
         else:
             end_i = i + window
 
         signal_windowed = signal[i: end_i]
-        ftrans = sa.fifty_hz_filter(signal_windowed)
-        max_fft = np.amax(ftrans)
-        min_fft = abs(np.amin(ftrans))
-        maximums.append(max(max_fft, min_fft))
+        ftrans = sa.get_fft(signal_windowed)
+        i1.append(ftrans[1])
+        i2.append(ftrans[2])
+        i6.append(ftrans[6])
 
-        if i % 10 == 0:
+        if i % 20 == 0:
             ax1.clear()
             ax2.clear()
             ax3.clear()
-            ax2.set_ylim(-1 * 10 ** (-7), 1 * 10 ** (-7))
-            ax3.set_ylim(-0.5 * 10 ** (-7), 1 * 10 ** (-7))
-            ax1.plot(signal_windowed)
-            ax2.plot(ftrans)
-            ax3.plot(maximums)
+            ax2.set_ylim(-1 * 10 ** (-7), 1.5 * 10 ** (-6))
+            ax1.plot(plot_time, signal_windowed)
+            ax2.plot(ftrans[0:10], ".-")
+            ax3.plot(i1, label="index 1")
+            ax3.plot(i2, label="index 2")
+            ax3.plot(i6, label="index 6")
+            ax3.legend()
 
+    from matplotlib.animation import FuncAnimation
+    fname = "sample_data30.npz"
+    channels = ["MEG0121", "MEG1114"]
+    # channels = ["MEG1114"]
+    # fname = "many_failed.npz"
+    # channels = ["MEG0131"]
+    signals, names, time, n_chan = fr.get_signals(fname, channels=channels)
+    signal = signals[0]
 
+    window = 400
+    plot_time = time[:window]
+    time_0 = plot_time[0]
+    plot_time = [x - time_0 for x in plot_time]
+    max_i = len(signals[0]) - 1
 
-    ani = FuncAnimation(fig, animate, frames=len(signal), interval=.01, repeat=True)
+    i1 = []
+    i2 = []
+    i6 = []
+
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1)
+    ani = FuncAnimation(fig, animate, frames=len(signal) - window, interval=.001, repeat=False)
     plt.show()
+
+def test_hz():
+
+    from scipy.optimize import curve_fit
+    #fname = "sample_data30.npz"
+    fname = "many_successful.npz"
+    #channels = ["MEG0121", "MEG1114", "MEG0311", "MEG331", "MEG0334"]
+    #channels = ["MEG1114"]
+    #fname = "many_failed.npz"
+    #channels = ["MEG0131"]
+    signals, names, time, n_chan = fr.get_signals(fname)
+
+    window = 400
+    plot_time = time[:window]
+    time_0 = plot_time[0]
+    plot_time = [x - time_0 for x in plot_time]
+    max_i = len(signals[0]) - 1
+
+    fft_indices = [1, 2, 3, 4, 5, 6, 7]
+
+    for i in range(n_chan):
+        name = names[i]
+        print(name)
+        signal = signals[i]
+        filter_i = sa.filter_start(signal)
+        filtered_signal = signal[filter_i:]
+        sig_len = len(filtered_signal)
+
+        i_arr, smooth_signal, smooth_x, new_signal = sa.calc_fft_indices(filtered_signal, fft_indices)
+
+        fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
+        ax1.plot(filtered_signal, label="original signal")
+        #ax1.plot(signal_x, fit(np.asarray(signal_x), *popt), label="fitted signal")
+        ax1.plot(smooth_x, smooth_signal, label="smooth signal")
+        ax1.plot(new_signal, label="new signal")
+        ax1.legend()
+
+        for j in range(len(fft_indices)):
+            index = fft_indices[j]
+            dat = i_arr[j]
+            ax2.plot(dat, label=str(index))
+
+        #ax2.set_ylim(-1 * 10**(-8), 2.2 * 10 ** (-7))
+        ax2.legend()
+        ax2.grid()
+        plt.title(name)
+
+        print()
+
+        plt.show()
+
+
 
 
 def secondver():
@@ -489,7 +536,7 @@ if __name__ == '__main__':
     #simulation()
     #test_uniq()
     #overlap()
-    test_hz5()
+    test_hz()
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/

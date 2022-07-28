@@ -63,6 +63,10 @@ def smooth(x, window_len=21, window='hanning'):
     y = np.convolve(w / w.sum(), s, mode='valid')
     return y
 
+def seg_from_sig(signal, seg):
+    segment = signal[seg[0], seg[1]]
+    x = list(range(seg[0], seg[1]))
+    return x, segment
 
 # fixes signals in bad formats (when reading only one channel)
 def reorganize_signal(signal):
@@ -384,16 +388,43 @@ def gradient_filter_neo(signal, filter_i, grad_sensitivity=10 ** (-10)):
 
 
 # largest spike usually at 14, others at 42, 70, 127. (2795, 2767, 2739)
-def fifty_hz_filter(signal, filter_i=0):
+def get_fft(signal, filter_i=0):
     from scipy.fft import fft
 
     if len(signal) == 0:
         return [0]
 
     ftrans = fft(signal[filter_i:])
-    ftrans_abs = [x.real for x in ftrans]
-    ftrans_abs[0] = 0
+    ftrans_abs = [abs(x) for x in ftrans]
+    #ftrans_abs[0] = 0
     return ftrans_abs
+
+def calc_fft_indices(signal, indices=[1,2,6], window=400, smooth_window=401):
+    sig_len = len(signal)
+    ftrans_points = sig_len - window
+    i_arr = np.zeros((len(indices), ftrans_points))
+
+    offset = int(smooth_window / 2)
+    smooth_signal = smooth(signal, window_len=smooth_window)
+    smooth_x = [x - offset for x in list(range(len(smooth_signal)))]
+
+    new_smooth = []
+    for i in range(sig_len):
+        new_smooth.append(smooth_signal[i + offset])
+
+    filtered_signal = [a - b for a, b in zip(signal, new_smooth)]
+
+    for i in range(ftrans_points):
+        end_i = i + window
+        signal_windowed = filtered_signal[i: end_i]
+        ftrans = get_fft(signal_windowed)
+
+        for j in range(len(indices)):
+            index = indices[j]
+            i_arr[j][i] = ftrans[index]
+
+    return i_arr, smooth_signal, smooth_x, filtered_signal
+
 
 
 def fifty_hz_filter2(signal, win=10):
@@ -491,9 +522,27 @@ def skip(val, num_skipped, not_in_range, change_sensitivities):
     return False
 
 
-def get_extrema(signal, filter_i=0, window=51, order=10):
+#takes the entire signal or a signal segment as an argument.
+#filter_i is used ONLY in the calculation of offsets
+def get_extrema(signal, filter_i=0, window=21, order=10):
     from scipy.signal import argrelextrema
+
+    def signaltonoise(a, axis=0, ddof=0):
+        a = np.asanyarray(a)
+        m = a.mean(axis)
+        sd = a.std(axis=axis, ddof=ddof)
+        return np.where(sd == 0, 0, m / sd)
+
     grad = np.gradient(signal)
+
+    snr = signaltonoise(grad)
+    print(snr)
+
+    orig_maxima = argrelextrema(grad, np.greater, order=order)[0]
+    orig_minima = argrelextrema(grad, np.less, order=order)[0]
+    orig_extrema = list(orig_maxima) + list(orig_minima)
+    orig_extrema.sort()
+
     grad_x = [x + filter_i for x in list(range(len(grad)))]
     offset = int(window / 2)
     tot_offset = - offset + filter_i
@@ -516,6 +565,25 @@ def get_extrema(signal, filter_i=0, window=51, order=10):
     return extrema, extrem_grad, grad, grad_x, smooth_grad, smooth_x, tot_offset
 
 
+def skip2(skip_chain, above_skips, below_skips, above, below,
+          real_len, skip_sensitivities=[1, 3]):
+    if not above and not below:
+        return False
+
+    if real_len == 0:
+        return False
+
+    if skip_chain > max(above_skips, below_skips):
+        return False
+
+    if above and above_skips < skip_sensitivities[0]:
+        return True
+
+    if below and below_skips < skip_sensitivities[1]:
+        return True
+
+    return False
+
 def find_regular_spans2(signal, filter_i, segment=[], change_sensitivities=[25, 40],
                         span=10, num_sensitivity=4):
     if len(segment) == 0:
@@ -523,15 +591,15 @@ def find_regular_spans2(signal, filter_i, segment=[], change_sensitivities=[25, 
     else:
         filtered_signal = signal[segment[0]:segment[1]]
         filter_i = segment[0]
+
     extrema, extrem_grad, grad, grad_x, smooth_grad, smooth_x, offset = get_extrema(filtered_signal, filter_i)
 
     if len(extrema) == 0:
-        return []
+        return [], []
 
     len_extrema = len(extrema)
 
     real_len = 0
-    skip_len_tot = 0
     skip_chain = 0
 
     above_skips = 0
@@ -541,62 +609,25 @@ def find_regular_spans2(signal, filter_i, segment=[], change_sensitivities=[25, 
     skipped_extrema = []
 
     segments = []
+    segment_extrema = []
 
     for i in range(len_extrema):
         current_grad = extrem_grad[i]
         current_extr = extrema[i]
         above = current_grad > change_sensitivities[1]
         below = current_grad < change_sensitivities[0]
-        #in_range = change_sensitivities[0] <= current_grad <= change_sensitivities[1]
         in_range = not above and not below
 
-        print(current_extr, "real_len", real_len, "above_skip", above_skips, "below_skips", below_skips, "skip_chain", skip_chain)
+        #print(current_extr, "real_len", real_len, "above_skip", above_skips, "below_skips", below_skips, "skip_chain", skip_chain)
 
-        if skip_chain > max(below_skips, above_skips):
-            skip_val = False
-        elif real_len != 0:
-            if above:
-                skip_val = skip(current_grad, above_skips, not in_range, change_sensitivities)
-            elif below:
-                skip_val = skip(current_grad, below_skips, not in_range, change_sensitivities)
-            else:
-                skip_val = False
-        else:
-            skip_val = False
+        skip_val = skip2(skip_chain, above_skips, below_skips, above, below, real_len)
 
-        print("skip_val", skip_val, "above", above, "below", below, "in_range", in_range)
+        #print("skip_val", skip_val, "above", above, "below", below, "in_range", in_range)
 
         if not skip_val:
-            print("ending chain")
             skip_chain = 0
             above_skips = 0
             below_skips = 0
-
-        print()
-
-        if (not in_range and not skip_val) or i == len_extrema:
-            if len(included_extrema) < num_sensitivity:
-                pass
-            else:
-                min_real = np.amin(included_extrema)
-                max_real = np.amax(included_extrema)
-
-                segments.append([min_real - span + offset, max_real + span + offset])
-                print(included_extrema, skipped_extrema, [min_real - span - offset, max_real + span - offset])
-                print()
-
-            real_len = 0
-            skip_len_tot = 0
-            skip_chain = 0
-
-            above_skips = 0
-            below_skips = 0
-
-            skip_val = False
-            in_range = False
-
-            included_extrema = []
-            skipped_extrema = []
 
         if in_range:
             included_extrema.append(current_extr)
@@ -604,7 +635,6 @@ def find_regular_spans2(signal, filter_i, segment=[], change_sensitivities=[25, 
 
         if skip_val:
             skipped_extrema.append(current_extr)
-            skip_len_tot += 1
 
             if above:
                 above_skips += 1
@@ -616,7 +646,40 @@ def find_regular_spans2(signal, filter_i, segment=[], change_sensitivities=[25, 
 
             skip_chain += 1
 
-    return segments
+        #print(i, len_extrema)
+        #print()
+
+        if (not in_range and not skip_val) or i == len_extrema - 1:
+            if len(included_extrema) < num_sensitivity:
+                pass
+            else:
+                min_real = np.amin(included_extrema)
+                max_real = np.amax(included_extrema)
+
+                min_i = min_real - span + offset
+                max_i = max_real + span + offset
+
+                all_extrema = included_extrema + skipped_extrema
+                extrema_in_span = [extreme for extreme in all_extrema if
+                                   min_i <= extreme + offset <= max_i]
+
+                extrema_num = len(extrema_in_span)
+                segment_extrema.append(extrema_num)
+                segments.append([min_i, max_i])
+                #print(all_extrema, extrema_in_span)
+                #print(included_extrema, skipped_extrema, [min_i, max_i], extrema_num)
+                #print()
+
+            real_len = 0
+            skip_chain = 0
+
+            above_skips = 0
+            below_skips = 0
+
+            included_extrema = []
+            skipped_extrema = []
+
+    return segments, segment_extrema
 
 
 def find_regular_spans(extrema, extrem_grad, change_sensitivities=[25, 40],
