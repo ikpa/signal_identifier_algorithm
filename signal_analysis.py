@@ -426,6 +426,57 @@ def calc_fft_indices(signal, indices=[1,2,6], window=400, smooth_window=401):
     return i_arr, smooth_signal, smooth_x, filtered_signal
 
 
+def find_default_y(arr, num_points=5000, step=.1*10**(-7)):
+    y_arr = np.linspace(0, 1*10**(-7), num_points)
+    arr_len = len(arr)
+    frac_arr = []
+
+    for y_min in y_arr:
+        # vals_above = np.where(arr > y)[0]
+        # frac = len(vals_above) / arr_len
+        # frac_arr.append(frac)
+        y_max = y_min + step
+        vals_in_step = [val for val in arr if val > y_min and val < y_max]
+        frac = len(vals_in_step) / arr_len
+        frac_arr.append(frac)
+
+    frac_arr = np.asarray(frac_arr)
+    smooth_window = 201
+    offset = int(smooth_window / 2)
+    smooth_frac = smooth(frac_arr, window_len=smooth_window)
+    smooth_x = [x - offset for x in list(range(len(smooth_frac)))]
+
+    new_smooth = []
+    for i in range(num_points):
+        new_smooth.append(smooth_frac[i + offset])
+
+    from scipy.signal import argrelextrema
+    new_smooth = np.asarray(new_smooth)
+    smooth_max_is = argrelextrema(new_smooth, np.greater, order=10)[0]
+
+    maxima = new_smooth[smooth_max_is]
+    maxima = [val for val in maxima if val > .1]
+    max_is = []
+
+    for i in range(len(new_smooth)):
+        val = new_smooth[i]
+        if val in maxima:
+            max_is.append(i)
+
+    if len(max_is) == 0:
+        final_i = None
+        max_step = np.amax(frac_arr)
+        max_i = list(frac_arr).index(max_step)
+        seg_min = y_arr[max_i]
+        seg_max = seg_min + step
+    else:
+        final_i = np.amax(max_is)
+        seg_min = y_arr[final_i]
+        seg_max = seg_min + step
+
+
+    return y_arr, frac_arr, (seg_min, seg_max), new_smooth, max_is, final_i
+
 
 def fifty_hz_filter2(signal, win=10):
     ave = pd.Series(signal).rolling(win).mean()

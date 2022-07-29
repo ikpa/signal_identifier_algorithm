@@ -379,7 +379,7 @@ def test_hz():
 
     from scipy.optimize import curve_fit
     #fname = "sample_data30.npz"
-    fname = "many_successful.npz"
+    fname = "many_failed.npz"
     #channels = ["MEG0121", "MEG1114", "MEG0311", "MEG331", "MEG0334"]
     #channels = ["MEG1114"]
     #fname = "many_failed.npz"
@@ -392,7 +392,8 @@ def test_hz():
     plot_time = [x - time_0 for x in plot_time]
     max_i = len(signals[0]) - 1
 
-    fft_indices = [1, 2, 3, 4, 5, 6, 7]
+    fft_indices = [2]
+    num_indices = len(fft_indices)
 
     for i in range(n_chan):
         name = names[i]
@@ -404,17 +405,34 @@ def test_hz():
 
         i_arr, smooth_signal, smooth_x, new_signal = sa.calc_fft_indices(filtered_signal, fft_indices)
 
-        fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
+        fig, (ax1, ax2, ax3) = plt.subplots(3, 1)
+        ax1.get_shared_x_axes().join(ax1, ax2)
+        #ax3.get_shared_x_axes().join(ax3, ax4)
         ax1.plot(filtered_signal, label="original signal")
         #ax1.plot(signal_x, fit(np.asarray(signal_x), *popt), label="fitted signal")
         ax1.plot(smooth_x, smooth_signal, label="smooth signal")
         ax1.plot(new_signal, label="new signal")
         ax1.legend()
 
-        for j in range(len(fft_indices)):
+        colors = plt.cm.rainbow(np.linspace(0, 1, num_indices))
+        for j, c in zip(range(num_indices), colors):
             index = fft_indices[j]
             dat = i_arr[j]
-            ax2.plot(dat, label=str(index))
+            y_arr, frac_arr, hseg, smooth_frac, smooth_maxima, final_i = sa.find_default_y(dat)
+            #frac_grad = np.diff(frac_arr)
+            ax2.plot(dat, label=str(index), color=c)
+            ax2.axhspan(hseg[0], hseg[1], alpha=.5)
+            ax3.plot(frac_arr)
+            ax3.plot(smooth_frac)
+
+            for maxi in smooth_maxima:
+                if maxi == final_i:
+                    color = "red"
+                else:
+                    color = "blue"
+                ax3.axvline(maxi, linestyle="--", color=color)
+
+            #ax4.plot(y_arr[:len(y_arr) - 1], frac_grad, ".-", color=c)
 
         #ax2.set_ylim(-1 * 10**(-8), 2.2 * 10 ** (-7))
         ax2.legend()
