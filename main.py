@@ -375,11 +375,43 @@ def animate_fft():
     ani = FuncAnimation(fig, animate, frames=len(signal) - window, interval=.001, repeat=False)
     plt.show()
 
+def compare_nearby():
+    fname = "many_many_successful.npz"
+    signals, names, time, n_chan = fr.get_signals(fname)
+
+    detecs = np.load("array120_trans_newnames.npz")
+
+    #TODO figure out how to break fft into components
+    def plot_fft_components(ax, name, signal, detecs):
+        detec_matrx = detecs[name]
+        r_dut = detec_matrx[:3, 3]
+        v_dut = detec_matrx[:3, 2]
+
+        fft_i2 = sa.calc_fft_indices(signal, indices=[2])
+        i2_x = []
+        i2_y = []
+        i2_z = []
+
+        for i2_tot in fft_i2:
+            pass
+
+    for i in range(n_chan):
+        name = names[i]
+        print(name)
+        signal = signals[i]
+
+        near_chans = sa.find_nearby_detectors(names, detecs)
+        near_sigs = fr.find_signals(near_chans, signals, names)
+
+        fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, sharex=True)
+
+
+
 def test_hz():
 
     from scipy.optimize import curve_fit
     #fname = "sample_data30.npz"
-    fname = "many_failed.npz"
+    fname = "many_many_successful.npz"
     #channels = ["MEG0121", "MEG1114", "MEG0311", "MEG331", "MEG0334"]
     #channels = ["MEG1114"]
     #fname = "many_failed.npz"
@@ -419,18 +451,21 @@ def test_hz():
             index = fft_indices[j]
             dat = i_arr[j]
             y_arr, frac_arr, hseg, smooth_frac, smooth_maxima, final_i = sa.find_default_y(dat)
+            segs = sa.get_spans_from_fft(dat, hseg)
+            print(segs)
+            plot_spans(ax1, segs)
             #frac_grad = np.diff(frac_arr)
             ax2.plot(dat, label=str(index), color=c)
             ax2.axhspan(hseg[0], hseg[1], alpha=.5)
-            ax3.plot(frac_arr)
-            ax3.plot(smooth_frac)
+            ax3.plot(y_arr, frac_arr)
+            ax3.plot(y_arr, smooth_frac)
 
             for maxi in smooth_maxima:
                 if maxi == final_i:
                     color = "red"
                 else:
                     color = "blue"
-                ax3.axvline(maxi, linestyle="--", color=color)
+                ax3.axvline(y_arr[maxi], linestyle="--", color=color)
 
             #ax4.plot(y_arr[:len(y_arr) - 1], frac_grad, ".-", color=c)
 

@@ -436,7 +436,7 @@ def find_default_y(arr, num_points=5000, step=.1*10**(-7)):
         # frac = len(vals_above) / arr_len
         # frac_arr.append(frac)
         y_max = y_min + step
-        vals_in_step = [val for val in arr if val > y_min and val < y_max]
+        vals_in_step = [val for val in arr if y_min < val < y_max]
         frac = len(vals_in_step) / arr_len
         frac_arr.append(frac)
 
@@ -474,103 +474,54 @@ def find_default_y(arr, num_points=5000, step=.1*10**(-7)):
         seg_min = y_arr[final_i]
         seg_max = seg_min + step
 
-
     return y_arr, frac_arr, (seg_min, seg_max), new_smooth, max_is, final_i
 
 
-def fifty_hz_filter2(signal, win=10):
-    ave = pd.Series(signal).rolling(win).mean()
-    noise = []
+def get_spans_from_fft(fft_i2, hseg, fft_window=400):
+    segs = []
+    all_fft_segs = []
 
-    length = len(signal)
-    offset = (win - 1)
+    fft_segs = []
+    temp_seg = [-1, -1]
+    i_min = -1
+    i_max = -1
+    for fft_i in range(len(fft_i2)):
+        fft_val = fft_i2[fft_i]
+        #print(fft_val)
+        val_in_hseg = hseg[0] < fft_val < hseg[1]
 
-    new_ave = []
+        if (i_max != -1 and i_min != - 1) and (not val_in_hseg or fft_i == len(fft_i2) - 1):
+            print("in", i_min, i_max)
+            if temp_seg[0] < i_min < temp_seg[1]:
+                temp_seg = [temp_seg[0], i_max]
+                print("between", temp_seg)
+            elif temp_seg == [-1, -1]:
+                temp_seg = [i_min, i_max]
+                print("none", temp_seg)
+            else:
+                segs.append(temp_seg)
+                print("append", temp_seg)
+                temp_seg = [i_min, i_max]
 
-    for val in ave:
-        if math.isnan(val):
-            continue
-        new_ave.append(val)
-
-    for i in range(length - offset):
-        noise.append(signal[i] - new_ave[i])
-
-    return noise, new_ave
-
-
-def hz_func(x, a, b, c, d, e):
-    frec = 2 * np.pi * (5 * 10 ** (-3))
-    return a * np.sin(frec * x + e) + b * np.sin((3 * frec) * x + e) + c * np.exp(-d * x)
-
-
-def make_fit(signal):
-    from scipy.optimize import curve_fit
-    length = len(signal)
-    xdat = list(range(0, length))
-    try:
-        popt, pcov = curve_fit(hz_func, xdat, signal, maxfev=1400)
-    except RuntimeError:
-        print("optimal parameters not found")
-        popt = []
-        pcov = []
-
-    return popt, pcov
-
-
-def empty_params(num_params, params, sdevs):
-    temp_params = []
-    temp_sdevs = []
-    for i in range(num_params):
-        temp_params.append(0)
-        temp_sdevs.append(0)
-
-    params.append(np.asarray(temp_params))
-    sdevs.append(np.asarray(temp_sdevs))
-
-
-def grad_fit_analysis(signal, window=100, num_params=5):
-    length = len(signal)
-    signal_end = length - 1
-    grad = np.gradient(signal)
-
-    params = []
-    sdevs = []
-
-    for i in range(length):
-        print(round(i / length, 2))
-        window_end = i + window
-        if window_end > signal_end:
-            end_i = signal_end
-        else:
-            end_i = window_end
-
-        if end_i - i <= 4:
-            empty_params(num_params, params, sdevs)
+            i_min = -1
+            i_max = -1
             continue
 
-        windowed_grad = grad[i:end_i]
-        popt, pcov = make_fit(windowed_grad)
+        if val_in_hseg:
+            i_min_temp = fft_i
+            i_max_temp = fft_i + fft_window
 
-        if len(popt) == 0:
-            empty_params(num_params, params, sdevs)
-        else:
-            params.append(popt)
-            sdevs.append(np.sqrt(np.diag(pcov)))
+            if i_min == -1:
+                i_min = i_min_temp
 
-    return params, sdevs
+            if i_max_temp > i_max:
+                i_max = i_max_temp
 
+    if temp_seg != [-1, -1]:
+        print("final append")
+        segs.append(temp_seg)
 
-def skip(val, num_skipped, not_in_range, change_sensitivities):
-    if not not_in_range:
-        return False
-
-    if val < change_sensitivities[0] and num_skipped < 3:
-        return True
-
-    if val > change_sensitivities[1] and num_skipped < 1:
-        return True
-
-    return False
+    return segs
 
 
 #takes the entire signal or a signal segment as an argument.
@@ -614,207 +565,6 @@ def get_extrema(signal, filter_i=0, window=21, order=10):
         extrem_grad = []
 
     return extrema, extrem_grad, grad, grad_x, smooth_grad, smooth_x, tot_offset
-
-
-def skip2(skip_chain, above_skips, below_skips, above, below,
-          real_len, skip_sensitivities=[1, 3]):
-    if not above and not below:
-        return False
-
-    if real_len == 0:
-        return False
-
-    if skip_chain > max(above_skips, below_skips):
-        return False
-
-    if above and above_skips < skip_sensitivities[0]:
-        return True
-
-    if below and below_skips < skip_sensitivities[1]:
-        return True
-
-    return False
-
-def find_regular_spans2(signal, filter_i, segment=[], change_sensitivities=[25, 40],
-                        span=10, num_sensitivity=4):
-    if len(segment) == 0:
-        filtered_signal = signal[filter_i:]
-    else:
-        filtered_signal = signal[segment[0]:segment[1]]
-        filter_i = segment[0]
-
-    extrema, extrem_grad, grad, grad_x, smooth_grad, smooth_x, offset = get_extrema(filtered_signal, filter_i)
-
-    if len(extrema) == 0:
-        return [], []
-
-    len_extrema = len(extrema)
-
-    real_len = 0
-    skip_chain = 0
-
-    above_skips = 0
-    below_skips = 0
-
-    included_extrema = []
-    skipped_extrema = []
-
-    segments = []
-    segment_extrema = []
-
-    for i in range(len_extrema):
-        current_grad = extrem_grad[i]
-        current_extr = extrema[i]
-        above = current_grad > change_sensitivities[1]
-        below = current_grad < change_sensitivities[0]
-        in_range = not above and not below
-
-        #print(current_extr, "real_len", real_len, "above_skip", above_skips, "below_skips", below_skips, "skip_chain", skip_chain)
-
-        skip_val = skip2(skip_chain, above_skips, below_skips, above, below, real_len)
-
-        #print("skip_val", skip_val, "above", above, "below", below, "in_range", in_range)
-
-        if not skip_val:
-            skip_chain = 0
-            above_skips = 0
-            below_skips = 0
-
-        if in_range:
-            included_extrema.append(current_extr)
-            real_len += 1
-
-        if skip_val:
-            skipped_extrema.append(current_extr)
-
-            if above:
-                above_skips += 1
-                below_skips = 0
-
-            if below:
-                below_skips += 1
-                above_skips = 0
-
-            skip_chain += 1
-
-        #print(i, len_extrema)
-        #print()
-
-        if (not in_range and not skip_val) or i == len_extrema - 1:
-            if len(included_extrema) < num_sensitivity:
-                pass
-            else:
-                min_real = np.amin(included_extrema)
-                max_real = np.amax(included_extrema)
-
-                min_i = min_real - span + offset
-                max_i = max_real + span + offset
-
-                all_extrema = included_extrema + skipped_extrema
-                extrema_in_span = [extreme for extreme in all_extrema if
-                                   min_i <= extreme + offset <= max_i]
-
-                extrema_num = len(extrema_in_span)
-                segment_extrema.append(extrema_num)
-                segments.append([min_i, max_i])
-                #print(all_extrema, extrema_in_span)
-                #print(included_extrema, skipped_extrema, [min_i, max_i], extrema_num)
-                #print()
-
-            real_len = 0
-            skip_chain = 0
-
-            above_skips = 0
-            below_skips = 0
-
-            included_extrema = []
-            skipped_extrema = []
-
-    return segments, segment_extrema
-
-
-def find_regular_spans(extrema, extrem_grad, change_sensitivities=[25, 40],
-                       span=10, num_sensitivity=4, offset=0):
-    length = len(extrema)
-    grad_len = len(extrem_grad)
-    print(length)
-    print(len(extrem_grad))
-
-    if length < 2 or grad_len < 2:
-        return []
-
-    reg_grads = []
-    segments = []
-
-    start_i = -1
-    end_i = -1
-
-    num_extrema = 0
-    prev_in_range = False
-    num_skipped = 0
-
-    exclude_len = 0
-    real_end_i = 0
-
-    for i in range(length):
-        grad_val = extrem_grad[i]
-
-        print(start_i, end_i, real_end_i, num_extrema)
-
-        not_in_range = not (grad_val >= change_sensitivities[0] and grad_val <= change_sensitivities[1])
-
-        # skip_num = not_in_range and prev_in_range
-        skip_num = skip(grad_val, num_skipped, not_in_range, change_sensitivities)
-
-        if skip_num:
-            num_skipped += 1
-        else:
-            num_skipped = 0
-
-        if not_in_range:
-            prev_in_range = False
-        else:
-            prev_in_range = True
-
-        print("not_in_range", not_in_range, "skip_num", skip_num, "num_skipped", num_skipped)
-
-        if (not_in_range and not skip_num) or i == length - 1:
-            if start_i != -1 and end_i != -1:
-                print(num_extrema - num_skipped)
-                if num_extrema - num_skipped >= num_sensitivity:
-                    print([start_i - offset, end_i - exclude_len - offset])
-                    segments.append([start_i - offset, end_i - exclude_len - offset])
-
-                start_i = -1
-                end_i = -1
-                num_extrema = 0
-            continue
-
-        current = extrema[i]
-        reg_grads.append(current)
-
-        if start_i == -1:
-            start_i = current - span
-
-        if i == 0:
-            prev = -1
-        else:
-            prev = extrema[i - 1]
-
-        if prev in reg_grads:
-            end_i = -1
-
-        if end_i == -1:
-            num_extrema += 1
-            end_i = current + span
-
-            if skip_num:
-                exclude_len = end_i - real_end_i
-            else:
-                real_end_i = end_i
-
-    print(segments)
-    return segments
 
 
 def combine_segments(segments):

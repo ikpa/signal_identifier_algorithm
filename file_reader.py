@@ -2,6 +2,17 @@ import dataio as dat
 
 datadir = "example_data_for_patrik/"
 
+def find_signals(channels, signals, names):
+    indices = []
+
+    for channel in channels:
+        i = names.index(channel)
+        indices.append(i)
+
+    signals_to_return = signals[indices]
+
+    return signals_to_return
+
 def reorganize_signals(signals, n):
     new_signals = []
     for i in range(n):
