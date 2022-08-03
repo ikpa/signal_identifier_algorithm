@@ -9,7 +9,12 @@ def find_signals(channels, signals, names):
         i = names.index(channel)
         indices.append(i)
 
-    signals_to_return = signals[indices]
+    #print(indices)
+
+    signals_to_return = []
+
+    for index in indices:
+        signals_to_return.append(signals[index])
 
     return signals_to_return
 

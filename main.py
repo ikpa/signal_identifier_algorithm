@@ -11,6 +11,7 @@ import re
 methods = ["Pelt", "Dynp", "Binseg", "Window"]
 datadir = "example_data_for_patrik/"
 
+
 def simulation():
     n = 290
     x = np.linspace(0, n, n)
@@ -32,10 +33,9 @@ def simulation():
         print("i_arr", i_arr)
         print()
 
+    # statuses, fracs, uniq_stats_list, exec_times = sa.analyse_all(signals, names, n_chan)
+    # plot_in_order(signals, names, n_chan, np.full((n_chan,2), (False, 2)), [], [], [], ylims=[-.2 * 10**(-8), 3.2 * 10 ** (-8)])
 
-
-    #statuses, fracs, uniq_stats_list, exec_times = sa.analyse_all(signals, names, n_chan)
-    #plot_in_order(signals, names, n_chan, np.full((n_chan,2), (False, 2)), [], [], [], ylims=[-.2 * 10**(-8), 3.2 * 10 ** (-8)])
 
 def test_uniq():
     fname = datadir + "many_failed.npz"
@@ -71,13 +71,14 @@ def test_uniq():
         seg_confidences += conf
 
         print(segments)
-        #print(seg_confidences)
+        # print(seg_confidences)
         seg_i_list.append(sa.combine_segments(segments))
-        #confidences.append(seg_confidences)
+        # confidences.append(seg_confidences)
         print(segments)
         print()
 
     plot_in_order_neo(signals, names, n_chan, bads, seg_is=seg_i_list, confidence_list=confidences)
+
 
 def plot_in_order_neo(signals, names, n_chan, statuses, confidence_list,
                       seg_is, exec_times=[], ylims=None):
@@ -91,9 +92,9 @@ def plot_in_order_neo(signals, names, n_chan, statuses, confidence_list,
         confidences = confidence_list[i] if not len(confidence_list) == 0 else []
 
         if bad:
-            #print("bad, skipping")
-            #print()
-            #continue
+            # print("bad, skipping")
+            # print()
+            # continue
             status = "bad"
         else:
             status = "good"
@@ -128,6 +129,7 @@ def plot_in_order_neo(signals, names, n_chan, statuses, confidence_list,
         plt.title(title)
         plt.show()
 
+
 def plot_spans(ax, segments, color="blue"):
     if len(segments) == 0:
         return
@@ -136,6 +138,7 @@ def plot_spans(ax, segments, color="blue"):
         ax.axvspan(segment[0], segment[1], color=color, alpha=.5)
 
     return
+
 
 def plot_in_order_ver3(signals, names, n_chan, statuses,
                        bad_seg_list, suspicious_seg_list, exec_times,
@@ -164,11 +167,12 @@ def plot_in_order_ver3(signals, names, n_chan, statuses,
         ax.set_title(title)
         plt.show()
 
+
 def test_hz5():
     channels = ["MEG0624", "MEG0724", "MEG0531", "MEG0541",
                 "MEG0634", "MEG0121"]
     fname = "sample_data31.npz"
-    #fname = "many_failed.npz"
+    # fname = "many_failed.npz"
     signals, names, time, n_chan = fr.get_signals(fname)
 
     from scipy.signal import argrelextrema
@@ -179,12 +183,12 @@ def test_hz5():
         print(name)
 
         filter_i = sa.filter_start(signal)
-        #segment = sa.uniq_filter_neo(signal, filter_i)[0][0]
-        #filtered_signal = signal[segment[0]:segment[1]]
+        # segment = sa.uniq_filter_neo(signal, filter_i)[0][0]
+        # filtered_signal = signal[segment[0]:segment[1]]
         filtered_signal = signal[filter_i:]
         extrema, extrem_grad, grad, grad_x, smooth_grad, smooth_x, offset = sa.get_extrema(filtered_signal, filter_i)
 
-        #print(segments)
+        # print(segments)
         segments, ext_lens = sa.find_regular_spans2(signal, filter_i)
 
         print(segments, ext_lens)
@@ -194,7 +198,7 @@ def test_hz5():
         ax1.plot(signal)
         ax2.plot(grad_x, grad)
         ax2.plot(smooth_x, smooth_grad)
-        #ax2.plot(smooth_grad)
+        # ax2.plot(smooth_grad)
 
         for extrem in extrema:
             x = smooth_x[extrem]
@@ -209,9 +213,10 @@ def test_hz5():
 
         plt.show()
 
+
 def test_hz4():
     channels = ["MEG0624", "MEG0724", "MEG0531", "MEG0541",
-                                       "MEG0634", "MEG0121"]
+                "MEG0634", "MEG0121"]
     fname = "many_failed.npz"
     signals, names, time, n_chan = fr.get_signals(fname, channels)
 
@@ -224,7 +229,6 @@ def test_hz4():
             print(np.shape(points))
             ax.plot(points, label=str(i + 1))
             plt.legend()
-
 
     for i in range(n_chan):
         name = names[i]
@@ -243,7 +247,7 @@ def test_hz4():
         plt.show()
 
 
-#TODO periodicity = 203
+# TODO periodicity = 203
 def test_hz3():
     channels = ["MEG0624", "MEG0724", "MEG0531", "MEG0541",
                 "MEG0634", "MEG0121"]
@@ -252,7 +256,7 @@ def test_hz3():
 
     from scipy.optimize import curve_fit
 
-    frec = 2 * np.pi * (5 * 10**(-3))
+    frec = 2 * np.pi * (5 * 10 ** (-3))
 
     def func(x, a, b, c, d, e):
         return a * np.sin(frec * x + e) + b * np.sin((3 * frec) * x + e) + c * np.exp(-d * x)
@@ -318,14 +322,15 @@ def test_hz2():
             signal_windowed = signal[i: end_i]
             ftrans = sa.get_fft(signal_windowed)
             max_fft = np.amax(ftrans)
-            #min_fft = abs(np.amin(ftrans))
+            # min_fft = abs(np.amin(ftrans))
             maximums.append(max_fft)
 
         fig, (ax1, ax2) = plt.subplots(2, 1)
-        #ax2.set_ylim(-0.01 * 10 ** (-7), 2 * 10 ** (-7))
+        # ax2.set_ylim(-0.01 * 10 ** (-7), 2 * 10 ** (-7))
         ax1.plot(signal)
         ax2.plot(maximums)
         plt.show()
+
 
 def animate_fft():
     def animate(i):
@@ -375,47 +380,230 @@ def animate_fft():
     ani = FuncAnimation(fig, animate, frames=len(signal) - window, interval=.001, repeat=False)
     plt.show()
 
+
+def calc_all_fft_comp(signals, names, detecs):
+    x = []
+    y = []
+    z = []
+
+    window = 400
+    nchan = len(signals)
+
+    all_u = []
+    all_v = []
+    all_w = []
+    for i in range(nchan):
+        name = names[i]
+        print(name)
+        signal = signals[i]
+        filter_i = sa.filter_start(signal)
+        filtered_signal = signal[filter_i:]
+        loc_matrx = detecs[name]
+        r = loc_matrx[:3, 3]
+        vec = loc_matrx[:3, 2]
+
+        x.append(r[0])
+        y.append(r[1])
+        z.append(r[2])
+
+        fft_i2, smooth_signal, smooth_x, detrended_signal = sa.calc_fft_indices(filtered_signal, indices=[2],
+                                                                                window=window)
+
+        u = []
+        v = []
+        w = []
+
+        for fft_val in fft_i2[0]:
+            u.append(fft_val * vec[0])
+            v.append(fft_val * vec[1])
+            w.append(fft_val * vec[2])
+
+        all_u.append(np.asarray(u))
+        all_v.append(np.asarray(v))
+        all_w.append(np.asarray(w))
+
+    # new_u = []
+    # new_v = []
+    # new_w = []
+    #
+    # n_points = len(all_u[0])
+    #
+    # for i in range(n_points):
+    #     print(i, n_points)
+    #     u = []
+    #     v = []
+    #     w = []
+    #
+    #     for j in range(nchan):
+    #         try:
+    #             u.append(all_u[i][j])
+    #             v.append(all_v[i][j])
+    #             w.append(all_w[i][j])
+    #         except IndexError:
+    #             u.append(0)
+    #             v.append(0)
+    #             w.append(0)
+    #
+    #
+    #     new_u.append(u)
+    #     new_v.append(v)
+    #     new_w.append(w)
+
+    return x, y, z, all_u, all_v, all_w
+
+def calc_fft_all(signals):
+    ffts = []
+    for i in range(len(signals)):
+        print(i)
+        signal = signals[i]
+        filter_i = sa.filter_start(signal)
+        filtered_signal = signal[filter_i:]
+        fft_i2, smooth_signal, smooth_x, detrended_signal = sa.calc_fft_indices(filtered_signal, indices=[2])
+
+        ffts.append(fft_i2[0])
+
+    return ffts
+
+
+def animate_vectors():
+    #fname = "many_many_successful.npz"
+    fname = "sample_data37.npz"
+    signals, names, time, n_chan = fr.get_signals(fname)
+    detecs = np.load("array120_trans_newnames.npz")
+    names, signals = order_lists(detecs, names, signals)
+    print(type(signals))
+
+    ffts = calc_fft_all(signals)
+    #print(np.shape(signals))
+    #print(np.shape(ffts))
+    #print(type(ffts))
+    vis.helmet_animation(names, ffts, 1000, cmap="Purples", vlims=[0, 1*10**(-7)])
+
+def vector_closeness():
+    detecs = np.load("array120_trans_newnames.npz")
+    comparator = [1, 0, 0]
+
+    for comp_name in detecs:
+        print(comp_name)
+        diffs = []
+        comparator = detecs[comp_name][:3, 2]
+
+        for name in detecs:
+            detec = detecs[name]
+            v = detec[:3, 2]
+            diffs.append(sa.vect_angle(comparator, v, unit=False, perp=True))
+
+        vis.plot_all(detecs, diffs, cmap="OrRd")
+
 def compare_nearby():
     fname = "many_many_successful.npz"
     signals, names, time, n_chan = fr.get_signals(fname)
 
     detecs = np.load("array120_trans_newnames.npz")
 
-    #TODO figure out how to break fft into components
-    def plot_fft_components(ax, name, signal, detecs):
-        detec_matrx = detecs[name]
-        r_dut = detec_matrx[:3, 3]
-        v_dut = detec_matrx[:3, 2]
-
-        fft_i2 = sa.calc_fft_indices(signal, indices=[2])
-        i2_x = []
-        i2_y = []
-        i2_z = []
-
-        for i2_tot in fft_i2:
-            pass
-
-    for i in range(n_chan):
-        name = names[i]
-        print(name)
-        signal = signals[i]
-
-        near_chans = sa.find_nearby_detectors(names, detecs)
-        near_sigs = fr.find_signals(near_chans, signals, names)
-
+    def plot_fft_components(og_name, names, signals, detecs,
+                            fft_ylims=[-1 * 10 ** (-7), 1 * 10 ** (-7)],
+                            full_screen=False, vector_scale=1):
         fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, sharex=True)
+        axs = [ax1, ax2, ax3, ax4]
 
+        x = []
+        y = []
+        z = []
+        u = []
+        v = []
+        w = []
+
+        for i in range(len(signals)):
+            signal = signals[i]
+            filter_i = sa.filter_start(signal)
+            signal = signal[filter_i:]
+            name = names[i]
+            detec_matrx = detecs[name]
+            r_dut = detec_matrx[:3, 3]
+            v_dut = detec_matrx[:3, 2]
+
+            x.append(r_dut[0])
+            y.append(r_dut[1])
+            z.append(r_dut[2])
+
+            fft_i2, smooth_signal, smooth_x, detrended_signal = sa.calc_fft_indices(signal, indices=[2])
+            # print(fft_i2)
+            i2_x = []
+            i2_y = []
+            i2_z = []
+
+            print(v_dut)
+            lab = name + " " + str(v_dut)
+
+            for i2_tot in fft_i2[0]:
+                # print(i2_tot)
+                i2_x.append(i2_tot * v_dut[0])
+                i2_y.append(i2_tot * v_dut[1])
+                i2_z.append(i2_tot * v_dut[2])
+
+            test_i = 1500
+            u.append(i2_x[test_i] * vector_scale)
+            v.append(i2_y[test_i] * vector_scale)
+            w.append(i2_z[test_i] * vector_scale)
+
+            axs[0].plot(signal, label=lab)
+            axs[1].plot(i2_x, label=lab)
+            axs[2].plot(i2_y, label=lab)
+            axs[3].plot(i2_z, label=lab)
+
+        title = og_name
+        axs[0].set_title(title)
+        axs[0].set_ylabel("signal")
+        axs[1].set_ylabel("x")
+        axs[2].set_ylabel("y")
+        axs[3].set_ylabel("z")
+        axs[3].legend()
+
+        if len(fft_ylims) != 0:
+            for ax in axs:
+                ax.grid()
+                if ax == axs[0]:
+                    continue
+                ax.set_ylim(fft_ylims)
+
+        if full_screen:
+            figManager = plt.get_current_fig_manager()
+            figManager.window.showMaximized()
+
+        plt.show()
+
+        mlab.quiver3d(x, y, z, u, v, w)
+        mlab.show()
+
+    plot_fft_components("lol", names, signals, detecs)
+
+    # for i in range(n_chan):
+    #     name = names[i]
+    #     print(name)
+    #     signal = signals[i]
+    #     filter_i = sa.filter_start(signal)
+    #     filtered_signal = signal[filter_i:]
+    #
+    #     near_chans = sa.find_nearby_detectors(name, detecs)
+    #     all_sigs = fr.find_signals(near_chans, signals, names)
+    #     all_sigs.append(signal)
+    #     near_chans.append(name)
+    #
+    #     plot_fft_components(name, near_chans, all_sigs, detecs, full_screen=True)
+    #
+    #     print()
+    #     #plt.show()
 
 
 def test_hz():
-
     from scipy.optimize import curve_fit
-    #fname = "sample_data30.npz"
-    fname = "many_many_successful.npz"
-    #channels = ["MEG0121", "MEG1114", "MEG0311", "MEG331", "MEG0334"]
-    #channels = ["MEG1114"]
-    #fname = "many_failed.npz"
-    #channels = ["MEG0131"]
+    fname = "sample_data10.npz"
+    #fname = "many_many_successful2.npz"
+    # channels = ["MEG0121", "MEG1114", "MEG0311", "MEG331", "MEG0334"]
+    # channels = ["MEG1114"]
+    # fname = "many_failed.npz"
+    # channels = ["MEG0131"]
     signals, names, time, n_chan = fr.get_signals(fname)
 
     window = 400
@@ -439,9 +627,9 @@ def test_hz():
 
         fig, (ax1, ax2, ax3) = plt.subplots(3, 1)
         ax1.get_shared_x_axes().join(ax1, ax2)
-        #ax3.get_shared_x_axes().join(ax3, ax4)
+        # ax3.get_shared_x_axes().join(ax3, ax4)
         ax1.plot(filtered_signal, label="original signal")
-        #ax1.plot(signal_x, fit(np.asarray(signal_x), *popt), label="fitted signal")
+        # ax1.plot(signal_x, fit(np.asarray(signal_x), *popt), label="fitted signal")
         ax1.plot(smooth_x, smooth_signal, label="smooth signal")
         ax1.plot(new_signal, label="new signal")
         ax1.legend()
@@ -454,7 +642,7 @@ def test_hz():
             segs = sa.get_spans_from_fft(dat, hseg)
             print(segs)
             plot_spans(ax1, segs)
-            #frac_grad = np.diff(frac_arr)
+            # frac_grad = np.diff(frac_arr)
             ax2.plot(dat, label=str(index), color=c)
             ax2.axhspan(hseg[0], hseg[1], alpha=.5)
             ax3.plot(y_arr, frac_arr)
@@ -467,9 +655,9 @@ def test_hz():
                     color = "blue"
                 ax3.axvline(y_arr[maxi], linestyle="--", color=color)
 
-            #ax4.plot(y_arr[:len(y_arr) - 1], frac_grad, ".-", color=c)
+            # ax4.plot(y_arr[:len(y_arr) - 1], frac_grad, ".-", color=c)
 
-        #ax2.set_ylim(-1 * 10**(-8), 2.2 * 10 ** (-7))
+        # ax2.set_ylim(-1 * 10**(-8), 2.2 * 10 ** (-7))
         ax2.legend()
         ax2.grid()
         plt.title(name)
@@ -479,14 +667,13 @@ def test_hz():
         plt.show()
 
 
-
-
 def secondver():
     fname = "sample_data02.npz"
     signals, names, time, n_chan = fr.get_signals(fname)
 
     signal_statuses, bad_segs, suspicious_segs, exec_times = sa.analyse_all_neo(signals, names, n_chan)
     plot_in_order_ver3(signals, names, n_chan, signal_statuses, bad_segs, suspicious_segs, exec_times)
+
 
 def overlap():
     sus_segs = [[600, 1400]]
@@ -505,12 +692,13 @@ def plottest():
 
     names, signals = order_lists(detecs, names, signals)
 
-    #n = data.n_channels
-    #signals = sa.reorganize_signals(signals, n)
+    # n = data.n_channels
+    # signals = sa.reorganize_signals(signals, n)
     statuses, bad_segs, sus_segs, exec_times = sa.analyse_all_neo(signals, names, n)
     bad_list = bad_list_for_anim(names, statuses)
 
     vis.helmet_animation(names, signals, frames=1000, bads=bad_list)
+
 
 def regex_filter(npz_data):
     names = []
@@ -524,8 +712,8 @@ def regex_filter(npz_data):
         else:
             bads.append(item)
 
-
     return signals, names, bads
+
 
 def bad_list_for_anim(names, bads):
     bad_names = []
@@ -536,12 +724,13 @@ def bad_list_for_anim(names, bads):
 
     return bad_names
 
+
 def simo():
     detecs = np.load("array120_trans_newnames.npz")
-    #print(detecs)
-    #print(detecs)
-    #chan_num = len(names)
-    #statuses = np.full((len(names), 2), (False, 2))
+    # print(detecs)
+    # print(detecs)
+    # chan_num = len(names)
+    # statuses = np.full((len(names), 2), (False, 2))
     signals = sg.simulate_eddy(detecs)
     signal_len = len(signals[0])
     # statuses, fracs, uniq_stats_list, exec_times = sa.analyse_all(signals, names, chan_num)
@@ -549,6 +738,7 @@ def simo():
     #               fracs=fracs, uniq_stats_list=uniq_stats_list,
     #               exec_times=exec_times)
     vis.helmet_animation(detecs, signals, 1000)
+
 
 def nearby():
     detecs = np.load("array120_trans_newnames.npz")
@@ -560,6 +750,7 @@ def nearby():
     print(bads)
 
     vis.plot_all(names, np.full(np.shape(names), 1), nears)
+
 
 def order_lists(pos_list, dat_names, signals):
     new_signals = []
@@ -574,22 +765,25 @@ def order_lists(pos_list, dat_names, signals):
 
     return new_names, new_signals
 
-if __name__ == '__main__':
-    #basic()
-    #analysis()
-    #dataload()
-    #averagetest()
-    #firstver()
-    #secondver()
-    #plottest()
-    #animtest()
-    #simo()
-    #nearby()
-    #names()
-    #simulation()
-    #test_uniq()
-    #overlap()
-    test_hz()
 
+if __name__ == '__main__':
+    # basic()
+    # analysis()
+    # dataload()
+    # averagetest()
+    # firstver()
+    # secondver()
+    # plottest()
+    # animtest()
+    # simo()
+    # nearby()
+    # names()
+    # simulation()
+    # test_uniq()
+    # overlap()
+    #test_hz()
+    #compare_nearby()
+    #animate_vectors()
+    vector_closeness()
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/

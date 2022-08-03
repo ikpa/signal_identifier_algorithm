@@ -2,6 +2,7 @@ import calc_eddy_currents_for_patrik.viz as viz
 from mayavi import mlab
 import numpy as np
 
+
 def get_single_point(signals, i, n=1):
     points = []
 
@@ -12,15 +13,38 @@ def get_single_point(signals, i, n=1):
 
     return points
 
-def helmet_animation(names, signals, frames, bads=[], arrows=False):
+
+def find_min_max_ragged(arr):
+    mini = None
+    maxi = None
+    for i in range(len(arr)):
+        sub_arr = arr[i]
+        for val in sub_arr:
+            if maxi is None or val > maxi:
+                maxi = val
+
+            if mini is None or val < mini:
+                mini = val
+
+    return mini, maxi
+
+
+def helmet_animation(names, signals, frames, bads=[], arrows=False, cmap="PiYG",
+                     vlims=[]):
     signal_len = len(signals[0])
-    min = np.amin(signals)
-    max = np.amax(signals)
+    #mini = np.amin(signals)
+    #maxi = np.amax(signals)
+
+    if len(vlims) == 0:
+        mini, maxi = find_min_max_ragged(signals)
+    else:
+        mini = vlims[0]
+        maxi = vlims[1]
 
     points = get_single_point(signals, 0)
 
-    s, a = plot_all(names, points, bads=bads, cmap="PiYG",
-                     vmax=max, vmin=min, plot=False, arrows=arrows)
+    s, a = plot_all(names, points, bads=bads, cmap=cmap,
+                     vmax=maxi, vmin=mini, plot=False, arrows=arrows)
     text = mlab.text(0.85, 0.125, "0.00", width=0.09)
     # print(s.mlab_source.scalars)
     # print(points)

@@ -79,6 +79,23 @@ def reorganize_signal(signal):
 
     return new_sig
 
+def vect_angle(vec1, vec2, unit=False, perp=False):
+    if np.all(vec1 == vec2):
+        return 0
+
+    if not unit:
+        vec1 = vec1 / np.linalg.norm(vec1)
+        vec2 = vec2 / np.linalg.norm(vec2)
+
+    angle = np.arccos(np.dot(vec1, vec2))
+
+    if not perp:
+        return angle
+
+    if angle > np.pi / 2:
+        return np.pi - angle
+
+    return angle
 
 def find_nearby_detectors(d_name, detectors, r_sens=0.06):
     dut = detectors[d_name]
