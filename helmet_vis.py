@@ -29,7 +29,7 @@ def find_min_max_ragged(arr):
     return mini, maxi
 
 
-def helmet_animation(names, signals, frames, bads=[], arrows=False, cmap="PiYG",
+def helmet_animation(names, signals, frames=1000, bads=[], arrows=False, cmap="PiYG",
                      vlims=[]):
     signal_len = len(signals[0])
     #mini = np.amin(signals)

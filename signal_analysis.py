@@ -63,10 +63,12 @@ def smooth(x, window_len=21, window='hanning'):
     y = np.convolve(w / w.sum(), s, mode='valid')
     return y
 
+
 def seg_from_sig(signal, seg):
     segment = signal[seg[0], seg[1]]
     x = list(range(seg[0], seg[1]))
     return x, segment
+
 
 # fixes signals in bad formats (when reading only one channel)
 def reorganize_signal(signal):
@@ -78,6 +80,7 @@ def reorganize_signal(signal):
         new_sig[i] = signal[i][0]
 
     return new_sig
+
 
 def vect_angle(vec1, vec2, unit=False, perp=False):
     if np.all(vec1 == vec2):
@@ -96,6 +99,44 @@ def vect_angle(vec1, vec2, unit=False, perp=False):
         return np.pi - angle
 
     return angle
+
+
+def angle_similarity(vect1, vect2, unit=True, perp=True,
+                     angle_w=1/np.pi):
+    if perp:
+        max_angle = np.pi / 2
+    else:
+        max_angle = np.pi
+
+    angle = vect_angle(vect1, vect2, unit=unit, perp=perp)
+    #print(angle)
+    angle_diff = (max_angle - angle) * (2/np.pi) * angle_w
+    #print(angle_diff)
+    return angle_diff
+
+
+def calc_similarity_between_signals(signal1, signal2, v1, v2, unit=True,
+                                    perp=True, angle_w=2, dp_w=.5*10**(8),
+                                    max_diff=1*10**(-7)):
+    angle_sim = angle_similarity(v1, v2, unit=unit, perp=perp, angle_w=angle_w)
+    #tot_w = angle_sim * dp_w
+
+    n_points = min(len(signal1), len(signal2))
+
+    tot_diffs = []
+
+    for i in range(n_points):
+        point1 = signal1[i]
+        point2 = signal2[i]
+        diff = dp_w * (max_diff - abs(point1 - point2))
+        #print(diff)
+        tot_sim = angle_sim + diff
+        tot_diffs.append(tot_sim)
+
+    print(angle_sim)
+
+    return tot_diffs
+
 
 def find_nearby_detectors(d_name, detectors, r_sens=0.06):
     dut = detectors[d_name]
@@ -262,7 +303,7 @@ def reformat_stats(start_is, end_is):
 
     return list
 
-
+#TODO fix confidences
 def segment_filter_neo(signal):
     lengths, start_is, end_is = find_uniq_segments(signal)
 
@@ -413,10 +454,11 @@ def get_fft(signal, filter_i=0):
 
     ftrans = fft(signal[filter_i:])
     ftrans_abs = [abs(x) for x in ftrans]
-    #ftrans_abs[0] = 0
+    # ftrans_abs[0] = 0
     return ftrans_abs
 
-def calc_fft_indices(signal, indices=[1,2,6], window=400, smooth_window=401):
+
+def calc_fft_indices(signal, indices=[1, 2, 6], window=400, smooth_window=401):
     sig_len = len(signal)
     ftrans_points = sig_len - window
     i_arr = np.zeros((len(indices), ftrans_points))
@@ -443,8 +485,8 @@ def calc_fft_indices(signal, indices=[1,2,6], window=400, smooth_window=401):
     return i_arr, smooth_signal, smooth_x, filtered_signal
 
 
-def find_default_y(arr, num_points=5000, step=.1*10**(-7)):
-    y_arr = np.linspace(0, 1*10**(-7), num_points)
+def find_default_y(arr, num_points=5000, step=.1 * 10 ** (-7)):
+    y_arr = np.linspace(0, 1 * 10 ** (-7), num_points)
     arr_len = len(arr)
     frac_arr = []
 
@@ -504,7 +546,7 @@ def get_spans_from_fft(fft_i2, hseg, fft_window=400):
     i_max = -1
     for fft_i in range(len(fft_i2)):
         fft_val = fft_i2[fft_i]
-        #print(fft_val)
+        # print(fft_val)
         val_in_hseg = hseg[0] < fft_val < hseg[1]
 
         if (i_max != -1 and i_min != - 1) and (not val_in_hseg or fft_i == len(fft_i2) - 1):
@@ -541,8 +583,8 @@ def get_spans_from_fft(fft_i2, hseg, fft_window=400):
     return segs
 
 
-#takes the entire signal or a signal segment as an argument.
-#filter_i is used ONLY in the calculation of offsets
+# takes the entire signal or a signal segment as an argument.
+# filter_i is used ONLY in the calculation of offsets
 def get_extrema(signal, filter_i=0, window=21, order=10):
     from scipy.signal import argrelextrema
 

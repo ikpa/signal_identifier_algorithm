@@ -467,7 +467,7 @@ def calc_fft_all(signals):
 
 def animate_vectors():
     #fname = "many_many_successful.npz"
-    fname = "sample_data37.npz"
+    fname = "sample_data38.npz"
     signals, names, time, n_chan = fr.get_signals(fname)
     detecs = np.load("array120_trans_newnames.npz")
     names, signals = order_lists(detecs, names, signals)
@@ -478,6 +478,37 @@ def animate_vectors():
     #print(np.shape(ffts))
     #print(type(ffts))
     vis.helmet_animation(names, ffts, 1000, cmap="Purples", vlims=[0, 1*10**(-7)])
+
+
+def angle_test():
+    vect1 = [1, 0]
+    vect1 = vect1 / np.linalg.norm(vect1)
+    vect2 = [0, 1]
+    vect2 = vect2 / np.linalg.norm(vect2)
+    angles = np.linspace(0, 2 * np.pi, 5000)
+    magnitude = 1
+
+    def vect_from_ang(theta, mag):
+        return [mag*np.cos(theta), mag*np.sin(theta)]
+
+    def projection(vect1, vect2):
+        dot = np.dot(vect1, vect2)
+        vect1_length = np.sqrt(vect1[0]**2 + vect1[1]**2)
+        return abs(dot / vect1_length)
+
+    proj1 = []
+    proj2 = []
+    for angle in angles:
+        vect = vect_from_ang(angle, magnitude)
+        proj1.append(projection(vect1, vect))
+        proj2.append(projection(vect2, vect))
+
+    fig = plt.figure()
+    plt.plot(angles, proj1, label="proj1")
+    plt.plot(angles, proj2, label="proj2")
+    plt.legend()
+    plt.show()
+
 
 def vector_closeness():
     detecs = np.load("array120_trans_newnames.npz")
@@ -494,6 +525,50 @@ def vector_closeness():
             diffs.append(sa.vect_angle(comparator, v, unit=False, perp=True))
 
         vis.plot_all(detecs, diffs, cmap="OrRd")
+
+
+def signal_sim():
+    fname = "many_many_successful2.npz"
+    all_signals, names, time, n_chan = fr.get_signals(fname)
+    detecs = np.load("array120_trans_newnames.npz")
+    names, all_signals = order_lists(detecs, names, all_signals)
+
+    comp_chan = "MEG0241"
+    comp_sigs, comp_names, comp_time, n_comp = fr.get_signals(fname, channels=[comp_chan])
+    comp_signal = comp_sigs[0]
+    comp_filter_i = sa.filter_start(comp_signal)
+    filtered_comp_sig = comp_signal[comp_filter_i:]
+    comp_fft, smooth_signal, smooth_x, detrended_signal = sa.calc_fft_indices(filtered_comp_sig, indices=[2])
+    comp_fft = comp_fft[0]
+    comp_v = detecs[comp_chan][:3, 2]
+
+    all_diffs = []
+
+    for i in range(n_chan):
+        name = names[i]
+        print(name)
+        signal = all_signals[i]
+        filter_i = sa.filter_start(signal)
+        filtered_signal = signal[filter_i:]
+        v = detecs[name][:3, 2]
+        fft, smooth_signal, smooth_x, detrended_signal = sa.calc_fft_indices(filtered_signal, indices=[2])
+        fft = fft[0]
+        diffs = sa.calc_similarity_between_signals(comp_fft, fft, comp_v, v, angle_w=0)
+        all_diffs.append(diffs)
+        #print(diffs)
+        print()
+
+        # fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
+        # ax1.plot(filtered_comp_sig)
+        # ax1.plot(filtered_signal)
+        # ax2.plot(comp_fft, label="comparator")
+        # ax2.plot(fft, label=name)
+        # ax2.legend()
+        # ax3.plot(diffs, color="green")
+        # plt.show()
+
+    vis.helmet_animation(names, all_diffs, cmap="plasma", vlims=[0, 5])
+
 
 def compare_nearby():
     fname = "many_many_successful.npz"
@@ -576,24 +651,24 @@ def compare_nearby():
         mlab.quiver3d(x, y, z, u, v, w)
         mlab.show()
 
-    plot_fft_components("lol", names, signals, detecs)
+    #plot_fft_components("lol", names, signals, detecs)
 
-    # for i in range(n_chan):
-    #     name = names[i]
-    #     print(name)
-    #     signal = signals[i]
-    #     filter_i = sa.filter_start(signal)
-    #     filtered_signal = signal[filter_i:]
-    #
-    #     near_chans = sa.find_nearby_detectors(name, detecs)
-    #     all_sigs = fr.find_signals(near_chans, signals, names)
-    #     all_sigs.append(signal)
-    #     near_chans.append(name)
-    #
-    #     plot_fft_components(name, near_chans, all_sigs, detecs, full_screen=True)
-    #
-    #     print()
-    #     #plt.show()
+    for i in range(n_chan):
+        name = names[i]
+        print(name)
+        signal = signals[i]
+        filter_i = sa.filter_start(signal)
+        filtered_signal = signal[filter_i:]
+
+        near_chans = sa.find_nearby_detectors(name, detecs)
+        all_sigs = fr.find_signals(near_chans, signals, names)
+        all_sigs.append(signal)
+        near_chans.append(name)
+
+        plot_fft_components(name, near_chans, all_sigs, detecs, full_screen=True)
+
+        print()
+        #plt.show()
 
 
 def test_hz():
@@ -668,8 +743,10 @@ def test_hz():
 
 
 def secondver():
-    fname = "sample_data02.npz"
-    signals, names, time, n_chan = fr.get_signals(fname)
+    #fname = "sample_data02.npz"
+    fname = "sample_data24.npz"
+    channels = ["MEG2*1"]
+    signals, names, time, n_chan = fr.get_signals(fname, channels=channels)
 
     signal_statuses, bad_segs, suspicious_segs, exec_times = sa.analyse_all_neo(signals, names, n_chan)
     plot_in_order_ver3(signals, names, n_chan, signal_statuses, bad_segs, suspicious_segs, exec_times)
@@ -772,7 +849,7 @@ if __name__ == '__main__':
     # dataload()
     # averagetest()
     # firstver()
-    # secondver()
+    #secondver()
     # plottest()
     # animtest()
     # simo()
@@ -784,6 +861,8 @@ if __name__ == '__main__':
     #test_hz()
     #compare_nearby()
     #animate_vectors()
-    vector_closeness()
+    #vector_closeness()
+    #angle_test()
+    signal_sim()
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
