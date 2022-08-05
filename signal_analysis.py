@@ -138,6 +138,26 @@ def calc_similarity_between_signals(signal1, signal2, v1, v2, unit=True,
     return tot_diffs
 
 
+def calc_diff(signal1, signal2, x1, x2):
+    #len_points = min(len(signal1), len(signal2))
+
+    x_min = max(np.amin(x1), np.amin(x2))
+    x_max = min(np.amax(x1), np.amax(x2))
+    print(x_min, x_max)
+    new_x = list(range(x_min, x_max))
+
+    diffs = []
+
+    for x in new_x:
+        i1 = x1.index(x)
+        i2 = x2.index(x)
+        point1 = signal1[i1]
+        point2 = signal2[i2]
+        diffs.append(abs(point1 - point2))
+
+    return diffs, new_x
+
+
 def find_nearby_detectors(d_name, detectors, r_sens=0.06):
     dut = detectors[d_name]
     r_dut = dut[:3, 3]

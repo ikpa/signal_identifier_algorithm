@@ -528,7 +528,7 @@ def vector_closeness():
 
 
 def signal_sim():
-    fname = "many_many_successful2.npz"
+    fname = "many_successful.npz"
     all_signals, names, time, n_chan = fr.get_signals(fname)
     detecs = np.load("array120_trans_newnames.npz")
     names, all_signals = order_lists(detecs, names, all_signals)
@@ -576,71 +576,64 @@ def compare_nearby():
 
     detecs = np.load("array120_trans_newnames.npz")
 
-    def plot_fft_components(og_name, names, signals, detecs,
+    def plot_fft_components(og_name, og_sig, og_x, og_fft, og_v,
+                            names, signals, detecs, window=400,
                             fft_ylims=[-1 * 10 ** (-7), 1 * 10 ** (-7)],
                             full_screen=False, vector_scale=1):
-        fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, sharex=True)
-        axs = [ax1, ax2, ax3, ax4]
+        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
 
-        x = []
-        y = []
-        z = []
-        u = []
-        v = []
-        w = []
+        color_og = "black"
+        og_fft_x = og_x[:len(og_sig) - window]
+        ax1.plot(og_x, og_sig, color=color_og)
+        ax2.plot(og_fft_x, og_fft, label=og_name, color=color_og)
+        fracs = []
+
+        colors = plt.cm.rainbow(np.linspace(0, 1, len(signals)))
 
         for i in range(len(signals)):
             signal = signals[i]
             filter_i = sa.filter_start(signal)
+            x = list(range(filter_i, len(signal)))
             signal = signal[filter_i:]
             name = names[i]
             detec_matrx = detecs[name]
             r_dut = detec_matrx[:3, 3]
             v_dut = detec_matrx[:3, 2]
 
-            x.append(r_dut[0])
-            y.append(r_dut[1])
-            z.append(r_dut[2])
+            #window = 400
+            x_fft = x[:len(x) - window]
+            fft_i2, smooth_signal, smooth_x, detrended_signal = sa.calc_fft_indices(signal, indices=[2], window=window)
+            fft_i2 = np.gradient(fft_i2[0])
+            #diffs = sa.calc_similarity_between_signals(og_fft, fft_i2, v_dut, og_v, angle_w=0)
+            diffs, x_diffs = sa.calc_diff(og_fft, fft_i2, og_fft_x, x_fft)
+            diff_sens = .2*10**(-10)
+            diffs_under_sens = [x for x in diffs if x < diff_sens]
+            frac_under = len(diffs_under_sens) / len(diffs)
+            mean = np.mean(diffs)
+            fracs.append(mean)
+            #print(len(diffs), len_diffs)
 
-            fft_i2, smooth_signal, smooth_x, detrended_signal = sa.calc_fft_indices(signal, indices=[2])
             # print(fft_i2)
-            i2_x = []
-            i2_y = []
-            i2_z = []
 
+            # if len_diffs != x_fft:
+            #     len_diff = len(x_fft) - len_diffs
+            #     x_diffs = x_fft[:len(x_fft) - len_diff]
+            # else:
+            #     x_diffs = x_fft
+
+            #x_diffs = list(range(filter_i, len_diffs))
+            color = colors[i]
             print(v_dut)
-            lab = name + " " + str(v_dut)
-
-            for i2_tot in fft_i2[0]:
-                # print(i2_tot)
-                i2_x.append(i2_tot * v_dut[0])
-                i2_y.append(i2_tot * v_dut[1])
-                i2_z.append(i2_tot * v_dut[2])
-
-            test_i = 1500
-            u.append(i2_x[test_i] * vector_scale)
-            v.append(i2_y[test_i] * vector_scale)
-            w.append(i2_z[test_i] * vector_scale)
-
-            axs[0].plot(signal, label=lab)
-            axs[1].plot(i2_x, label=lab)
-            axs[2].plot(i2_y, label=lab)
-            axs[3].plot(i2_z, label=lab)
+            lab = name + " " + str(mean)
+            print(len(x_diffs), len(diffs))
+            ax1.plot(x, signal, color=color)
+            ax2.plot(x_fft, fft_i2, label=name, color=color)
+            ax3.plot(x_diffs, diffs, label=lab, color=color)
 
         title = og_name
-        axs[0].set_title(title)
-        axs[0].set_ylabel("signal")
-        axs[1].set_ylabel("x")
-        axs[2].set_ylabel("y")
-        axs[3].set_ylabel("z")
-        axs[3].legend()
-
-        if len(fft_ylims) != 0:
-            for ax in axs:
-                ax.grid()
-                if ax == axs[0]:
-                    continue
-                ax.set_ylim(fft_ylims)
+        ax1.set_title(title)
+        ax2.legend()
+        ax3.legend()
 
         if full_screen:
             figManager = plt.get_current_fig_manager()
@@ -648,8 +641,7 @@ def compare_nearby():
 
         plt.show()
 
-        mlab.quiver3d(x, y, z, u, v, w)
-        mlab.show()
+        vis.plot_all(names, fracs, vmin=0, vmax=.5*10**(-10))
 
     #plot_fft_components("lol", names, signals, detecs)
 
@@ -659,13 +651,17 @@ def compare_nearby():
         signal = signals[i]
         filter_i = sa.filter_start(signal)
         filtered_signal = signal[filter_i:]
+        loc_matrx = detecs[name]
+        v = loc_matrx[:3, 2]
+        window = 400
+        og_x = list(range(filter_i, len(signal)))
+        fft, smooth_signal, smooth_x, detrended_signal = sa.calc_fft_indices(filtered_signal, indices=[2], window=window)
+        fft = np.gradient(fft[0])
 
         near_chans = sa.find_nearby_detectors(name, detecs)
         all_sigs = fr.find_signals(near_chans, signals, names)
-        all_sigs.append(signal)
-        near_chans.append(name)
 
-        plot_fft_components(name, near_chans, all_sigs, detecs, full_screen=True)
+        plot_fft_components(name, filtered_signal, og_x, fft, v, near_chans, all_sigs, detecs, window=window, full_screen=False)
 
         print()
         #plt.show()
@@ -859,10 +855,10 @@ if __name__ == '__main__':
     # test_uniq()
     # overlap()
     #test_hz()
-    #compare_nearby()
+    compare_nearby()
     #animate_vectors()
     #vector_closeness()
     #angle_test()
-    signal_sim()
+    #signal_sim()
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/

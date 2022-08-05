@@ -32,8 +32,8 @@ def find_min_max_ragged(arr):
 def helmet_animation(names, signals, frames=1000, bads=[], arrows=False, cmap="PiYG",
                      vlims=[]):
     signal_len = len(signals[0])
-    #mini = np.amin(signals)
-    #maxi = np.amax(signals)
+    # mini = np.amin(signals)
+    # maxi = np.amax(signals)
 
     if len(vlims) == 0:
         mini, maxi = find_min_max_ragged(signals)
@@ -44,8 +44,9 @@ def helmet_animation(names, signals, frames=1000, bads=[], arrows=False, cmap="P
     points = get_single_point(signals, 0)
 
     s, a = plot_all(names, points, bads=bads, cmap=cmap,
-                     vmax=maxi, vmin=mini, plot=False, arrows=arrows)
+                    vmax=maxi, vmin=mini, plot=False, arrows=arrows)
     text = mlab.text(0.85, 0.125, "0.00", width=0.09)
+
     # print(s.mlab_source.scalars)
     # print(points)
 
@@ -53,7 +54,7 @@ def helmet_animation(names, signals, frames=1000, bads=[], arrows=False, cmap="P
     def anim():
         for i in range(1, frames):
             j = int(signal_len * (i / frames))
-            text.set(text=str(round(j/signal_len * 100)) + "%")
+            text.set(text=str(round(j / signal_len * 100)) + "%")
             print("j= ", j)
 
             points = get_single_point(signals, j, n=4)
@@ -67,10 +68,11 @@ def helmet_animation(names, signals, frames=1000, bads=[], arrows=False, cmap="P
     anim()
     mlab.show()
 
-def plot_all(names, datas, bads=[], cmap="Greys", vmin = None, vmax = None,
+
+def plot_all(names, datas, bads=[], cmap="Reds", vmin=None, vmax=None,
              plot=True, arrows=False):
     s = viz.plot_sensor_data(names, datas, cmap=cmap, bads=bads,
-                         vmin=vmin, vmax=vmax)
+                             vmin=vmin, vmax=vmax)
     mlab.colorbar()
 
     if arrows:
@@ -93,10 +95,9 @@ def plot_all(names, datas, bads=[], cmap="Greys", vmin = None, vmax = None,
 
             vec = [x * length for x in vec]
 
-
             rs.append(r)
             vecs.append(vec)
-            i+=1
+            i += 1
 
         a = mlab.quiver3d(rs[0], rs[1], rs[2], vecs[0], vecs[1], vecs[2])
     else:
