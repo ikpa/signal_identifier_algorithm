@@ -102,24 +102,24 @@ def vect_angle(vec1, vec2, unit=False, perp=False):
 
 
 def angle_similarity(vect1, vect2, unit=True, perp=True,
-                     angle_w=1/np.pi):
+                     angle_w=1 / np.pi):
     if perp:
         max_angle = np.pi / 2
     else:
         max_angle = np.pi
 
     angle = vect_angle(vect1, vect2, unit=unit, perp=perp)
-    #print(angle)
-    angle_diff = (max_angle - angle) * (2/np.pi) * angle_w
-    #print(angle_diff)
+    # print(angle)
+    angle_diff = (max_angle - angle) * (2 / np.pi) * angle_w
+    # print(angle_diff)
     return angle_diff
 
 
 def calc_similarity_between_signals(signal1, signal2, v1, v2, unit=True,
-                                    perp=True, angle_w=2, dp_w=.5*10**(8),
-                                    max_diff=1*10**(-7)):
+                                    perp=True, angle_w=2, dp_w=.5 * 10 ** (8),
+                                    max_diff=1 * 10 ** (-7)):
     angle_sim = angle_similarity(v1, v2, unit=unit, perp=perp, angle_w=angle_w)
-    #tot_w = angle_sim * dp_w
+    # tot_w = angle_sim * dp_w
 
     n_points = min(len(signal1), len(signal2))
 
@@ -129,7 +129,7 @@ def calc_similarity_between_signals(signal1, signal2, v1, v2, unit=True,
         point1 = signal1[i]
         point2 = signal2[i]
         diff = dp_w * (max_diff - abs(point1 - point2))
-        #print(diff)
+        # print(diff)
         tot_sim = angle_sim + diff
         tot_diffs.append(tot_sim)
 
@@ -138,12 +138,29 @@ def calc_similarity_between_signals(signal1, signal2, v1, v2, unit=True,
     return tot_diffs
 
 
+def check_similarities(comp_sig, comp_x, signals, xs, diff_sens=1.15 * 10 ** (-9)):
+    is_similar = []
+    diff_list = []
+    new_x_list = []
+    for i in range(len(signals)):
+        signal = signals[i]
+        x = xs[i]
+
+        diffs, new_x = calc_diff(comp_sig, signal, comp_x, x)
+        diff_ave = np.mean(diffs)
+        is_similar.append(diff_ave < diff_sens)
+        diff_list.append(diffs)
+        new_x_list.append(new_x)
+
+    return is_similar, diff_list, new_x_list
+
+
 def calc_diff(signal1, signal2, x1, x2):
-    #len_points = min(len(signal1), len(signal2))
+    # len_points = min(len(signal1), len(signal2))
 
     x_min = max(np.amin(x1), np.amin(x2))
     x_max = min(np.amax(x1), np.amax(x2))
-    print(x_min, x_max)
+    #print(x_min, x_max)
     new_x = list(range(x_min, x_max))
 
     diffs = []
@@ -323,7 +340,8 @@ def reformat_stats(start_is, end_is):
 
     return list
 
-#TODO fix confidences
+
+# TODO fix confidences
 def segment_filter_neo(signal):
     lengths, start_is, end_is = find_uniq_segments(signal)
 

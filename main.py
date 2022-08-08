@@ -569,6 +569,92 @@ def signal_sim():
 
     vis.helmet_animation(names, all_diffs, cmap="plasma", vlims=[0, 5])
 
+def compare_nearby2():
+    fname = "many_many_successful.npz"
+    signals, names, time, n_chan = fr.get_signals(fname)
+
+    detecs = np.load("array120_trans_newnames.npz")
+    window = 400
+
+    def filter_and_fft(sig):
+        filter_i = sa.filter_start(sig)
+        filtered_sig = sig[filter_i:]
+        x = list(range(filter_i, len(sig)))
+        fft_i2, smooth_signal, smooth_x, detrended_signal = sa.calc_fft_indices(filtered_sig, indices=[2], window=window)
+        fft = fft_i2[0]
+        fft_x = x[:len(x) - window]
+        return filtered_sig, x, filter_i, fft, fft_x
+
+    for i in range(n_chan):
+        name = names[i]
+        print(name)
+        signal = signals[i]
+        filtered_sig, x, filter_i, fft, fft_x = filter_and_fft(signal)
+        #fft_grad = np.gradient(fft)
+        og_fft_ave = np.mean(fft)
+
+        nearby_chans = sa.find_nearby_detectors(name, detecs)
+        near_sigs = fr.find_signals(nearby_chans, signals, names)
+        filtered_sigs = []
+        near_ffts = []
+        #near_fft_grads = []
+        fft_fixes = []
+        near_xs = []
+        near_fft_xs = []
+
+        for sig in near_sigs:
+            filt_near_sig, near_x, near_filter_i, near_fft, near_fft_x = filter_and_fft(sig)
+            filtered_sigs.append(filt_near_sig)
+            near_ffts.append(near_fft)
+            near_fft_ave = np.mean(near_fft)
+            fft_diff = og_fft_ave - near_fft_ave
+            fft_fix = [x + fft_diff for x in near_fft]
+            fft_fixes.append(fft_fix)
+            #near_fft_grads.append(np.gradient(near_fft))
+            near_xs.append(near_x)
+            near_fft_xs.append(near_fft_x)
+
+        is_similar, diff_list, new_x_list = sa.check_similarities(fft, fft_x, fft_fixes, near_fft_xs)
+
+        colors = plt.cm.rainbow(np.linspace(0, 1, len(near_sigs)))
+
+        fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, sharex=True)
+        ax1.plot(x, filtered_sig, color="black", label=name)
+        ax2.plot(fft_x, fft, color="black")
+        ax3.plot(fft_x, fft, color="black")
+
+        for j in range(len(near_sigs)):
+            near_name = nearby_chans[j]
+            near_sig = filtered_sigs[j]
+            near_x = near_xs[j]
+            near_fft = near_ffts[j]
+            #near_fft_grad = near_fft_grads[j]
+            fft_fixed = fft_fixes[j]
+            near_fft_x = near_fft_xs[j]
+            near_diff = diff_list[j]
+            new_x = new_x_list[j]
+            similar = is_similar[j]
+
+            diff_ave = np.mean(near_diff)
+            label = near_name + " " + str(similar) + " " + str(diff_ave)
+
+            ax1.plot(near_x, near_sig, color=colors[j], label=near_name)
+            ax2.plot(near_fft_x, near_fft, color=colors[j])
+            ax3.plot(near_fft_x, fft_fixed, color=colors[j])
+            ax4.plot(new_x, near_diff, color=colors[j], label=label)
+
+        print()
+
+        ax1.set_ylabel("signal")
+        ax1.legend()
+        ax2.set_ylabel("fft i2")
+        ax3.set_ylabel("fft i2 gradient")
+        ax4.legend()
+        ax4.set_ylabel("fft i2 gradient diff")
+
+        vis.plot_all(nearby_chans, [int(x) for x in is_similar], vmin=0, vmax=1)
+
+        plt.show()
 
 def compare_nearby():
     fname = "many_many_successful.npz"
@@ -644,6 +730,8 @@ def compare_nearby():
         vis.plot_all(names, fracs, vmin=0, vmax=.5*10**(-10))
 
     #plot_fft_components("lol", names, signals, detecs)
+
+    #signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals, names, n_chan)
 
     for i in range(n_chan):
         name = names[i]
@@ -855,7 +943,7 @@ if __name__ == '__main__':
     # test_uniq()
     # overlap()
     #test_hz()
-    compare_nearby()
+    compare_nearby2()
     #animate_vectors()
     #vector_closeness()
     #angle_test()
