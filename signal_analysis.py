@@ -82,6 +82,12 @@ def reorganize_signal(signal):
     return new_sig
 
 
+def magn_from_point(a, point):
+    a_pinv = np.linalg.pinv(a)
+    magn = a_pinv.dot(point)
+    return magn
+
+
 def vect_angle(vec1, vec2, unit=False, perp=False):
     if np.all(vec1 == vec2):
         return 0
@@ -154,6 +160,24 @@ def check_similarities(comp_sig, comp_x, signals, xs, diff_sens=1.15 * 10 ** (-9
 
     return is_similar, diff_list, new_x_list
 
+
+def crop_signals(signal1, signal2, x1, x2):
+    x_min = max(np.amin(x1), np.amin(x2))
+    x_max = min(np.amax(x1), np.amax(x2))
+    # print(x_min, x_max)
+    new_x = list(range(x_min, x_max))
+
+    new_sig1 = []
+    new_sig2 = []
+    for x in new_x:
+        i1 = x1.index(x)
+        i2 = x2.index(x)
+        point1 = signal1[i1]
+        point2 = signal2[i2]
+        new_sig1.append(point1)
+        new_sig2.append(point2)
+
+    return new_sig1, new_sig2, new_x
 
 def calc_diff(signal1, signal2, x1, x2):
     # len_points = min(len(signal1), len(signal2))
