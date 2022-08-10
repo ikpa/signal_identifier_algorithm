@@ -1,32 +1,7 @@
 import calc_eddy_currents_for_patrik.viz as viz
+import helper_funcs as hf
 from mayavi import mlab
 import numpy as np
-
-
-def get_single_point(signals, i, n=1):
-    points = []
-
-    for signal in signals:
-        point = signal[i]
-        for j in range(n):
-            points.append(point)
-
-    return points
-
-
-def find_min_max_ragged(arr):
-    mini = None
-    maxi = None
-    for i in range(len(arr)):
-        sub_arr = arr[i]
-        for val in sub_arr:
-            if maxi is None or val > maxi:
-                maxi = val
-
-            if mini is None or val < mini:
-                mini = val
-
-    return mini, maxi
 
 
 def helmet_animation(names, signals, frames=1000, bads=[], arrows=False, cmap="PiYG",
@@ -36,12 +11,12 @@ def helmet_animation(names, signals, frames=1000, bads=[], arrows=False, cmap="P
     # maxi = np.amax(signals)
 
     if len(vlims) == 0:
-        mini, maxi = find_min_max_ragged(signals)
+        mini, maxi = hf.find_min_max_ragged(signals)
     else:
         mini = vlims[0]
         maxi = vlims[1]
 
-    points = get_single_point(signals, 0)
+    points = hf.get_single_point(signals, 0)
 
     s, a = plot_all(names, points, bads=bads, cmap=cmap,
                     vmax=maxi, vmin=mini, plot=False, arrows=arrows)
@@ -57,7 +32,7 @@ def helmet_animation(names, signals, frames=1000, bads=[], arrows=False, cmap="P
             text.set(text=str(round(j / signal_len * 100)) + "%")
             print("j= ", j)
 
-            points = get_single_point(signals, j, n=4)
+            points = hf.get_single_point(signals, j, n=4)
             s.mlab_source.scalars = points
 
             if a != None:

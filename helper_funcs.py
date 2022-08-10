@@ -223,3 +223,29 @@ def filter_and_fft(sig, window):
     fft = fft_i2[0]
     fft_x = x[:len(x) - window]
     return filtered_sig, x, filter_i, fft, fft_x
+
+
+def find_min_max_ragged(arr):
+    mini = None
+    maxi = None
+    for i in range(len(arr)):
+        sub_arr = arr[i]
+        for val in sub_arr:
+            if maxi is None or val > maxi:
+                maxi = val
+
+            if mini is None or val < mini:
+                mini = val
+
+    return mini, maxi
+
+
+def get_single_point(signals, i, n=1):
+    points = []
+
+    for signal in signals:
+        point = signal[i]
+        for j in range(n):
+            points.append(point)
+
+    return points

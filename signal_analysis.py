@@ -88,6 +88,68 @@ def magn_from_point(a, point):
     return magn
 
 
+def crop_all_sigs(signals, xs):
+    highest_min_x = 0
+    lowest_max_x = 10 ** 100
+
+    for x in xs:
+        min_x = np.amin(x)
+        max_x = np.amax(x)
+
+        if min_x > highest_min_x:
+            highest_min_x = min_x
+
+        if max_x < lowest_max_x:
+            lowest_max_x = max_x
+
+    new_x = list(range(highest_min_x, lowest_max_x))
+    new_signals = []
+
+    for i in range(len(signals)):
+        signal = signals[i]
+        x = xs[i]
+        max_i = x.index(lowest_max_x)
+        min_i = x.index(highest_min_x)
+        new_signals.append(signal[min_i:max_i])
+
+    return new_signals, new_x
+
+
+def calc_magn_field_from_signals(signals, xs, vectors, ave_window=400):
+    cropped_signals, new_x = crop_all_sigs(signals, xs)
+
+    magn_vectors = []
+    mag_is = []
+
+    len_sig = len(new_x)
+    max_i = len_sig - 1
+    cont = True
+    start_i = 0
+    end_i = ave_window
+
+    while cont:
+        aves = []
+        for i in range(len(signals)):
+            signal = signals[i]
+            segment = signal[start_i:end_i]
+            aves.append(np.mean(segment))
+
+        magn = magn_from_point(vectors, aves)
+        magn_vectors.append(magn)
+        mag_is.append(start_i)
+
+        start_i = end_i
+        end_i = end_i + ave_window
+
+        if end_i > max_i:
+            end_i = max_i
+
+        if start_i >= max_i:
+            cont = False
+
+    return magn_vectors, mag_is, cropped_signals, new_x
+
+
 def vect_angle(vec1, vec2, unit=False, perp=False):
     if np.all(vec1 == vec2):
         return 0
@@ -179,12 +241,13 @@ def crop_signals(signal1, signal2, x1, x2):
 
     return new_sig1, new_sig2, new_x
 
+
 def calc_diff(signal1, signal2, x1, x2):
     # len_points = min(len(signal1), len(signal2))
 
     x_min = max(np.amin(x1), np.amin(x2))
     x_max = min(np.amax(x1), np.amax(x2))
-    #print(x_min, x_max)
+    # print(x_min, x_max)
     new_x = list(range(x_min, x_max))
 
     diffs = []

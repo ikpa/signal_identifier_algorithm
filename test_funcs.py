@@ -776,4 +776,80 @@ def detrend_grad():
         plt.show()
 
 
+def test_magn():
+    from mayavi import mlab
+    fname = "many_successful.npz"
+    signals, names, time, n_chan = fr.get_signals(fname)
+
+    detecs = np.load("array120_trans_newnames.npz")
+
+    #comp_detec = "MEG1621"
+    comp_detec = "MEG0711"
+    comp_sig = fr.find_signals([comp_detec], signals, names)[0]
+    comp_v = detecs[comp_detec][:3, 2]
+    comp_r = detecs[comp_detec][:3, 3]
+
+    nearby_names = sa.find_nearby_detectors(comp_detec, detecs)
+    near_sigs = fr.find_signals(nearby_names, signals, names)
+
+    near_vs = []
+    near_rs = []
+
+    for name in nearby_names:
+        near_vs.append(detecs[name][:3, 2])
+        near_rs.append(detecs[name][:3, 3])
+
+    nearby_names.append(comp_detec)
+    near_sigs.append(comp_sig)
+    near_vs.append(comp_v)
+    near_rs.append(comp_r)
+
+    filtered_sigs = []
+    xs = []
+
+    for signal in near_sigs:
+        filter_i = sa.filter_start(signal)
+        filtered_sig = signal[filter_i:]
+        x = list(range(filter_i, len(signal)))
+        filtered_sigs.append(filtered_sig)
+        xs.append(x)
+
+    magnus, mag_is, cropped_sigs, new_x = sa.calc_magn_field_from_signals(filtered_sigs, xs, near_vs, ave_window=10)
+
+    frames = len(magnus)
+    signal_len = len(new_x)
+
+    fig, ax = plt.subplots(subplot_kw=dict(projection="3d"))
+
+    detec_quivers = []
+
+    for i in range(len(near_vs)):
+        print(nearby_names[i])
+        r = near_rs[i]
+        v = near_vs[i]
+        detec_quivers.append(ax.quiver(r[0], r[1], r[2], v[0], v[1], v[2], length=.01, color="black"))
+
+    first_mag = magnus[0]
+    print(first_mag)
+    len_scale = 10 ** 16
+    mag_len = np.linalg.norm(first_mag) * len_scale
+    quiver = ax.quiver(comp_r[0], comp_r[1], comp_r[2], first_mag[0], first_mag[1], first_mag[2], length=mag_len, color="red")
+    print(quiver)
+
+    def update(ani_i, quiver):
+        print(ani_i)
+        print(quiver)
+        new_mag = magnus[ani_i]
+        print(new_mag)
+        mag_len = np.linalg.norm(new_mag) * len_scale
+        quiver.remove()
+        quiver = ax.quiver(comp_r[0], comp_r[1], comp_r[2], new_mag[0], new_mag[1], new_mag[2], length=mag_len, color="red")
+        return [quiver]
+
+    from matplotlib.animation import FuncAnimation
+    ani = FuncAnimation(fig, update, frames=range(frames), fargs=[quiver], blit=True, repeat=False)
+
+    plt.show()
+
+
 
