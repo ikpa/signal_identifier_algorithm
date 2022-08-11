@@ -249,3 +249,31 @@ def get_single_point(signals, i, n=1):
             points.append(point)
 
     return points
+
+
+def exclude_from_lists(i, lists):
+    new_lists = []
+
+    print(len(lists[0]))
+
+    for lis in lists:
+        excl_val = lis[i]
+        #print(excl_val)
+        new_list = [x for x in lis if not np.array_equal(excl_val, x)]
+        new_lists.append(new_list)
+
+    return new_lists
+
+
+def filter_and_smooth(signal, offset, smooth_window):
+    filter_i = sa.filter_start(signal)
+    filtered_signal = signal[filter_i:]
+    x = list(range(filter_i, len(signal)))
+
+    smooth_signal = sa.smooth(filtered_signal, window_len=smooth_window)
+    smooth_x = [x - offset + filter_i for x in list(range(len(smooth_signal)))]
+    new_smooth = []
+    for i in range(len(filtered_signal)):
+        new_smooth.append(smooth_signal[i + offset])
+
+    return filtered_signal, x, smooth_signal, smooth_x, new_smooth

@@ -4,6 +4,7 @@ import ruptures as rpt
 import numpy as np
 import pandas as pd
 import time
+import helper_funcs as hf
 from operator import itemgetter
 
 bkps = 8
@@ -116,7 +117,16 @@ def crop_all_sigs(signals, xs):
 
 
 def calc_magn_field_from_signals(signals, xs, vectors, ave_window=400):
-    cropped_signals, new_x = crop_all_sigs(signals, xs)
+
+    if len(xs) == 1:
+        cropped_signals = signals
+        new_x = xs[0]
+    else:
+        cropped_signals, new_x = crop_all_sigs(signals, xs)
+
+    if len(signals) < 3:
+        print("not enough signals to calculate magnetic field vector")
+        return [], [], cropped_signals, new_x
 
     magn_vectors = []
     mag_is = []
@@ -136,7 +146,7 @@ def calc_magn_field_from_signals(signals, xs, vectors, ave_window=400):
 
         magn = magn_from_point(vectors, aves)
         magn_vectors.append(magn)
-        mag_is.append(start_i)
+        mag_is.append(int(np.mean([start_i, end_i])))
 
         start_i = end_i
         end_i = end_i + ave_window
@@ -147,7 +157,90 @@ def calc_magn_field_from_signals(signals, xs, vectors, ave_window=400):
         if start_i >= max_i:
             cont = False
 
+    mag_i_offset = new_x[0] - mag_is[0]
+    mag_is = [x + mag_i_offset for x in mag_is]
+
     return magn_vectors, mag_is, cropped_signals, new_x
+
+
+def reconstruct(mag, v):
+    rec_sig = []
+    for mag_point in mag:
+        rec_sig.append(np.dot(mag_point, v))
+
+    return rec_sig
+
+
+def rec_and_diff(signals, xs, vs):
+    magn_vectors, mag_is, cropped_signals, new_x = calc_magn_field_from_signals(signals, xs, vs,
+                                                                                ave_window=1)
+
+    if len(magn_vectors) == 0:
+        return None, None, None, None
+
+    rec_sigs = []
+    aves = []
+    all_diffs = []
+    for i in range(len(cropped_signals)):
+        rec_sig = reconstruct(magn_vectors, vs[i])
+        rec_sigs.append(rec_sig)
+        diffs, diff_x = calc_diff(cropped_signals[i], rec_sig, new_x, mag_is)
+        ave = np.mean(diffs)
+        aves.append(ave)
+        all_diffs.append(diffs)
+
+    ave_of_aves = np.mean(aves)
+
+    return ave_of_aves, aves, all_diffs, rec_sigs
+
+
+def filter_unphysical_sigs(signals, names, xs, vs, ave_sens=10**(-13)):
+    cropped_signals, new_x = crop_all_sigs(signals, xs)
+    temp_sigs = cropped_signals[:]
+    temp_names = names[:]
+    temp_vs = vs[:]
+    ave_of_aves, aves, diffs, rec_sigs = rec_and_diff(cropped_signals, [new_x], vs)
+    print(ave_of_aves)
+
+    if ave_of_aves < ave_sens or ave_of_aves is None:
+        return []
+
+    ave_of_aves = 1
+    excludes = []
+    while ave_of_aves > ave_sens:
+        #print(len(excludes))
+        # ave_of_aves, aves, diffs, rec_sigs = rec_and_diff(cropped_signals, [new_x], vs)
+
+        if ave_of_aves is None:
+            return []
+
+        new_aves = []
+        for i in range(len(temp_sigs)):
+            excl_name = temp_names[i]
+
+            if excl_name in excludes:
+                new_aves.append(100000)
+                print("skipping", i)
+                continue
+
+            #sigs_without, vs_without = hf.exclude_from_lists(i, [cropped_signals, vs])
+            sigs_without = temp_sigs[:i] + temp_sigs[i + 1:]
+            vs_without = temp_vs[:i] + temp_vs[i + 1:]
+
+            new_ave_of_aves, temp_aves, temp_diffs, temp_rec_sigs = rec_and_diff(sigs_without, [new_x], vs_without)
+            new_aves.append(new_ave_of_aves)
+
+        best_ave = np.amin(new_aves)
+        print(best_ave)
+        best_exclusion_i = new_aves.index(best_ave)
+        excludes.append(temp_names[best_exclusion_i])
+        temp_vs.pop(best_exclusion_i)
+        temp_sigs.pop(best_exclusion_i)
+        temp_names.pop(best_exclusion_i)
+        ave_of_aves = best_ave
+
+    print(temp_names)
+    return excludes
 
 
 def vect_angle(vec1, vec2, unit=False, perp=False):
@@ -249,17 +342,21 @@ def calc_diff(signal1, signal2, x1, x2):
     x_max = min(np.amax(x1), np.amax(x2))
     # print(x_min, x_max)
     new_x = list(range(x_min, x_max))
+    new_new_x = []
 
     diffs = []
 
     for x in new_x:
+        if x not in x1 or x not in x2:
+            continue
         i1 = x1.index(x)
         i2 = x2.index(x)
+        new_new_x.append(x)
         point1 = signal1[i1]
         point2 = signal2[i2]
         diffs.append(abs(point1 - point2))
 
-    return diffs, new_x
+    return diffs, new_new_x
 
 
 def find_nearby_detectors(d_name, detectors, r_sens=0.06):

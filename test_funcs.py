@@ -777,14 +777,126 @@ def detrend_grad():
 
 
 def test_magn():
-    from mayavi import mlab
-    fname = "many_successful.npz"
+    smooth_window = 401
+    offset = int(smooth_window / 2)
+
+    fname = "sample_data37.npz"
     signals, names, time, n_chan = fr.get_signals(fname)
 
     detecs = np.load("array120_trans_newnames.npz")
 
-    #comp_detec = "MEG1621"
-    comp_detec = "MEG0711"
+    for k in range(n_chan):
+        # comp_detec = "MEG2411"
+        #comp_detec = "MEG0711"
+        comp_detec = names[k]
+        #comp_sig = fr.find_signals([comp_detec], signals, names)[0]
+        comp_sig = signals[k]
+        comp_v = detecs[comp_detec][:3, 2]
+        comp_r = detecs[comp_detec][:3, 3]
+
+        nearby_names = sa.find_nearby_detectors(comp_detec, detecs)
+        near_sigs = fr.find_signals(nearby_names, signals, names)
+
+        near_vs = []
+        near_rs = []
+
+        for name in nearby_names:
+            near_vs.append(detecs[name][:3, 2])
+            near_rs.append(detecs[name][:3, 3])
+
+        nearby_names.append(comp_detec)
+        near_sigs.append(comp_sig)
+        near_vs.append(comp_v)
+        near_rs.append(comp_r)
+
+        signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(near_sigs,
+                                                                                                    nearby_names,
+                                                                                                    len(near_sigs))
+
+        #hf.plot_in_order_ver3(near_sigs, nearby_names, len(near_sigs), signal_statuses, bad_segment_list,
+        #                      suspicious_segment_list, exec_times)
+
+        filtered_sigs = []
+        xs = []
+        calc_names = []
+        calc_vs = []
+        calc_rs = []
+
+        exclude_chans = ["MEG0724", "MEG0634", "MEG0744"]
+        exclude_chans = []
+
+        for i in range(len(near_sigs)):
+            nam = nearby_names[i]
+
+            if nam in exclude_chans:
+                print("excluding " + nam)
+                continue
+
+            if len(bad_segment_list[i]) != 0:
+                print("bad segments found, skipping " + nam)
+                continue
+
+            signal = near_sigs[i]
+
+            filtered_signal, x, smooth_signal, smooth_x, new_smooth = hf.filter_and_smooth(signal, offset, smooth_window)
+            filtered_sigs.append(np.gradient(new_smooth))
+            xs.append(x)
+            calc_names.append(nam)
+            calc_vs.append(near_vs[i])
+            calc_rs.append(near_rs[i])
+
+        magnus, mag_is, cropped_sigs, new_x = sa.calc_magn_field_from_signals(filtered_sigs, xs, calc_vs, ave_window=1)
+
+        reconst_sigs = []
+        all_diffs = []
+        diff_xs = []
+        diff_aves = []
+
+        for i in range(len(calc_rs)):
+            r = calc_rs[i]
+            v = calc_vs[i]
+            reconst_sig = []
+
+            for j in range(len(magnus)):
+                magn = magnus[j]
+                reconst_sig.append(np.dot(magn, v))
+
+            reconst_sigs.append(reconst_sig)
+
+            diffs, diff_x = sa.calc_diff(reconst_sig, cropped_sigs[i], mag_is, new_x)
+            # print(diffs)
+            all_diffs.append(diffs)
+            diff_xs.append(diff_x)
+            diff_aves.append(np.mean(diffs))
+
+        ave_of_aves = np.mean(diff_aves)
+        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
+
+        colors = plt.cm.rainbow(np.linspace(0, 1, len(calc_names)))
+        for i in range(len(cropped_sigs)):
+            color = colors[i]
+            plot_name = calc_names[i]
+            ax1.plot(new_x, cropped_sigs[i], color=color, label=plot_name)
+            ax2.plot(mag_is, reconst_sigs[i], color=color, label=plot_name)
+            ax3.plot(diff_xs[i], all_diffs[i], color=color, label=diff_aves[i])
+
+        ax1.set_title(ave_of_aves)
+        ax2.legend()
+        ax3.legend()
+        plt.show()
+
+
+def test_excluder():
+    smooth_window = 401
+    offset = int(smooth_window / 2)
+
+    fname = "sample_data37.npz"
+    signals, names, time, n_chan = fr.get_signals(fname)
+
+    detecs = np.load("array120_trans_newnames.npz")
+
+    comp_detec = "MEG1631"
+    #comp_detec = "MEG0711"
     comp_sig = fr.find_signals([comp_detec], signals, names)[0]
     comp_v = detecs[comp_detec][:3, 2]
     comp_r = detecs[comp_detec][:3, 3]
@@ -804,52 +916,71 @@ def test_magn():
     near_vs.append(comp_v)
     near_rs.append(comp_r)
 
-    filtered_sigs = []
+    smooth_sigs = []
     xs = []
 
-    for signal in near_sigs:
-        filter_i = sa.filter_start(signal)
-        filtered_sig = signal[filter_i:]
-        x = list(range(filter_i, len(signal)))
-        filtered_sigs.append(filtered_sig)
+    for i in range(len(near_sigs)):
+        signal = near_sigs[i]
+        filtered_signal, x, smooth_signal, smooth_x, new_smooth = hf.filter_and_smooth(signal, offset, smooth_window)
+        smooth_sigs.append(np.gradient(new_smooth))
         xs.append(x)
 
-    magnus, mag_is, cropped_sigs, new_x = sa.calc_magn_field_from_signals(filtered_sigs, xs, near_vs, ave_window=10)
+    exclude_chans = sa.filter_unphysical_sigs(smooth_sigs, nearby_names, xs, near_vs)
+    #print(exclude_chans)
+    exclude_is = [i for i in range(len(nearby_names)) if nearby_names[i] in exclude_chans]
 
-    frames = len(magnus)
-    signal_len = len(new_x)
+    good_sigs = []
+    good_names = []
+    good_xs = []
+    good_vs = []
 
-    fig, ax = plt.subplots(subplot_kw=dict(projection="3d"))
+    for i in range(len(nearby_names)):
+        if i in exclude_is:
+            continue
 
-    detec_quivers = []
+        good_sigs.append(smooth_sigs[i])
+        good_names.append(nearby_names[i])
+        good_xs.append(xs[i])
+        good_vs.append(near_vs[i])
 
-    for i in range(len(near_vs)):
-        print(nearby_names[i])
-        r = near_rs[i]
-        v = near_vs[i]
-        detec_quivers.append(ax.quiver(r[0], r[1], r[2], v[0], v[1], v[2], length=.01, color="black"))
+    print(good_names)
 
-    first_mag = magnus[0]
-    print(first_mag)
-    len_scale = 10 ** 16
-    mag_len = np.linalg.norm(first_mag) * len_scale
-    quiver = ax.quiver(comp_r[0], comp_r[1], comp_r[2], first_mag[0], first_mag[1], first_mag[2], length=mag_len, color="red")
-    print(quiver)
+    ave_of_aves, aves, diffs, rec_sigs = sa.rec_and_diff(smooth_sigs, xs, near_vs)
+    #print(diffs)
+    good_ave_of_aves, good_aves, good_diffs, good_rec_sigs = sa.rec_and_diff(good_sigs, good_xs, good_vs)
 
-    def update(ani_i, quiver):
-        print(ani_i)
-        print(quiver)
-        new_mag = magnus[ani_i]
-        print(new_mag)
-        mag_len = np.linalg.norm(new_mag) * len_scale
-        quiver.remove()
-        quiver = ax.quiver(comp_r[0], comp_r[1], comp_r[2], new_mag[0], new_mag[1], new_mag[2], length=mag_len, color="red")
-        return [quiver]
+    colors = plt.cm.rainbow(np.linspace(0, 1, len(nearby_names)))
+    good_colors = []
+    for i in range(len(colors)):
+        if i in exclude_is:
+            continue
+        good_colors.append(colors[i])
 
-    from matplotlib.animation import FuncAnimation
-    ani = FuncAnimation(fig, update, frames=range(frames), fargs=[quiver], blit=True, repeat=False)
+    fig1, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
+
+    for i in range(len(smooth_sigs)):
+        color = colors[i]
+        plot_name = nearby_names[i]
+        ax1.plot(smooth_sigs[i], color=color, label=plot_name)
+        ax2.plot(rec_sigs[i], color=color, label=plot_name)
+        ax3.plot(diffs[i], color=color, label=aves[i])
+
+    ax1.set_title(ave_of_aves)
+    ax2.legend()
+    ax3.legend()
+
+    fig2, (ax11, ax22, ax33) = plt.subplots(3, 1, sharex=True)
+
+    for i in range(len(good_sigs)):
+        color = good_colors[i]
+        plot_name = good_names[i]
+        ax11.plot(good_sigs[i], color=color, label=plot_name)
+        ax22.plot(good_rec_sigs[i], color=color, label=plot_name)
+        ax33.plot(good_diffs[i], color=color, label=good_aves[i])
+
+    ax11.set_title(good_ave_of_aves)
+    ax22.legend()
+    ax33.legend()
 
     plt.show()
-
-
 
