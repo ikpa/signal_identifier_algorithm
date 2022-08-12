@@ -195,7 +195,12 @@ def rec_and_diff(signals, xs, vs):
 
 
 def filter_unphysical_sigs(signals, names, xs, vs, ave_sens=10**(-13)):
+    if len(signals) <= 3:
+        print("too few signals, stopping")
+        return []
+
     cropped_signals, new_x = crop_all_sigs(signals, xs)
+    print("analysing " + str(len(cropped_signals)) + " signals")
     temp_sigs = cropped_signals[:]
     temp_names = names[:]
     temp_vs = vs[:]
@@ -211,7 +216,10 @@ def filter_unphysical_sigs(signals, names, xs, vs, ave_sens=10**(-13)):
         #print(len(excludes))
         # ave_of_aves, aves, diffs, rec_sigs = rec_and_diff(cropped_signals, [new_x], vs)
 
-        if ave_of_aves is None:
+        print(len(temp_sigs), "signals left")
+
+        if len(temp_sigs) <= 3:
+            print("no optimal magnetic field found")
             return []
 
         new_aves = []
@@ -239,7 +247,7 @@ def filter_unphysical_sigs(signals, names, xs, vs, ave_sens=10**(-13)):
         temp_names.pop(best_exclusion_i)
         ave_of_aves = best_ave
 
-    print(temp_names)
+    print(len(temp_names), "signals left at the end of calculation")
     return excludes
 
 

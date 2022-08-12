@@ -1,3 +1,5 @@
+import time
+
 import helmet_vis as vis
 import numpy as np
 import helper_funcs as hf
@@ -890,97 +892,165 @@ def test_excluder():
     smooth_window = 401
     offset = int(smooth_window / 2)
 
-    fname = "sample_data37.npz"
-    signals, names, time, n_chan = fr.get_signals(fname)
+    fname = "many_failed.npz"
+    signals, names, timex, n_chan = fr.get_signals(fname)
 
     detecs = np.load("array120_trans_newnames.npz")
 
-    comp_detec = "MEG1631"
-    #comp_detec = "MEG0711"
-    comp_sig = fr.find_signals([comp_detec], signals, names)[0]
-    comp_v = detecs[comp_detec][:3, 2]
-    comp_r = detecs[comp_detec][:3, 3]
+    times_excluded = np.zeros(n_chan)
+    times_in_calc = np.zeros(n_chan)
 
-    nearby_names = sa.find_nearby_detectors(comp_detec, detecs)
-    near_sigs = fr.find_signals(nearby_names, signals, names)
+    #signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals, names, n_chan)
 
-    near_vs = []
-    near_rs = []
+    start_time = time.time()
 
-    for name in nearby_names:
-        near_vs.append(detecs[name][:3, 2])
-        near_rs.append(detecs[name][:3, 3])
+    for k in range(n_chan):
+        # comp_detec = "MEG2221"
+        # comp_detec = "MEG0711"
+        comp_detec = names[k]
+        print(comp_detec)
+        #comp_sig = signals[k]
+        # comp_sig = fr.find_signals([comp_detec], signals, names)[0]
+        #comp_v = detecs[comp_detec][:3, 2]
+        #comp_r = detecs[comp_detec][:3, 3]
 
-    nearby_names.append(comp_detec)
-    near_sigs.append(comp_sig)
-    near_vs.append(comp_v)
-    near_rs.append(comp_r)
+        nearby_names = sa.find_nearby_detectors(comp_detec, detecs)
+        nearby_names.append(comp_detec)
+        new_near = nearby_names
 
-    smooth_sigs = []
-    xs = []
+        # new_near = []
+        # for nam in nearby_names:
+        #     index = names.index(nam)
+        #     bad_segs = bad_segment_list[index]
+        #
+        #     if len(bad_segs) != 0:
+        #         print("excluding " + nam + " from calculation")
+        #         continue
+        #
+        #     new_near.append(nam)
 
-    for i in range(len(near_sigs)):
-        signal = near_sigs[i]
-        filtered_signal, x, smooth_signal, smooth_x, new_smooth = hf.filter_and_smooth(signal, offset, smooth_window)
-        smooth_sigs.append(np.gradient(new_smooth))
-        xs.append(x)
+        near_vs = []
+        near_rs = []
 
-    exclude_chans = sa.filter_unphysical_sigs(smooth_sigs, nearby_names, xs, near_vs)
-    #print(exclude_chans)
-    exclude_is = [i for i in range(len(nearby_names)) if nearby_names[i] in exclude_chans]
+        for name in new_near:
+            near_vs.append(detecs[name][:3, 2])
+            near_rs.append(detecs[name][:3, 3])
 
-    good_sigs = []
-    good_names = []
-    good_xs = []
-    good_vs = []
+        #nearby_names.append(comp_detec)
+        near_sigs = fr.find_signals(new_near, signals, names)
+        #near_sigs.append(comp_sig)
+        #near_vs.append(comp_v)
+        #near_rs.append(comp_r)
 
-    for i in range(len(nearby_names)):
-        if i in exclude_is:
-            continue
+        for nam in new_near:
+            index = names.index(nam)
+            times_in_calc[index] += 1
 
-        good_sigs.append(smooth_sigs[i])
-        good_names.append(nearby_names[i])
-        good_xs.append(xs[i])
-        good_vs.append(near_vs[i])
+        smooth_sigs = []
+        xs = []
 
-    print(good_names)
+        for i in range(len(near_sigs)):
+            signal = near_sigs[i]
+            filtered_signal, x, smooth_signal, smooth_x, new_smooth = hf.filter_and_smooth(signal, offset,
+                                                                                           smooth_window)
+            smooth_sigs.append(np.gradient(new_smooth))
+            xs.append(x)
 
-    ave_of_aves, aves, diffs, rec_sigs = sa.rec_and_diff(smooth_sigs, xs, near_vs)
-    #print(diffs)
-    good_ave_of_aves, good_aves, good_diffs, good_rec_sigs = sa.rec_and_diff(good_sigs, good_xs, good_vs)
+        exclude_chans = sa.filter_unphysical_sigs(smooth_sigs, new_near, xs, near_vs)
+        print("excluded", exclude_chans)
+        for chan in exclude_chans:
+            exclude_i = names.index(chan)
+            times_excluded[exclude_i] += 1
+            ex = times_excluded[exclude_i]
+            tot = times_in_calc[exclude_i]
+            print(chan, ex, tot, ex / tot)
 
-    colors = plt.cm.rainbow(np.linspace(0, 1, len(nearby_names)))
-    good_colors = []
-    for i in range(len(colors)):
-        if i in exclude_is:
-            continue
-        good_colors.append(colors[i])
+        print()
 
-    fig1, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
 
-    for i in range(len(smooth_sigs)):
-        color = colors[i]
-        plot_name = nearby_names[i]
-        ax1.plot(smooth_sigs[i], color=color, label=plot_name)
-        ax2.plot(rec_sigs[i], color=color, label=plot_name)
-        ax3.plot(diffs[i], color=color, label=aves[i])
+        # # print(exclude_chans)
+        # exclude_is = [i for i in range(len(nearby_names)) if nearby_names[i] in exclude_chans]
+        #
+        # good_sigs = []
+        # good_names = []
+        # good_xs = []
+        # good_vs = []
+        #
+        # for i in range(len(nearby_names)):
+        #     if i in exclude_is:
+        #         continue
+        #
+        #     good_sigs.append(smooth_sigs[i])
+        #     good_names.append(nearby_names[i])
+        #     good_xs.append(xs[i])
+        #     good_vs.append(near_vs[i])
 
-    ax1.set_title(ave_of_aves)
-    ax2.legend()
-    ax3.legend()
+    end_time = time.time()
+    ex_time_sec = end_time - start_time
+    ex_time_min = ex_time_sec / 60
+    print("execution time " + str(ex_time_min) + " mins")
 
-    fig2, (ax11, ax22, ax33) = plt.subplots(3, 1, sharex=True)
+    for i in range(len(times_excluded)):
+        num_exc = times_excluded[i]
+        num_tot = times_in_calc[i]
+        nam = names[i]
 
-    for i in range(len(good_sigs)):
-        color = good_colors[i]
-        plot_name = good_names[i]
-        ax11.plot(good_sigs[i], color=color, label=plot_name)
-        ax22.plot(good_rec_sigs[i], color=color, label=plot_name)
-        ax33.plot(good_diffs[i], color=color, label=good_aves[i])
+        print(nam, num_exc, num_tot, num_exc / num_tot)
 
-    ax11.set_title(good_ave_of_aves)
-    ax22.legend()
-    ax33.legend()
+    for i in range(len(times_excluded)):
+        num_exc = times_excluded[i]
+        num_tot = times_in_calc[i]
+        signal = signals[i]
+        nam = names[i]
 
-    plt.show()
+        print()
+
+        #if num_exc == 0:
+        #    continue
+
+        plt.figure()
+        plt.plot(signal)
+        plt.title(nam + " " + str(num_exc) + " " + str(num_tot) + " " + str(num_exc / num_tot))
+        plt.show()
+
+    # print(good_names)
+    #
+    # ave_of_aves, aves, diffs, rec_sigs = sa.rec_and_diff(smooth_sigs, xs, near_vs)
+    # #print(diffs)
+    # good_ave_of_aves, good_aves, good_diffs, good_rec_sigs = sa.rec_and_diff(good_sigs, good_xs, good_vs)
+    #
+    # colors = plt.cm.rainbow(np.linspace(0, 1, len(nearby_names)))
+    # good_colors = []
+    # for i in range(len(colors)):
+    #     if i in exclude_is:
+    #         continue
+    #     good_colors.append(colors[i])
+    #
+    # fig1, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
+    #
+    # for i in range(len(smooth_sigs)):
+    #     color = colors[i]
+    #     plot_name = nearby_names[i]
+    #     ax1.plot(smooth_sigs[i], color=color, label=plot_name)
+    #     ax2.plot(rec_sigs[i], color=color, label=plot_name)
+    #     ax3.plot(diffs[i], color=color, label=aves[i])
+    #
+    # ax1.set_title(ave_of_aves)
+    # ax2.legend()
+    # ax3.legend()
+    #
+    # fig2, (ax11, ax22, ax33) = plt.subplots(3, 1, sharex=True)
+    #
+    # for i in range(len(good_sigs)):
+    #     color = good_colors[i]
+    #     plot_name = good_names[i]
+    #     ax11.plot(good_sigs[i], color=color, label=plot_name)
+    #     ax22.plot(good_rec_sigs[i], color=color, label=plot_name)
+    #     ax33.plot(good_diffs[i], color=color, label=good_aves[i])
+    #
+    # ax11.set_title(good_ave_of_aves)
+    # ax22.legend()
+    # ax33.legend()
+    #
+    # plt.show()
 
