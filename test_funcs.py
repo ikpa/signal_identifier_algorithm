@@ -779,7 +779,7 @@ def detrend_grad():
 
 
 def test_magn():
-    smooth_window = 401
+    smooth_window = 201
     offset = int(smooth_window / 2)
 
     fname = "sample_data37.npz"
@@ -892,7 +892,7 @@ def test_excluder():
     smooth_window = 401
     offset = int(smooth_window / 2)
 
-    fname = "many_failed.npz"
+    fname = "many_many_successful.npz"
     signals, names, timex, n_chan = fr.get_signals(fname)
 
     detecs = np.load("array120_trans_newnames.npz")
@@ -900,7 +900,7 @@ def test_excluder():
     times_excluded = np.zeros(n_chan)
     times_in_calc = np.zeros(n_chan)
 
-    #signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals, names, n_chan)
+    signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals, names, n_chan, badness_sensitivity=.5)
 
     start_time = time.time()
 
@@ -916,18 +916,20 @@ def test_excluder():
 
         nearby_names = sa.find_nearby_detectors(comp_detec, detecs)
         nearby_names.append(comp_detec)
-        new_near = nearby_names
+        #new_near = nearby_names
 
-        # new_near = []
-        # for nam in nearby_names:
-        #     index = names.index(nam)
-        #     bad_segs = bad_segment_list[index]
-        #
-        #     if len(bad_segs) != 0:
-        #         print("excluding " + nam + " from calculation")
-        #         continue
-        #
-        #     new_near.append(nam)
+        new_near = []
+        #new_segs = []
+        for nam in nearby_names:
+            index = names.index(nam)
+            bad = signal_statuses[index]
+
+            if bad:
+                print("excluding " + nam + " from calculation")
+                continue
+
+            new_near.append(nam)
+            #new_segs.append(bad_segment_list[index])
 
         near_vs = []
         near_rs = []
@@ -938,13 +940,11 @@ def test_excluder():
 
         #nearby_names.append(comp_detec)
         near_sigs = fr.find_signals(new_near, signals, names)
+        cluster_bad_segs = fr.find_signals(new_near, bad_segment_list, names)
         #near_sigs.append(comp_sig)
         #near_vs.append(comp_v)
         #near_rs.append(comp_r)
 
-        for nam in new_near:
-            index = names.index(nam)
-            times_in_calc[index] += 1
 
         smooth_sigs = []
         xs = []
@@ -956,7 +956,16 @@ def test_excluder():
             smooth_sigs.append(np.gradient(new_smooth))
             xs.append(x)
 
-        exclude_chans = sa.filter_unphysical_sigs(smooth_sigs, new_near, xs, near_vs)
+        exclude_chans, new_x = sa.filter_unphysical_sigs(smooth_sigs, new_near, xs, near_vs, cluster_bad_segs, ave_window=100)
+
+        if len(new_x) != 0:
+            for nam in new_near:
+                index = names.index(nam)
+                times_in_calc[index] += 1
+
+        if len(new_x) > 1:
+            print("analysed segment between", new_x[0], new_x[len(new_x) - 1])
+
         print("excluded", exclude_chans)
         for chan in exclude_chans:
             exclude_i = names.index(chan)
@@ -991,26 +1000,30 @@ def test_excluder():
     print("execution time " + str(ex_time_min) + " mins")
 
     for i in range(len(times_excluded)):
+        if len(bad_segment_list[i]) != 0:
+            filtered = "filtered"
+        else:
+            filtered = "not filtered"
         num_exc = times_excluded[i]
         num_tot = times_in_calc[i]
         nam = names[i]
 
-        print(nam, num_exc, num_tot, num_exc / num_tot)
+        print(nam, num_exc, num_tot, num_exc / num_tot, filtered)
 
     for i in range(len(times_excluded)):
         num_exc = times_excluded[i]
         num_tot = times_in_calc[i]
         signal = signals[i]
         nam = names[i]
-
-        print()
+        segs = bad_segment_list[i]
 
         #if num_exc == 0:
         #    continue
 
-        plt.figure()
-        plt.plot(signal)
-        plt.title(nam + " " + str(num_exc) + " " + str(num_tot) + " " + str(num_exc / num_tot))
+        fig, ax = plt.subplots()
+        ax.plot(signal)
+        hf.plot_spans(ax, segs)
+        ax.set_title(nam + " " + str(num_exc) + " " + str(num_tot) + " " + str(num_exc / num_tot))
         plt.show()
 
     # print(good_names)

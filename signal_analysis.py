@@ -89,13 +89,17 @@ def magn_from_point(a, point):
     return magn
 
 
-def crop_all_sigs(signals, xs):
+def crop_all_sigs(signals, xs, bad_segs):
     highest_min_x = 0
     lowest_max_x = 10 ** 100
+
+    #print(bad_segs)
 
     for x in xs:
         min_x = np.amin(x)
         max_x = np.amax(x)
+
+        #print(min_x, max_x)
 
         if min_x > highest_min_x:
             highest_min_x = min_x
@@ -103,6 +107,12 @@ def crop_all_sigs(signals, xs):
         if max_x < lowest_max_x:
             lowest_max_x = max_x
 
+    for seg_list in bad_segs:
+        for seg in seg_list:
+            if lowest_max_x > seg[0]:
+                lowest_max_x = seg[0]
+
+    #print(highest_min_x, lowest_max_x)
     new_x = list(range(highest_min_x, lowest_max_x))
     new_signals = []
 
@@ -122,7 +132,7 @@ def calc_magn_field_from_signals(signals, xs, vectors, ave_window=400):
         cropped_signals = signals
         new_x = xs[0]
     else:
-        cropped_signals, new_x = crop_all_sigs(signals, xs)
+        cropped_signals, new_x = crop_all_sigs(signals, xs, [])
 
     if len(signals) < 3:
         print("not enough signals to calculate magnetic field vector")
@@ -171,9 +181,9 @@ def reconstruct(mag, v):
     return rec_sig
 
 
-def rec_and_diff(signals, xs, vs):
+def rec_and_diff(signals, xs, vs, ave_window=1):
     magn_vectors, mag_is, cropped_signals, new_x = calc_magn_field_from_signals(signals, xs, vs,
-                                                                                ave_window=1)
+                                                                                ave_window=ave_window)
 
     if len(magn_vectors) == 0:
         return None, None, None, None
@@ -194,21 +204,22 @@ def rec_and_diff(signals, xs, vs):
     return ave_of_aves, aves, all_diffs, rec_sigs
 
 
-def filter_unphysical_sigs(signals, names, xs, vs, ave_sens=10**(-13)):
+def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, ave_sens=10**(-13), ave_window=1):
     if len(signals) <= 3:
         print("too few signals, stopping")
-        return []
+        return [], []
 
-    cropped_signals, new_x = crop_all_sigs(signals, xs)
+    cropped_signals, new_x = crop_all_sigs(signals, xs, bad_segs)
+
     print("analysing " + str(len(cropped_signals)) + " signals")
     temp_sigs = cropped_signals[:]
     temp_names = names[:]
     temp_vs = vs[:]
-    ave_of_aves, aves, diffs, rec_sigs = rec_and_diff(cropped_signals, [new_x], vs)
+    ave_of_aves, aves, diffs, rec_sigs = rec_and_diff(cropped_signals, [new_x], vs, ave_window=ave_window)
     print(ave_of_aves)
 
-    if ave_of_aves < ave_sens or ave_of_aves is None:
-        return []
+    if ave_of_aves < ave_sens:
+        return [], new_x
 
     ave_of_aves = 1
     excludes = []
@@ -220,7 +231,7 @@ def filter_unphysical_sigs(signals, names, xs, vs, ave_sens=10**(-13)):
 
         if len(temp_sigs) <= 3:
             print("no optimal magnetic field found")
-            return []
+            return [], []
 
         new_aves = []
         for i in range(len(temp_sigs)):
@@ -235,7 +246,7 @@ def filter_unphysical_sigs(signals, names, xs, vs, ave_sens=10**(-13)):
             sigs_without = temp_sigs[:i] + temp_sigs[i + 1:]
             vs_without = temp_vs[:i] + temp_vs[i + 1:]
 
-            new_ave_of_aves, temp_aves, temp_diffs, temp_rec_sigs = rec_and_diff(sigs_without, [new_x], vs_without)
+            new_ave_of_aves, temp_aves, temp_diffs, temp_rec_sigs = rec_and_diff(sigs_without, [new_x], vs_without, ave_window=ave_window)
             new_aves.append(new_ave_of_aves)
 
         best_ave = np.amin(new_aves)
@@ -248,7 +259,7 @@ def filter_unphysical_sigs(signals, names, xs, vs, ave_sens=10**(-13)):
         ave_of_aves = best_ave
 
     print(len(temp_names), "signals left at the end of calculation")
-    return excludes
+    return excludes, new_x
 
 
 def vect_angle(vec1, vec2, unit=False, perp=False):
@@ -977,7 +988,8 @@ def final_analysis(signal_length, segments, confidences, badness_sensitivity=.8)
 
 
 def analyse_all_neo(signals, names, chan_num,
-                    filters=["uniq", "segment", "gradient"]):
+                    filters=["uniq", "segment", "gradient"],
+                    badness_sensitivity=.8):
     exec_times = []
     signal_statuses = []
     bad_segment_list = []
@@ -1015,12 +1027,9 @@ def analyse_all_neo(signals, names, chan_num,
 
             segments += seg_is
             confidences += confs
-            bad, bad_segs, suspicious_segs = final_analysis(signal_length, segments, confidences)
 
-            if bad:
-                print("bad singal, stopping")
-                break
-
+        bad, bad_segs, suspicious_segs = final_analysis(signal_length, segments, confidences,
+                                                        badness_sensitivity=badness_sensitivity)
         num_bad = len(bad_segs)
         num_sus = len(suspicious_segs)
         print(num_sus, "suspicious and", num_bad, " bad segment(s) found in total")
