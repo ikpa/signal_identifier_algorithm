@@ -25,7 +25,7 @@ def secondver():
 
 
 if __name__ == '__main__':
-    tf.test_excluder()
+    tf.test_new_excluder()
 
 
 # fig, ax = plt.subplots(subplot_kw=dict(projection="3d"))
