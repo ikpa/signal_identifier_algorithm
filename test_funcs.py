@@ -1106,7 +1106,7 @@ def test_new_excluder():
     smooth_window = 401
     offset = int(smooth_window / 2)
 
-    fname = "many_many_successful.npz"
+    fname = "sample_data34.npz"
     signals, names, timex, n_chan = fr.get_signals(fname)
 
     detecs = np.load("array120_trans_newnames.npz")
@@ -1118,29 +1118,55 @@ def test_new_excluder():
                                                                                                 badness_sensitivity=.5)
 
     start_time = time.time()
-    times_excluded, times_in_calc, all_diffs = sa.check_all_phys(signals, detecs, names, n_chan, bad_segment_list, ave_window=100, ave_sens=10**(-12))
+    all_diffs, all_rel_diffs, chan_dict = sa.check_all_phys(signals, detecs, names, n_chan, bad_segment_list, ave_window=100, ave_sens=10**(-12))
     end_time = time.time()
+
+    status, confidence = sa.analyse_phys_dat(all_diffs, names, all_rel_diffs, chan_dict)
+
+    #print(type(times_excluded[0]))
+    #print(type(len(chan_dict["MEG0111"])))
+    #print(times_excluded)
+    #print(times_in_calc)
+    #print(len(times_excluded), len(times_in_calc))
 
     ex_time = (end_time - start_time) / 60
     print("execution time:", ex_time, "mins")
 
-    for i in range(len(times_excluded)):
-        if len(bad_segment_list[i]) != 0:
-            filtered = "filtered"
-        else:
-            filtered = "not filtered"
-        num_exc = times_excluded[i]
-        num_tot = times_in_calc[i]
+    for i in range(len(chan_dict)):
+        stat = status[i]
+
+        if stat == 0:
+            st_string = "physical"
+        elif stat == 1:
+            st_string = "unphysical"
+        elif stat == 2:
+            st_string = "undetermined"
+        elif stat == 3:
+            st_string = "unused"
+        #num_exc = times_excluded[i]
+        #num_tot = times_in_calc[i]
         nam = names[i]
+
         diffs = all_diffs[nam]
+        rel_diffs = all_rel_diffs[nam]
+        chan_dat = chan_dict[nam]
 
-        print(nam, num_exc, num_tot, num_exc / num_tot, filtered, np.mean(diffs), diffs)
+        num_tot = len(chan_dat)
+        num_exc = len([x for x in chan_dat if chan_dat[x] == 1])
+        #print(num_tot, num_exc)
+        num_exc = np.float64(num_exc)
+        num_tot = np.float64(num_tot)
 
-    for i in range(len(times_excluded)):
-        num_exc = times_excluded[i]
-        num_tot = times_in_calc[i]
-        signal = signals[i]
+        print(nam, num_exc, num_tot, np.float64(num_exc / num_tot), st_string, confidence[i], np.mean(rel_diffs))
+
+    for i in range(len(chan_dict)):
         nam = names[i]
+        chan_dat = chan_dict[nam]
+        num_tot = len(chan_dat)
+        num_exc = len([x for x in chan_dat if chan_dat[x] == 1])
+        num_exc = np.float64(num_exc)
+        num_tot = np.float64(num_tot)
+        signal = signals[i]
         segs = bad_segment_list[i]
 
         nearby_names = sa.find_nearby_detectors(nam, detecs)
