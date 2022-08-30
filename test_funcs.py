@@ -10,19 +10,20 @@ import signal_generator as sg
 
 datadir = "example_data_for_patrik/"
 
+
 def animate_vectors():
     fname = "many_successful.npz"
-    #fname = "sample_data38.npz"
+    # fname = "sample_data38.npz"
     signals, names, time, n_chan = fr.get_signals(fname)
     detecs = np.load("array120_trans_newnames.npz")
     names, signals = hf.order_lists(detecs, names, signals)
     print(type(signals))
 
     ffts = hf.calc_fft_all(signals)
-    #print(np.shape(signals))
-    #print(np.shape(ffts))
-    #print(type(ffts))
-    vis.helmet_animation(names, ffts, 1000, cmap="Purples", vlims=[0, 1*10**(-7)])
+    # print(np.shape(signals))
+    # print(np.shape(ffts))
+    # print(type(ffts))
+    vis.helmet_animation(names, ffts, 1000, cmap="Purples", vlims=[0, 1 * 10 ** (-7)])
 
 
 def angle_test():
@@ -34,11 +35,11 @@ def angle_test():
     magnitude = 1
 
     def vect_from_ang(theta, mag):
-        return [mag*np.cos(theta), mag*np.sin(theta)]
+        return [mag * np.cos(theta), mag * np.sin(theta)]
 
     def projection(vect1, vect2):
         dot = np.dot(vect1, vect2)
-        vect1_length = np.sqrt(vect1[0]**2 + vect1[1]**2)
+        vect1_length = np.sqrt(vect1[0] ** 2 + vect1[1] ** 2)
         return abs(dot / vect1_length)
 
     proj1 = []
@@ -100,7 +101,7 @@ def signal_sim():
         fft = fft[0]
         diffs = sa.calc_similarity_between_signals(comp_fft, fft, comp_v, v, angle_w=0)
         all_diffs.append(diffs)
-        #print(diffs)
+        # print(diffs)
         print()
 
         # fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
@@ -113,6 +114,7 @@ def signal_sim():
         # plt.show()
 
     vis.helmet_animation(names, all_diffs, cmap="plasma", vlims=[0, 5])
+
 
 def compare_nearby2():
     from scipy.signal import correlate
@@ -128,7 +130,7 @@ def compare_nearby2():
         print(name)
         signal = signals[i]
         filtered_sig, x, filter_i, fft, fft_x = hf.filter_and_fft(signal, window)
-        #fft_grad = np.gradient(fft)
+        # fft_grad = np.gradient(fft)
         og_fft_ave = np.mean(fft)
 
         nearby_chans = sa.find_nearby_detectors(name, detecs)
@@ -141,7 +143,7 @@ def compare_nearby2():
         near_xs = []
         near_fft_xs = []
 
-        #new_x_list = []
+        # new_x_list = []
 
         for sig in near_sigs:
             filt_near_sig, near_x, near_filter_i, near_fft, near_fft_x = hf.filter_and_fft(sig, window)
@@ -151,20 +153,20 @@ def compare_nearby2():
             fft_diff = og_fft_ave - near_fft_ave
             fft_fix = [x + fft_diff for x in near_fft]
             fft_fixes.append(fft_fix)
-            #near_fft_grads.append(np.gradient(near_fft))
-            #corr = correlate(fft, fft_fix)
-            #correlations.append(corr)
+            # near_fft_grads.append(np.gradient(near_fft))
+            # corr = correlate(fft, fft_fix)
+            # correlations.append(corr)
             near_xs.append(near_x)
             near_fft_xs.append(near_fft_x)
 
             new_fft_og, new_near_fft, new_x = sa.crop_signals(fft, near_fft, x, near_fft_x)
-            #print(len(new_fft_og), len(new_near_fft), len(new_x))
-            #new_x_list.append(new_x)
-            #corr = correlate(fft, fft_fix, "full")
+            # print(len(new_fft_og), len(new_near_fft), len(new_x))
+            # new_x_list.append(new_x)
+            # corr = correlate(fft, fft_fix, "full")
             corr = sm.tsa.stattools.ccf(new_fft_og, new_near_fft)
             correlations.append(corr)
 
-            #is_similar, diff_list, new_x_list = sa.check_similarities(fft, fft_x, fft_fixes, near_fft_xs)
+            # is_similar, diff_list, new_x_list = sa.check_similarities(fft, fft_x, fft_fixes, near_fft_xs)
 
         colors = plt.cm.rainbow(np.linspace(0, 1, len(near_sigs)))
 
@@ -178,18 +180,18 @@ def compare_nearby2():
             near_sig = filtered_sigs[j]
             near_x = near_xs[j]
             near_fft = near_ffts[j]
-            #near_fft_grad = near_fft_grads[j]
+            # near_fft_grad = near_fft_grads[j]
             fft_fixed = fft_fixes[j]
             near_fft_x = near_fft_xs[j]
             correl = correlations[j]
-            #new_x = new_x_list[j]
-            #print(correl)
-            #near_diff = diff_list[j]
-            #new_x = new_x_list[j]
-            #similar = is_similar[j]
+            # new_x = new_x_list[j]
+            # print(correl)
+            # near_diff = diff_list[j]
+            # new_x = new_x_list[j]
+            # similar = is_similar[j]
 
-            #diff_ave = np.mean(near_diff)
-            #label = near_name + " " + str(similar) + " " + str(diff_ave)
+            # diff_ave = np.mean(near_diff)
+            # label = near_name + " " + str(similar) + " " + str(diff_ave)
 
             ax1.plot(near_x, near_sig, color=colors[j], label=near_name)
             ax2.plot(near_fft_x, near_fft, color=colors[j])
@@ -201,13 +203,14 @@ def compare_nearby2():
         ax1.set_ylabel("signal")
         ax1.legend()
         ax2.set_ylabel("fft i2")
-        #ax3.set_ylabel("fft i2 gradient")
+        # ax3.set_ylabel("fft i2 gradient")
         ax3.legend()
-        #ax4.set_ylabel("fft i2 gradient diff")
+        # ax4.set_ylabel("fft i2 gradient diff")
 
-        #vis.plot_all(nearby_chans, [int(x) for x in is_similar], vmin=0, vmax=1)
+        # vis.plot_all(nearby_chans, [int(x) for x in is_similar], vmin=0, vmax=1)
 
         plt.show()
+
 
 def compare_nearby():
     fname = "many_many_successful.npz"
@@ -239,18 +242,18 @@ def compare_nearby():
             r_dut = detec_matrx[:3, 3]
             v_dut = detec_matrx[:3, 2]
 
-            #window = 400
+            # window = 400
             x_fft = x[:len(x) - window]
             fft_i2, smooth_signal, smooth_x, detrended_signal = sa.calc_fft_indices(signal, indices=[2], window=window)
             fft_i2 = np.gradient(fft_i2[0])
-            #diffs = sa.calc_similarity_between_signals(og_fft, fft_i2, v_dut, og_v, angle_w=0)
+            # diffs = sa.calc_similarity_between_signals(og_fft, fft_i2, v_dut, og_v, angle_w=0)
             diffs, x_diffs = sa.calc_diff(og_fft, fft_i2, og_fft_x, x_fft)
-            diff_sens = .2*10**(-10)
+            diff_sens = .2 * 10 ** (-10)
             diffs_under_sens = [x for x in diffs if x < diff_sens]
             frac_under = len(diffs_under_sens) / len(diffs)
             mean = np.mean(diffs)
             fracs.append(mean)
-            #print(len(diffs), len_diffs)
+            # print(len(diffs), len_diffs)
 
             # print(fft_i2)
 
@@ -260,7 +263,7 @@ def compare_nearby():
             # else:
             #     x_diffs = x_fft
 
-            #x_diffs = list(range(filter_i, len_diffs))
+            # x_diffs = list(range(filter_i, len_diffs))
             color = colors[i]
             print(v_dut)
             lab = name + " " + str(mean)
@@ -280,11 +283,11 @@ def compare_nearby():
 
         plt.show()
 
-        vis.plot_all(names, fracs, vmin=0, vmax=.5*10**(-10))
+        vis.plot_all(names, fracs, vmin=0, vmax=.5 * 10 ** (-10))
 
-    #plot_fft_components("lol", names, signals, detecs)
+    # plot_fft_components("lol", names, signals, detecs)
 
-    #signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals, names, n_chan)
+    # signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals, names, n_chan)
 
     for i in range(n_chan):
         name = names[i]
@@ -296,22 +299,24 @@ def compare_nearby():
         v = loc_matrx[:3, 2]
         window = 400
         og_x = list(range(filter_i, len(signal)))
-        fft, smooth_signal, smooth_x, detrended_signal = sa.calc_fft_indices(filtered_signal, indices=[2], window=window)
+        fft, smooth_signal, smooth_x, detrended_signal = sa.calc_fft_indices(filtered_signal, indices=[2],
+                                                                             window=window)
         fft = np.gradient(fft[0])
 
         near_chans = sa.find_nearby_detectors(name, detecs)
         all_sigs = fr.find_signals(near_chans, signals, names)
 
-        plot_fft_components(name, filtered_signal, og_x, fft, v, near_chans, all_sigs, detecs, window=window, full_screen=False)
+        plot_fft_components(name, filtered_signal, og_x, fft, v, near_chans, all_sigs, detecs, window=window,
+                            full_screen=False)
 
         print()
-        #plt.show()
+        # plt.show()
 
 
 def test_hz():
     from scipy.optimize import curve_fit
     fname = "sample_data10.npz"
-    #fname = "many_many_successful2.npz"
+    # fname = "many_many_successful2.npz"
     # channels = ["MEG0121", "MEG1114", "MEG0311", "MEG331", "MEG0334"]
     # channels = ["MEG1114"]
     # fname = "many_failed.npz"
@@ -378,6 +383,7 @@ def test_hz():
 
         plt.show()
 
+
 def simo():
     detecs = np.load("array120_trans_newnames.npz")
     # print(detecs)
@@ -404,6 +410,7 @@ def nearby():
 
     vis.plot_all(names, np.full(np.shape(names), 1), nears)
 
+
 def plottest():
     fname = datadir + "many_successful.npz"
     data = fr.load_all(fname).subpool(["MEG*1", "MEG*4"]).clip((0.210, 0.50))
@@ -421,6 +428,7 @@ def plottest():
     bad_list = hf.bad_list_for_anim(names, statuses)
 
     vis.helmet_animation(names, signals, frames=1000, bads=bad_list)
+
 
 def simulation():
     n = 290
@@ -702,6 +710,7 @@ def animate_fft():
     ani = FuncAnimation(fig, animate, frames=len(signal) - window, interval=.001, repeat=False)
     plt.show()
 
+
 def detrend_grad():
     fname = "many_many_successful.npz"
     signals, names, time, n_chan = fr.get_signals(fname)
@@ -746,7 +755,8 @@ def detrend_grad():
             near_name = near_names[j]
             near_sig = near_sigs[j]
 
-            near_filtered_signal, near_x, near_smooth_signal, near_smooth_x, near_crop_smooth = filter_and_smooth(near_sig)
+            near_filtered_signal, near_x, near_smooth_signal, near_smooth_x, near_crop_smooth = filter_and_smooth(
+                near_sig)
             near_grad = np.gradient(near_crop_smooth)
             smooth_grads.append(near_grad)
             filtered_sigs.append(near_filtered_signal)
@@ -799,16 +809,16 @@ def test_magn():
 
     for k in range(n_chan):
         # comp_detec = "MEG2411"
-        #comp_detec = "MEG0711"
+        # comp_detec = "MEG0711"
         comp_detec = names[k]
-        #comp_sig = fr.find_signals([comp_detec], signals, names)[0]
+        # comp_sig = fr.find_signals([comp_detec], signals, names)[0]
         comp_sig = signals[k]
         comp_v = detecs[comp_detec][:3, 2]
         comp_r = detecs[comp_detec][:3, 3]
 
         nearby_names = sa.find_nearby_detectors(comp_detec, detecs)
         nearby_names.append(comp_detec)
-        #near_segs = fr.find_signals(nearby_names, bad_segment_list, names)
+        # near_segs = fr.find_signals(nearby_names, bad_segment_list, names)
 
         new_near = []
         # new_segs = []
@@ -833,7 +843,7 @@ def test_magn():
             near_vs.append(detecs[name][:3, 2])
             near_rs.append(detecs[name][:3, 3])
 
-        #hf.plot_in_order_ver3(near_sigs, nearby_names, len(near_sigs), signal_statuses, bad_segment_list,
+        # hf.plot_in_order_ver3(near_sigs, nearby_names, len(near_sigs), signal_statuses, bad_segment_list,
         #                      suspicious_segment_list, exec_times)
 
         filtered_sigs = []
@@ -847,7 +857,8 @@ def test_magn():
 
             signal = near_sigs[i]
 
-            filtered_signal, x, smooth_signal, smooth_x, new_smooth = hf.filter_and_smooth(signal, offset, smooth_window)
+            filtered_signal, x, smooth_signal, smooth_x, new_smooth = hf.filter_and_smooth(signal, offset,
+                                                                                           smooth_window)
             filtered_sigs.append(np.gradient(new_smooth))
             xs.append(x)
             calc_names.append(nam)
@@ -902,15 +913,15 @@ def test_magn():
         good_names = []
         good_xs = []
         good_vs = []
-        #print(cropped_sigs)
-        #print(exclude_is)
+        # print(cropped_sigs)
+        # print(exclude_is)
         print(len(cropped_sigs))
         print(len(nearby_names))
         for i in range(len(nearby_names)):
             if i in exclude_is:
                 continue
 
-            #print(i)
+            # print(i)
             good_sigs.append(cropped_sigs[i])
             good_names.append(nearby_names[i])
             good_xs.append(xs[i])
@@ -919,7 +930,7 @@ def test_magn():
         print(good_names)
 
         ave_of_aves, aves, diffs, rec_sigs = sa.rec_and_diff(cropped_sigs, xs, near_vs)
-        #print(diffs)
+        # print(diffs)
         good_ave_of_aves, good_aves, good_diffs, good_rec_sigs = sa.rec_and_diff(good_sigs, good_xs, good_vs)
 
         colors = plt.cm.rainbow(np.linspace(0, 1, len(nearby_names)))
@@ -968,7 +979,7 @@ def test_magn2():
     detecs = np.load("array120_trans_newnames.npz")
 
     ave_window = 100
-    ave_sens = 10**(-12)
+    ave_sens = 10 ** (-12)
 
     def seg_lens(sig, segs):
         length = 0
@@ -1022,9 +1033,12 @@ def test_magn2():
             smooth_sigs.append(np.gradient(new_smooth))
             xs.append(x)
 
-        ave_of_aves, aves, all_diffs, rec_sigs, mag_is, cropped_signals, crop_x = sa.rec_and_diff(smooth_sigs, xs, near_vs, ave_window=ave_window)
+        ave_of_aves, aves, all_diffs, rec_sigs, mag_is, cropped_signals, crop_x = sa.rec_and_diff(smooth_sigs, xs,
+                                                                                                  near_vs,
+                                                                                                  ave_window=ave_window)
 
-        excludes, new_x, ave_diffs = sa.filter_unphysical_sigs(smooth_sigs, new_names, xs, near_vs, cluster_bad_segs, ave_window=ave_window, ave_sens=ave_sens)
+        excludes, new_x, ave_diffs = sa.filter_unphysical_sigs(smooth_sigs, new_names, xs, near_vs, cluster_bad_segs,
+                                                               ave_window=ave_window, ave_sens=ave_sens)
 
         if cropped_signals is None:
             print()
@@ -1046,7 +1060,8 @@ def test_magn2():
             good_vs.append(near_vs[k])
             good_xs.append(xs[k])
 
-        good_ave_of_aves, good_aves, good_all_diffs, good_rec_sigs, good_mag_is, good_cropped_signals, good_crop_x = sa.rec_and_diff(good_sigs, good_xs, good_vs, ave_window=ave_window)
+        good_ave_of_aves, good_aves, good_all_diffs, good_rec_sigs, good_mag_is, good_cropped_signals, good_crop_x = sa.rec_and_diff(
+            good_sigs, good_xs, good_vs, ave_window=ave_window)
 
         colors = plt.cm.rainbow(np.linspace(0, 1, len(new_names)))
         good_colors = []
@@ -1106,31 +1121,28 @@ def test_new_excluder():
     smooth_window = 401
     offset = int(smooth_window / 2)
 
-    fname = "sample_data34.npz"
+    fname = "sample_data29.npz"
     signals, names, timex, n_chan = fr.get_signals(fname)
 
     detecs = np.load("array120_trans_newnames.npz")
 
-    #times_excluded = np.zeros(n_chan)
-    #times_in_calc = np.zeros(n_chan)
+    # times_excluded = np.zeros(n_chan)
+    # times_in_calc = np.zeros(n_chan)
 
     signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals, names, n_chan,
                                                                                                 badness_sensitivity=.5)
 
     start_time = time.time()
-    all_diffs, all_rel_diffs, chan_dict = sa.check_all_phys(signals, detecs, names, n_chan, bad_segment_list, ave_window=100, ave_sens=10**(-12))
+    all_diffs, all_rel_diffs, chan_dict = sa.check_all_phys(signals, detecs, names, n_chan, bad_segment_list,
+                                                            ave_window=100, ave_sens=10 ** (-12))
     end_time = time.time()
 
     status, confidence = sa.analyse_phys_dat(all_diffs, names, all_rel_diffs, chan_dict)
 
-    #print(type(times_excluded[0]))
-    #print(type(len(chan_dict["MEG0111"])))
-    #print(times_excluded)
-    #print(times_in_calc)
-    #print(len(times_excluded), len(times_in_calc))
-
     ex_time = (end_time - start_time) / 60
     print("execution time:", ex_time, "mins")
+
+    titles = []
 
     for i in range(len(chan_dict)):
         stat = status[i]
@@ -1143,8 +1155,8 @@ def test_new_excluder():
             st_string = "undetermined"
         elif stat == 3:
             st_string = "unused"
-        #num_exc = times_excluded[i]
-        #num_tot = times_in_calc[i]
+        # num_exc = times_excluded[i]
+        # num_tot = times_in_calc[i]
         nam = names[i]
 
         diffs = all_diffs[nam]
@@ -1153,9 +1165,14 @@ def test_new_excluder():
 
         num_tot = len(chan_dat)
         num_exc = len([x for x in chan_dat if chan_dat[x] == 1])
-        #print(num_tot, num_exc)
+        # print(num_tot, num_exc)
         num_exc = np.float64(num_exc)
         num_tot = np.float64(num_tot)
+
+        tit = nam + " " + str(num_exc) + "/" + str(num_tot) + "=" + \
+            str(num_exc / num_tot) + ": " + st_string + ", " + str(confidence[i])
+
+        titles.append(tit)
 
         print(nam, num_exc, num_tot, np.float64(num_exc / num_tot), st_string, confidence[i], np.mean(rel_diffs))
 
@@ -1172,14 +1189,14 @@ def test_new_excluder():
         nearby_names = sa.find_nearby_detectors(nam, detecs)
         sigs = fr.find_signals(nearby_names, signals, names)
 
-        #if num_exc == 0:
+        # if num_exc == 0:
         #    continue
 
         colors = plt.cm.rainbow(np.linspace(0, 1, len(nearby_names) + 1))
         fig, ax = plt.subplots()
         ax.plot(signal, label=nam, color=colors[0])
         hf.plot_spans(ax, segs)
-        ax.set_title(nam + " " + str(num_exc) + " " + str(num_tot) + " " + str(num_exc / num_tot))
+        ax.set_title(titles[i])
 
         for j in range(len(nearby_names)):
             name = nearby_names[j]
@@ -1189,7 +1206,6 @@ def test_new_excluder():
         ax.legend()
 
         plt.show()
-
 
 
 def test_excluder():
@@ -1204,7 +1220,8 @@ def test_excluder():
     times_excluded = np.zeros(n_chan)
     times_in_calc = np.zeros(n_chan)
 
-    signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals, names, n_chan, badness_sensitivity=.5)
+    signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals, names, n_chan,
+                                                                                                badness_sensitivity=.5)
 
     start_time = time.time()
 
@@ -1213,17 +1230,17 @@ def test_excluder():
         # comp_detec = "MEG0711"
         comp_detec = names[k]
         print(comp_detec)
-        #comp_sig = signals[k]
+        # comp_sig = signals[k]
         # comp_sig = fr.find_signals([comp_detec], signals, names)[0]
-        #comp_v = detecs[comp_detec][:3, 2]
-        #comp_r = detecs[comp_detec][:3, 3]
+        # comp_v = detecs[comp_detec][:3, 2]
+        # comp_r = detecs[comp_detec][:3, 3]
 
         nearby_names = sa.find_nearby_detectors(comp_detec, detecs)
         nearby_names.append(comp_detec)
-        #new_near = nearby_names
+        # new_near = nearby_names
 
         new_near = []
-        #new_segs = []
+        # new_segs = []
         for nam in nearby_names:
             index = names.index(nam)
             bad = signal_statuses[index]
@@ -1233,7 +1250,7 @@ def test_excluder():
                 continue
 
             new_near.append(nam)
-            #new_segs.append(bad_segment_list[index])
+            # new_segs.append(bad_segment_list[index])
 
         near_vs = []
         near_rs = []
@@ -1242,13 +1259,12 @@ def test_excluder():
             near_vs.append(detecs[name][:3, 2])
             near_rs.append(detecs[name][:3, 3])
 
-        #nearby_names.append(comp_detec)
+        # nearby_names.append(comp_detec)
         near_sigs = fr.find_signals(new_near, signals, names)
         cluster_bad_segs = fr.find_signals(new_near, bad_segment_list, names)
-        #near_sigs.append(comp_sig)
-        #near_vs.append(comp_v)
-        #near_rs.append(comp_r)
-
+        # near_sigs.append(comp_sig)
+        # near_vs.append(comp_v)
+        # near_rs.append(comp_r)
 
         smooth_sigs = []
         xs = []
@@ -1260,7 +1276,8 @@ def test_excluder():
             smooth_sigs.append(np.gradient(new_smooth))
             xs.append(x)
 
-        exclude_chans, new_x = sa.filter_unphysical_sigs(smooth_sigs, new_near, xs, near_vs, cluster_bad_segs, ave_window=1)
+        exclude_chans, new_x = sa.filter_unphysical_sigs(smooth_sigs, new_near, xs, near_vs, cluster_bad_segs,
+                                                         ave_window=1)
 
         if len(new_x) != 0:
             for nam in new_near:
@@ -1279,7 +1296,6 @@ def test_excluder():
             print(chan, ex, tot, ex / tot)
 
         print()
-
 
         # # print(exclude_chans)
         # exclude_is = [i for i in range(len(nearby_names)) if nearby_names[i] in exclude_chans]
@@ -1321,7 +1337,7 @@ def test_excluder():
         nam = names[i]
         segs = bad_segment_list[i]
 
-        #if num_exc == 0:
+        # if num_exc == 0:
         #    continue
 
         fig, ax = plt.subplots()
@@ -1370,4 +1386,3 @@ def test_excluder():
     # ax33.legend()
     #
     # plt.show()
-

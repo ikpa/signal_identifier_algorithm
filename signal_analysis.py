@@ -90,17 +90,17 @@ def magn_from_point(a, point):
 
 
 def crop_all_sigs(signals, xs, bad_segs):
-    #print(xs)
+    # print(xs)
     highest_min_x = 0
     lowest_max_x = 10 ** 100
 
-    #print(bad_segs)
+    # print(bad_segs)
 
     for x in xs:
         min_x = np.amin(x)
         max_x = np.amax(x)
 
-        #print(min_x, max_x)
+        # print(min_x, max_x)
 
         if min_x > highest_min_x:
             highest_min_x = min_x
@@ -113,7 +113,7 @@ def crop_all_sigs(signals, xs, bad_segs):
             if lowest_max_x > seg[0]:
                 lowest_max_x = seg[0]
 
-    #print(highest_min_x, lowest_max_x)
+    # print(highest_min_x, lowest_max_x)
     new_x = list(range(highest_min_x, lowest_max_x))
     new_signals = []
 
@@ -128,7 +128,6 @@ def crop_all_sigs(signals, xs, bad_segs):
 
 
 def calc_magn_field_from_signals(signals, xs, vectors, ave_window=400):
-
     if len(xs) == 1:
         cropped_signals = signals
         new_x = xs[0]
@@ -198,10 +197,10 @@ def rec_and_diff(signals, xs, vs, ave_window=1):
     for i in range(len(cropped_signals)):
         rec_sig = reconstruct(magn_vectors, vs[i])
         rec_sigs.append(rec_sig)
-        #print(len(cropped_signals[i]), len(rec_sig))
+        # print(len(cropped_signals[i]), len(rec_sig))
         diffs, diff_x = calc_diff(cropped_signals[i], rec_sig, new_x, mag_is)
-        #print(diff_x)
-        #print(mag_is)
+        # print(diff_x)
+        # print(mag_is)
         ave = np.mean(diffs)
         aves.append(ave)
         all_diffs.append(diffs)
@@ -211,7 +210,7 @@ def rec_and_diff(signals, xs, vs, ave_window=1):
     return ave_of_aves, aves, all_diffs, rec_sigs, mag_is, cropped_signals, new_x
 
 
-def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, ave_sens=10**(-13), ave_window=1):
+def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, ave_sens=10 ** (-13), ave_window=1):
     if len(signals) <= 3:
         print("too few signals, stopping")
         return [], [], [], []
@@ -222,18 +221,19 @@ def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, ave_sens=10**(-13),
     temp_sigs = cropped_signals[:]
     temp_names = names[:]
     temp_vs = vs[:]
-    ave_of_aves, aves, diffs, rec_sigs, magis, cropped_signals, new_new_x = rec_and_diff(cropped_signals, [new_x], vs, ave_window=ave_window)
+    ave_of_aves, aves, diffs, rec_sigs, magis, cropped_signals, new_new_x = rec_and_diff(cropped_signals, [new_x], vs,
+                                                                                         ave_window=ave_window)
     print("average at start:", ave_of_aves)
 
     if ave_of_aves < ave_sens:
         return [], new_x, [], []
 
-    #ave_of_aves = 1
+    # ave_of_aves = 1
     excludes = []
     ave_diffs = []
     rel_diffs = []
     while ave_of_aves > ave_sens:
-        #print(len(excludes))
+        # print(len(excludes))
         # ave_of_aves, aves, diffs, rec_sigs = rec_and_diff(cropped_signals, [new_x], vs)
 
         print(len(temp_sigs), "signals left")
@@ -251,18 +251,19 @@ def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, ave_sens=10**(-13),
                 print("skipping", i)
                 continue
 
-            #sigs_without, vs_without = hf.exclude_from_lists(i, [cropped_signals, vs])
+            # sigs_without, vs_without = hf.exclude_from_lists(i, [cropped_signals, vs])
             sigs_without = temp_sigs[:i] + temp_sigs[i + 1:]
             vs_without = temp_vs[:i] + temp_vs[i + 1:]
 
-            new_ave_of_aves, temp_aves, temp_diffs, temp_rec_sigs, temp_magis, temp_crop_sigs, temp_new_x = rec_and_diff(sigs_without, [new_x], vs_without, ave_window=ave_window)
+            new_ave_of_aves, temp_aves, temp_diffs, temp_rec_sigs, temp_magis, temp_crop_sigs, temp_new_x = rec_and_diff(
+                sigs_without, [new_x], vs_without, ave_window=ave_window)
             new_aves.append(new_ave_of_aves)
 
         best_ave = np.amin(new_aves)
         diff = ave_of_aves - best_ave
         rel_diff = diff / ave_of_aves
         print("average", best_ave)
-        #print(ave_of_aves, best_ave, diff)
+        # print(ave_of_aves, best_ave, diff)
         ave_diffs.append(diff)
         rel_diffs.append(rel_diff)
         best_exclusion_i = new_aves.index(best_ave)
@@ -279,7 +280,7 @@ def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, ave_sens=10**(-13),
 
 
 def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, smooth_window=401,
-                   badness_sens=.5, ave_window=1, ave_sens=10**(-13)):
+                   badness_sens=.5, ave_window=1, ave_sens=10 ** (-13)):
     import file_reader as fr
 
     def seg_lens(sig, segs):
@@ -338,7 +339,9 @@ def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, smooth_window=4
             smooth_sigs.append(np.gradient(new_smooth))
             xs.append(x)
 
-        exclude_chans, new_x, diffs, rel_diffs = filter_unphysical_sigs(smooth_sigs, new_near, xs, near_vs, cluster_bad_segs, ave_window=ave_window, ave_sens=ave_sens)
+        exclude_chans, new_x, diffs, rel_diffs = filter_unphysical_sigs(smooth_sigs, new_near, xs, near_vs,
+                                                                        cluster_bad_segs, ave_window=ave_window,
+                                                                        ave_sens=ave_sens)
 
         if len(new_x) != 0:
             for nam in new_near:
@@ -348,7 +351,7 @@ def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, smooth_window=4
             print("analysed segment between", new_x[0], new_x[len(new_x) - 1])
 
         print("excluded", exclude_chans)
-        #print(diffs)
+        # print(diffs)
         for j in range(len(exclude_chans)):
             chan = exclude_chans[j]
             exclude_i = names.index(chan)
@@ -361,18 +364,22 @@ def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, smooth_window=4
             tot = len(chan_dict[chan])
             ex = len([x for x in chan_dict[chan] if x == 1])
 
-            print(chan, ex, tot, float(ex / tot), np.mean(all_diffs[chan]), np.mean(all_rel_diffs[chan]))
+            print(chan, "times excluded:", ex, ", times in calculation:", tot,
+                  ", fraction excluded:", float(ex / tot),
+                  "average relative difference:", np.mean(all_rel_diffs[chan]))
 
         print()
 
     return all_diffs, all_rel_diffs, chan_dict
 
+
 # 0 = physical
 # 1 = unphysical
 # 2 = undetermined
 # 3 = unused
-def analyse_phys_dat(all_diffs, names, all_rel_diffs, chan_dict, frac_w=1,
-                     diff_w=1, num_w=1/13, unphys_sensitivity=.25, min_chans=5):
+def analyse_phys_dat(all_diffs, names, all_rel_diffs, chan_dict, frac_w=2.5,
+                     diff_w=.5, num_w=.5, unphys_sensitivity=.25, conf_sens=.5,
+                     min_chans=5):
     status = []
     confidence = []
 
@@ -400,22 +407,29 @@ def analyse_phys_dat(all_diffs, names, all_rel_diffs, chan_dict, frac_w=1,
         ave_diff = np.mean(rel_diffs)
 
         if frac_excluded > unphys_sensitivity:
-            status.append(1)
+            # status.append(1)
+            stat = 1
             diff_conf = diff_w * ave_diff
-            frac_conf = frac_w * frac_excluded
+            frac_conf = 1.25 * frac_w * frac_excluded
         else:
-            status.append(0)
+            # status.append(0)
+            stat = 0
 
             if math.isnan(ave_diff):
-                diff_conf = 1
+                diff_conf = diff_w
             else:
                 diff_conf = diff_w * (1 - ave_diff)
 
-            frac_conf = frac_w * (1 - frac_excluded)
+            frac_conf = frac_w * (1 - frac_excluded / (2.5 * unphys_sensitivity))
 
-        num_conf = num_w * tot
-        conf = diff_conf + frac_conf + num_conf
+        num_conf = num_w * tot / 14
+        conf = (diff_conf + frac_conf + num_conf) / (diff_w + frac_w + num_w)
+
+        if conf < conf_sens:
+            stat = 2
+
         confidence.append(conf)
+        status.append(stat)
 
     return status, confidence
 
