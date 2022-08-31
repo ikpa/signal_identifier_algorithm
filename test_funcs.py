@@ -11,6 +11,8 @@ import signal_generator as sg
 datadir = "example_data_for_patrik/"
 
 
+# various test functions. not commented
+
 def animate_vectors():
     fname = "many_successful.npz"
     # fname = "sample_data38.npz"
