@@ -58,23 +58,6 @@ def angle_test():
     plt.show()
 
 
-def vector_closeness():
-    detecs = np.load("array120_trans_newnames.npz")
-    comparator = [1, 0, 0]
-
-    for comp_name in detecs:
-        print(comp_name)
-        diffs = []
-        comparator = detecs[comp_name][:3, 2]
-
-        for name in detecs:
-            detec = detecs[name]
-            v = detec[:3, 2]
-            diffs.append(sa.vect_angle(comparator, v, unit=False, perp=True))
-
-        vis.plot_all(detecs, diffs, cmap="OrRd")
-
-
 def signal_sim():
     fname = "many_successful.npz"
     all_signals, names, time, n_chan = fr.get_signals(fname)
@@ -579,91 +562,6 @@ def test_hz4():
         plt.show()
 
 
-# TODO periodicity = 203
-def test_hz3():
-    channels = ["MEG0624", "MEG0724", "MEG0531", "MEG0541",
-                "MEG0634", "MEG0121"]
-    fname = "many_many_successful2.npz"
-    signals, names, time, n_chan = fr.get_signals(fname, channels)
-
-    from scipy.optimize import curve_fit
-
-    frec = 2 * np.pi * (5 * 10 ** (-3))
-
-    def func(x, a, b, c, d, e):
-        return a * np.sin(frec * x + e) + b * np.sin((3 * frec) * x + e) + c * np.exp(-d * x)
-
-    for i in range(n_chan):
-        signal = signals[i]
-        name = names[i]
-        print(name)
-
-        filter_i = sa.filter_start(signal)
-        filtered_signal = signal[filter_i:]
-        length = len(filtered_signal)
-        grad = np.gradient(filtered_signal)
-        xdat = list(range(0, length))
-        x = np.linspace(0, length, length)
-        popt, pcov = curve_fit(func, xdat, grad, maxfev=100000)
-        print(popt)
-        print(np.sqrt(np.diag(pcov)))
-        print()
-
-        fit = func(x, *popt)
-
-        difference = []
-
-        for i in range(length):
-            fit_val = fit[i]
-            actual_val = grad[i]
-            difference.append(actual_val - fit_val)
-
-        fig, (ax1, ax2, ax3) = plt.subplots(3, 1)
-        ax1.plot(filtered_signal)
-        ax2.plot(grad)
-        ax2.plot(fit)
-        ax3.plot(difference)
-        plt.show()
-
-
-def test_hz2():
-    from matplotlib.animation import FuncAnimation
-    fname = datadir + "many_successful.npz"
-    data = fr.load_all(fname).subpool(["MEG*1", "MEG*4"]).clip((0.210, 0.50))
-    unorganized_signals = data.data
-    names = data.names
-    n_chan = data.n_channels
-    time = data.time
-    signals = sa.reorganize_signals(unorganized_signals, n_chan)
-
-    window = 150
-
-    for j in range(n_chan):
-        signal = signals[j]
-        print(names[j])
-        signal_len = len(signal)
-        max_i = signal_len - 1
-
-        maximums = []
-        for i in range(signal_len):
-            if i + window > max_i:
-                end_i = max_i
-            else:
-                end_i = i + window
-
-            signal_windowed = signal[i: end_i]
-            ftrans = sa.get_fft(signal_windowed)
-            max_fft = np.amax(ftrans)
-            # min_fft = abs(np.amin(ftrans))
-            maximums.append(max_fft)
-
-        fig, (ax1, ax2) = plt.subplots(2, 1)
-        # ax2.set_ylim(-0.01 * 10 ** (-7), 2 * 10 ** (-7))
-        ax1.plot(signal)
-        ax2.plot(maximums)
-        plt.show()
-
-
 def animate_fft():
     def animate(i):
         if i + window > max_i:
@@ -975,13 +873,13 @@ def test_magn2():
     smooth_window = 401
     offset = int(smooth_window / 2)
 
-    fname = "many_many_successful.npz"
+    fname = datadir + "many_many_successful2.npz"
     signals, names, timex, n_chan = fr.get_signals(fname)
 
     detecs = np.load("array120_trans_newnames.npz")
 
-    ave_window = 100
-    ave_sens = 10 ** (-12)
+    ave_window = 1
+    ave_sens = 10 ** (-9)
 
     def seg_lens(sig, segs):
         length = 0
@@ -1026,21 +924,30 @@ def test_magn2():
         cluster_bad_segs = fr.find_signals(new_names, bad_segment_list, names)
 
         smooth_sigs = []
+        detrended_sigs = []
         xs = []
 
         for k in range(len(near_sigs)):
             signal = near_sigs[k]
-            filtered_signal, x, smooth_signal, smooth_x, new_smooth = hf.filter_and_smooth(signal, offset,
-                                                                                           smooth_window)
-            smooth_sigs.append(np.gradient(new_smooth))
-            xs.append(x)
+            filter_i = sa.filter_start(signal)
+            filt_sig = signal[filter_i:]
+            #filtered_signal, x, smooth_signal, smooth_x, new_smooth = hf.filter_and_smooth(signal, offset,
+                                                                                          # smooth_window)
+            #smooth_sigs.append(np.gradient(new_smooth))
+            #xs.append(x)
+
+            i_arr, ix, smooth_signal, smooth_x, detrended_signal = sa.calc_fft_indices(filt_sig, [2])
+            smooth_sigs.append(i_arr[0])
+            xs.append(ix)
+            detrended_sigs.append(detrended_signal)
 
         ave_of_aves, aves, all_diffs, rec_sigs, mag_is, cropped_signals, crop_x = sa.rec_and_diff(smooth_sigs, xs,
                                                                                                   near_vs,
                                                                                                   ave_window=ave_window)
 
-        excludes, new_x, ave_diffs = sa.filter_unphysical_sigs(smooth_sigs, new_names, xs, near_vs, cluster_bad_segs,
-                                                               ave_window=ave_window, ave_sens=ave_sens)
+        excludes, new_x, ave_diffs, rel_diffs = sa.filter_unphysical_sigs(smooth_sigs, new_names, xs, near_vs,
+                                                                          [],
+                                                                          ave_window=ave_window, ave_sens=ave_sens)
 
         if cropped_signals is None:
             print()
@@ -1110,7 +1017,7 @@ def test_magn2():
         for k in range(len(near_sigs)):
             plot_name = new_names[k]
             color = colors[k]
-            ax.plot(near_sigs[k], label=plot_name, color=color)
+            ax.plot(detrended_sigs[k], label=plot_name, color=color)
 
         ax.legend()
 
@@ -1123,7 +1030,7 @@ def test_new_excluder():
     smooth_window = 401
     offset = int(smooth_window / 2)
 
-    fname = "sample_data29.npz"
+    fname = datadir + "sample_data29.npz"
     signals, names, timex, n_chan = fr.get_signals(fname)
 
     detecs = np.load("array120_trans_newnames.npz")
@@ -1172,7 +1079,7 @@ def test_new_excluder():
         num_tot = np.float64(num_tot)
 
         tit = nam + " " + str(num_exc) + "/" + str(num_tot) + "=" + \
-            str(num_exc / num_tot) + ": " + st_string + ", " + str(confidence[i])
+              str(num_exc / num_tot) + ": " + st_string + ", " + str(confidence[i])
 
         titles.append(tit)
 

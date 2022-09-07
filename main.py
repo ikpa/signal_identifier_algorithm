@@ -5,6 +5,8 @@ import file_reader as fr
 import helper_funcs as hf
 import numpy as np
 
+import test_funcs as tf
+
 
 # get command line arguments
 def arg_parser():
@@ -78,30 +80,30 @@ def print_results(names, signals, filt_statuses, bad_segs, suspicious_segs,
 
 
 # current version of the program.
-def thirdver():
-    args = arg_parser()
+def thirdver(fname, filters, phys, plot):
     detecs = np.load("array120_trans_newnames.npz")
 
-    print("analysing " + args.filename)
+    print("analysing " + fname)
     print()
 
-    signals, names, t, n_chan = fr.get_signals(args.filename)
-    print("beginning analysis with the following filters:", args.filters)
+    signals, names, t, n_chan = fr.get_signals(fname)
+    print("beginning analysis with the following filters:", filters)
     print()
     start_time = time.time()
-    signal_statuses, bad_segs, suspicious_segs, exec_times = sa.analyse_all_neo(signals, names, n_chan, filters=args.filters)
+    signal_statuses, bad_segs, suspicious_segs, exec_times = sa.analyse_all_neo(signals, names, n_chan, filters=filters)
     end_time = time.time()
     filt_time = (end_time - start_time) / 60
     print("time elapsed in filtering: " + str(filt_time) + " mins")
     print()
 
-    if args.physicality:
+    if phys:
         print("-----------------------------------------------------")
         print("beginning physicality analysis")
         print()
         start_time = time.time()
+        # ave_sens = 10**(-12)
         all_diffs, all_rel_diffs, chan_dict = sa.check_all_phys(signals, detecs, names, n_chan, bad_segs,
-                                                                ave_window=100, ave_sens=10 ** (-12))
+                                                                ave_window=100, ave_sens=5 * 10 ** (-13))
 
         phys_stat, phys_conf = sa.analyse_phys_dat(all_diffs, names, all_rel_diffs, chan_dict)
         end_time = time.time()
@@ -122,12 +124,18 @@ def thirdver():
                   phys_stat, phys_conf, all_rel_diffs, chan_dict)
     print("total time elapsed: " + str(tot_time) + " mins")
 
-    if args.plot:
+    if plot:
         hf.plot_in_order_ver3(signals, names, n_chan, signal_statuses, bad_segs, suspicious_segs, physicality=phys_stat)
 
 
+def main():
+    args = arg_parser()
+    thirdver(args.filename, args.filters, args.physicality, args.plot)
+
+
 if __name__ == '__main__':
-    thirdver()
+    #main()
+    tf.test_magn2()
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/

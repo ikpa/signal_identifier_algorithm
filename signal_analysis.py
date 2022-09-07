@@ -224,8 +224,9 @@ def rec_and_diff(signals, xs, vs, ave_window=1):
 # as well as the absolute and relative change in the average total diference
 # at each removal
 # the following ave_sens ave_window pairs are confirmed to produce good results:
-# 10 ** (-13) 1
-# 10 ** (-12) 100
+# 10**(-13) 1
+# 10**(-12) 100
+# 5*10**(-13) 100 CHECK THIS
 def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, ave_sens=10 ** (-13), ave_window=1):
     if len(signals) <= 3:
         print("too few signals, stopping")
@@ -245,6 +246,7 @@ def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, ave_sens=10 ** (-13
     print("average at start:", ave_of_aves)
 
     if ave_of_aves < ave_sens:
+        print("no optimisation needed, stopping")
         return [], new_x, [], []
 
     excludes = []
@@ -879,6 +881,7 @@ def calc_fft_indices(signal, indices=None, window=400, smooth_window=401):
     for i in range(sig_len):
         new_smooth.append(smooth_signal[i + offset])
 
+    # remove trend from original signal
     filtered_signal = [a - b for a, b in zip(signal, new_smooth)]
 
     # calculate ffts
@@ -891,7 +894,7 @@ def calc_fft_indices(signal, indices=None, window=400, smooth_window=401):
             index = indices[j]
             i_arr[j][i] = ftrans[index]
 
-    return i_arr, smooth_signal, smooth_x, filtered_signal
+    return i_arr, list(range(ftrans_points)), smooth_signal, smooth_x, filtered_signal
 
 
 # UNUSED
@@ -955,7 +958,7 @@ def find_default_y(arr, num_points=5000, step=.1 * 10 ** (-7)):
 
 # UNUSED
 # this function would be used in conjunction with find_default_y to
-# find the segments where the signal no longer is periodic.
+# find the segments where the signal is no longer periodic.
 def get_spans_from_fft(fft_i2, hseg, fft_window=400):
     segs = []
     all_fft_segs = []
