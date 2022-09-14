@@ -135,7 +135,7 @@ def main():
 
 if __name__ == '__main__':
     #main()
-    tf.test_magn2()
+    tf.test_smooth_seg()
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/

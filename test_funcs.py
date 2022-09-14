@@ -469,7 +469,7 @@ def test_uniq():
         segments += where_repeat
         seg_confidences += conf
 
-        where_repeat, conf = sa.gradient_filter_neo(signal, filter_i)
+        where_repeat, conf = sa.spike_filter_neo(signal, filter_i)
         segments += where_repeat
         seg_confidences += conf
 
@@ -931,10 +931,10 @@ def test_magn2():
             signal = near_sigs[k]
             filter_i = sa.filter_start(signal)
             filt_sig = signal[filter_i:]
-            #filtered_signal, x, smooth_signal, smooth_x, new_smooth = hf.filter_and_smooth(signal, offset,
-                                                                                          # smooth_window)
-            #smooth_sigs.append(np.gradient(new_smooth))
-            #xs.append(x)
+            # filtered_signal, x, smooth_signal, smooth_x, new_smooth = hf.filter_and_smooth(signal, offset,
+            # smooth_window)
+            # smooth_sigs.append(np.gradient(new_smooth))
+            # xs.append(x)
 
             i_arr, ix, smooth_signal, smooth_x, detrended_signal = sa.calc_fft_indices(filt_sig, [2])
             smooth_sigs.append(i_arr[0])
@@ -1295,3 +1295,187 @@ def test_excluder():
     # ax33.legend()
     #
     # plt.show()
+
+
+def test_gradient():
+    smooth_window = 401
+    offset = int(smooth_window / 2)
+
+    fname = datadir + "many_successful.npz"
+    signals, names, timex, n_chan = fr.get_signals(fname)
+
+    for i in range(n_chan):
+        signal = signals[i]
+        sig_len = len(signal)
+        name = names[i]
+        print(name)
+        filter_i = sa.filter_start(signal)
+        filt_sig = signal[filter_i:]
+        filt_x = list(range(filter_i, sig_len))
+
+        smooth_signal = sa.smooth(filt_sig, window_len=smooth_window)
+        smooth_x = [x - offset + filter_i for x in list(range(len(smooth_signal)))]
+
+        new_smooth = []
+        for j in range(filter_i, sig_len):
+            new_smooth.append(smooth_signal[j + offset - filter_i])
+
+        grad = np.gradient(new_smooth)
+        max_grad = np.amax(grad)
+        min_grad = abs(np.amin(grad))
+
+        norm = max(max_grad, min_grad)
+
+        if norm != 0:
+            norm_grad = grad / norm
+        else:
+            norm_grad = grad
+
+        sens = .05
+
+        low_vals = []
+        low_x = []
+        for j in range(len(grad)):
+            val = norm_grad[j]
+            x_val = filt_x[j]
+
+            if -sens < val < sens:
+                low_vals.append(val)
+                low_x.append(x_val)
+
+        low_x_lists = sa.split_into_lists(low_x)
+
+        segs = []
+        unfilt_segs = []
+        for j in range(len(low_x_lists)):
+            lst = low_x_lists[j]
+            seg_start = lst[0]
+            seg_end = lst[len(lst) - 1]
+
+            unfilt_segs.append([seg_start, seg_end])
+
+            if j != 0:
+                prev_lst = low_x_lists[j - 1]
+                prev_end = prev_lst[-1]
+
+                if seg_start - prev_end < 300 and len(segs) != 0:
+                    betw_vals = norm_grad[prev_end : seg_start]
+                    hi_betw_vals = [x for x in betw_vals if abs(x) > .5]
+
+                    if len(hi_betw_vals) != 0:
+                        segs.append([seg_start, seg_end])
+                        continue
+
+                    #print(j - 1)
+                    segs[-1][1] = seg_end
+                    continue
+
+            segs.append([seg_start, seg_end])
+
+        filt_segs = []
+        for seg in segs:
+            seg_len = seg[1] - seg[0]
+
+            if seg_len < 150:
+                continue
+
+            filt_segs.append(seg)
+
+        means = []
+        stds = []
+        for seg in filt_segs:
+            vals = norm_grad[seg[0] : seg[1]]
+            means.append(np.mean(vals))
+            stds.append(np.std(vals))
+
+        print(means)
+        print(stds)
+        print()
+
+        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
+        #ax1.plot(filt_x, filt_sig, label="unsmooth")
+        ax1.plot(filt_x, new_smooth, label="smooth")
+        ax1.legend()
+
+        ax2.plot(filt_x, norm_grad)
+        ax2.plot(low_x, low_vals, ".")
+        hf.plot_spans(ax2, filt_segs)
+        # hf.plot_spans(ax2, unfilt_segs, color="red")
+
+        ax3.plot(filt_x, np.gradient(norm_grad))
+
+        plt.show()
+
+
+def test_smooth_seg():
+    smooth_window = 401
+    offset = int(smooth_window / 2)
+
+    fname = datadir + "many_successful.npz"
+    signals, names, timex, n_chan = fr.get_signals(fname)
+
+    smooth_sigs = []
+    smooth_xs = []
+    for i in range(n_chan):
+        signal = signals[i]
+        sig_len = len(signal)
+        name = names[i]
+        #print(name)
+        filter_i = sa.filter_start(signal)
+        filt_sig = signal[filter_i:]
+        filt_x = list(range(filter_i, sig_len))
+
+        smooth_signal = sa.smooth(filt_sig, window_len=smooth_window)
+        smooth_x = [x - offset + filter_i for x in list(range(len(smooth_signal)))]
+
+        new_smooth = []
+        for j in range(filter_i, sig_len):
+            new_smooth.append(smooth_signal[j + offset - filter_i])
+
+        smooth_sigs.append(new_smooth)
+        smooth_xs.append(filt_x)
+
+    o_stats, o_bad_segs, o_sus_segs, o_exec_times = sa.analyse_all_neo(signals, names, n_chan, filters=["segment"])
+    stats, bad_segs, sus_segs, exec_times = sa.analyse_all_neo(smooth_sigs, names, n_chan, filters=["segment"])
+
+    def fix_segs(segs, offset):
+        new_segs = []
+        for seg in segs:
+            new_segs.append([seg[0] + offset, seg[1] + offset])
+
+        return new_segs
+
+    for i in range(n_chan):
+        smooth_sig = smooth_sigs[i]
+        sig = signals[i]
+        name = names[i]
+        print(name)
+        print()
+        x = smooth_xs[i]
+
+        bads = bad_segs[i]
+        suss = sus_segs[i]
+
+        if len(bads) != 0:
+            bads = fix_segs(bads, x[0])
+
+        if len(suss) != 0:
+            suss = fix_segs(suss, x[0])
+
+        o_bads = o_bad_segs[i]
+        o_suss = o_sus_segs[i]
+
+        fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
+        ax1.plot(sig, label="signal")
+        ylims = ax1.get_ylim()
+        ax2.plot(x, smooth_sig, label="smooth signal")
+        ax2.set_ylim(bottom=ylims[0], top=ylims[1])
+        #ax.legend()
+        ax2.set_title(name)
+        hf.plot_spans(ax2, bads, color="red")
+        hf.plot_spans(ax2, suss, color="yellow")
+
+        hf.plot_spans(ax1, o_bads, color="red")
+        hf.plot_spans(ax1, o_suss, color="yellow")
+
+        plt.show()

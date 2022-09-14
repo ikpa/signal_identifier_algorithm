@@ -227,8 +227,9 @@ def rec_and_diff(signals, xs, vs, ave_window=1):
 # 10**(-13) 1
 # 10**(-12) 100
 # 5*10**(-13) 100 CHECK THIS
-def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, ave_sens=10 ** (-13), ave_window=1):
-    if len(signals) <= 3:
+def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, ave_sens=10 ** (-13), ave_window=1,
+                           min_sigs=4):
+    if len(signals) <= min_sigs:
         print("too few signals, stopping")
         return [], [], [], []
 
@@ -256,7 +257,7 @@ def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, ave_sens=10 ** (-13
 
         print(len(temp_sigs), "signals left")
 
-        if len(temp_sigs) <= 3:
+        if len(temp_sigs) <= min_sigs:
             print("no optimal magnetic field found")
             return [], new_x, [], []
 
@@ -722,10 +723,10 @@ def segment_filter_neo(signal):
 # at the first spike and ends at the last.
 # goodness > 1 -> bad
 # goodness < 1 -> good
-def cal_goodness_grad(gradient, spikes, all_diffs, max_sensitivities=None,
-                      n_sensitivities=None,
-                      grad_sensitivity=2 * 10 ** (-13),
-                      sdens_sensitivity=0.1):
+def cal_goodness_spike(gradient, spikes, all_diffs, max_sensitivities=None,
+                       n_sensitivities=None,
+                       grad_sensitivity=2 * 10 ** (-13),
+                       sdens_sensitivity=0.1):
     if n_sensitivities is None:
         n_sensitivities = [20, 100]
 
@@ -823,10 +824,10 @@ def find_spikes(gradient, filter_i, grad_sensitivity, len_sensitivity=6):
 
 
 # finds segments with steep spikes in the signal and calculates their goodness
-def gradient_filter_neo(signal, filter_i, grad_sensitivity=10 ** (-10)):
+def spike_filter_neo(signal, filter_i, grad_sensitivity=10 ** (-10)):
     gradient = np.gradient(signal)
     spikes, all_diffs = find_spikes(gradient, filter_i, grad_sensitivity)
-    seg_is, confidence = cal_goodness_grad(gradient, spikes, all_diffs)
+    seg_is, confidence = cal_goodness_spike(gradient, spikes, all_diffs)
 
     if len(seg_is) == 0:
         return [], []
@@ -1146,7 +1147,7 @@ def analyse_all_neo(signals, names, chan_num,
                     filters=None,
                     badness_sensitivity=.8):
     if filters is None:
-        filters = ["uniq", "segment", "gradient"]
+        filters = ["uniq", "segment", "spike"]
 
     exec_times = []
     signal_statuses = []
@@ -1173,8 +1174,8 @@ def analyse_all_neo(signals, names, chan_num,
             if fltr == "segment":
                 seg_is, confs = segment_filter_neo(signal)
 
-            if fltr == "gradient":
-                seg_is, confs = gradient_filter_neo(signal, filter_i)
+            if fltr == "spike":
+                seg_is, confs = spike_filter_neo(signal, filter_i)
 
             new_segs = len(seg_is)
 
