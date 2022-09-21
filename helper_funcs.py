@@ -140,3 +140,11 @@ def filter_and_smooth(signal, offset, smooth_window):
         new_smooth.append(smooth_signal[i + offset])
 
     return filtered_signal, x, smooth_signal, smooth_x, new_smooth
+
+
+def fix_segs(segs, offset):
+    new_segs = []
+    for seg in segs:
+        new_segs.append([seg[0] + offset, seg[1] + offset])
+
+    return new_segs

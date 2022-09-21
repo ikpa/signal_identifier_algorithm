@@ -1411,7 +1411,7 @@ def test_smooth_seg():
     smooth_window = 401
     offset = int(smooth_window / 2)
 
-    fname = datadir + "many_successful.npz"
+    fname = datadir + "sample_data04.npz"
     signals, names, timex, n_chan = fr.get_signals(fname)
 
     smooth_sigs = []
@@ -1435,8 +1435,15 @@ def test_smooth_seg():
         smooth_sigs.append(new_smooth)
         smooth_xs.append(filt_x)
 
+    u_stats, u_bad_segs, u_sus_segs, u_exec_times = sa.analyse_all_neo(signals, names, n_chan, filters=["uniq", "segment", "spike"])
+    print()
+    print("-------------------------------------------------------------")
+    print()
     o_stats, o_bad_segs, o_sus_segs, o_exec_times = sa.analyse_all_neo(signals, names, n_chan, filters=["segment"])
-    stats, bad_segs, sus_segs, exec_times = sa.analyse_all_neo(smooth_sigs, names, n_chan, filters=["segment"])
+    print()
+    print("-------------------------------------------------------------")
+    print()
+    stats, bad_segs, sus_segs, exec_times = sa.analyse_all_neo(signals, names, n_chan, filters=["seg_thorough"])
 
     def fix_segs(segs, offset):
         new_segs = []
@@ -1456,26 +1463,33 @@ def test_smooth_seg():
         bads = bad_segs[i]
         suss = sus_segs[i]
 
-        if len(bads) != 0:
-            bads = fix_segs(bads, x[0])
-
-        if len(suss) != 0:
-            suss = fix_segs(suss, x[0])
+        # if len(bads) != 0:
+        #     bads = fix_segs(bads, x[0])
+        #
+        # if len(suss) != 0:
+        #     suss = fix_segs(suss, x[0])
 
         o_bads = o_bad_segs[i]
         o_suss = o_sus_segs[i]
 
-        fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
+        u_bads = u_bad_segs[i]
+        u_suss = u_sus_segs[i]
+
+        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
         ax1.plot(sig, label="signal")
+        ax2.plot(sig)
         ylims = ax1.get_ylim()
-        ax2.plot(x, smooth_sig, label="smooth signal")
-        ax2.set_ylim(bottom=ylims[0], top=ylims[1])
+        ax3.plot(x, smooth_sig, label="smooth signal")
+        ax3.set_ylim(bottom=ylims[0], top=ylims[1])
         #ax.legend()
         ax2.set_title(name)
-        hf.plot_spans(ax2, bads, color="red")
-        hf.plot_spans(ax2, suss, color="yellow")
+        hf.plot_spans(ax3, bads, color="red")
+        hf.plot_spans(ax3, suss, color="yellow")
 
-        hf.plot_spans(ax1, o_bads, color="red")
-        hf.plot_spans(ax1, o_suss, color="yellow")
+        hf.plot_spans(ax2, o_bads, color="red")
+        hf.plot_spans(ax2, o_suss, color="yellow")
+
+        hf.plot_spans(ax1, u_bads, color="red")
+        hf.plot_spans(ax1, u_suss, color="yellow")
 
         plt.show()

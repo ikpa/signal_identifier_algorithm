@@ -570,13 +570,14 @@ def averages_are_close(signal, start_is, end_is, averages=None, std_sensitivity=
 
 # calculate the average value of the gradient of a signal between
 # start_i and end_i. start_i may be offset if the start of a segment
-# needs to be excluded
+# needs to be excluded (due to how find_flat_segments works the start of
+# a given segment may be slightly before the signal truly flattens)
 def average_of_gradient(signal, start_i, end_i, offset_percentage=0.05):
     length = end_i - start_i
     offset = int(offset_percentage * length)
     segment = signal[start_i + offset: end_i]
     grad = np.gradient(segment)
-    return sum(grad) / len(grad)
+    return np.mean(grad)
 
 
 # TODO fix confidences
@@ -599,7 +600,8 @@ def cal_goodness_seg(signal, start_i, end_i,
 
     uniq_conf = uniq_w * frac_of_uniq
 
-    grad_average = average_of_gradient(signal, start_i, end_i)
+    grad_average = abs(average_of_gradient(signal, start_i, end_i))
+    print("grad_average: ", grad_average)
 
     if grad_average < grad_sensitivity:
         grad_conf = 0
@@ -610,6 +612,7 @@ def cal_goodness_seg(signal, start_i, end_i,
 
     if rel_len >= .5:
         len_w = 1.5 * len_w
+        grad_conf *= 1.5
 
     len_conf = rel_len * len_w
 
@@ -689,7 +692,7 @@ def reformat_segments(start_is, end_is):
 # find segments where the value stays the same value for a long period.
 # also recalculates the tail of the signal and calculates
 # a confidence value for the segment
-def segment_filter_neo(signal):
+def segment_filter_neo(signal, grad_sens=0.5 * 10 ** (-13)):
     lengths, start_is, end_is = find_flat_segments(signal)
 
     if len(start_is) == 0:
@@ -697,6 +700,8 @@ def segment_filter_neo(signal):
 
     final_i = end_is[len(end_is) - 1]
     seg_is = reformat_segments(start_is, end_is)
+
+    print("number of segments found ", len(seg_is))
 
     # recheck tail
     if final_i != len(signal) - 1:
@@ -706,14 +711,45 @@ def segment_filter_neo(signal):
 
     close = averages_are_close(signal, start_is, end_is, averages=tail_ave)
 
+    # if the averages of all segments are close to each other, they are combined
+    # into one segment
     if close:
-        seg_is = [[start_is[0], end_is[len(end_is) - 1]]]
+        if not tail_ave:
+            seg_is = [[start_is[0], end_is[len(end_is) - 1]]]
+        else:
+            seg_is = [[start_is[0], len(signal) - 1]]
+
+    comb_segs = combine_segments(seg_is)
+
+    print("number of segments outputted", len(comb_segs))
+    print(comb_segs)
 
     confidences = []
-    for segment in seg_is:
-        confidences.append(cal_goodness_seg(signal, segment[0], segment[1]))
+    for segment in comb_segs:
+        confidences.append(cal_goodness_seg(signal, segment[0], segment[1], grad_sensitivity=grad_sens))
 
-    return seg_is, confidences
+    return comb_segs, confidences
+
+
+# TODO test with more datasets: compare with segment_filter_neo
+def segment_filter_thorough(signal, filter_i, smooth_window=401):
+    offset = int(smooth_window / 2)
+    sig_len = len(signal)
+
+    filt_signal = signal[filter_i:]
+
+    smooth_signal = smooth(filt_signal, window_len=smooth_window)
+    smooth_x = [x - offset + filter_i for x in list(range(len(smooth_signal)))]
+
+    new_smooth = []
+    for j in range(filter_i, sig_len):
+        new_smooth.append(smooth_signal[j + offset - filter_i])
+
+    segs, confs = segment_filter_neo(new_smooth, grad_sens=2 * 10**(-13))
+
+    fix_segs = hf.fix_segs(segs, filter_i)
+
+    return fix_segs, confs
 
 
 # calculate a goodness value for a segment found by find_spikes. the confidence
@@ -1013,13 +1049,13 @@ def combine_segments(segments):
     if n == 0:
         return []
 
+    if n == 1:
+        return segments
+
     segments_sorted = sorted(segments, key=itemgetter(0))
 
     combined_segs = []
     anchor_seg = segments_sorted[0]
-
-    if n == 1:
-        return segments
 
     for i in range(1, n):
         segment = segments_sorted[i]
@@ -1147,7 +1183,7 @@ def analyse_all_neo(signals, names, chan_num,
                     filters=None,
                     badness_sensitivity=.8):
     if filters is None:
-        filters = ["uniq", "segment", "spike"]
+        filters = ["uniq", "segment", "spike", "seg_thorough"]
 
     exec_times = []
     signal_statuses = []
@@ -1176,6 +1212,9 @@ def analyse_all_neo(signals, names, chan_num,
 
             if fltr == "spike":
                 seg_is, confs = spike_filter_neo(signal, filter_i)
+
+            if fltr == "seg_thorough":
+                seg_is, confs = segment_filter_thorough(signal, filter_i)
 
             new_segs = len(seg_is)
 
