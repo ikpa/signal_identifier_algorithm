@@ -91,7 +91,7 @@ def crop_all_sigs(signals, xs, bad_segs):
         if max_x < lowest_max_x:
             lowest_max_x = max_x
 
-    # remove all x values appearing after all bad segments
+    # remove all x values appearing in or after all bad segments
     for seg_list in bad_segs:
         for seg in seg_list:
             if lowest_max_x > seg[0]:
@@ -122,10 +122,15 @@ def calc_magn_field_from_signals(signals, xs, vectors, ave_window=400):
     else:
         cropped_signals, new_x = crop_all_sigs(signals, xs, [])
 
+    averaged_sigs = []
+
+    for signal in cropped_signals:
+        averaged_sigs.append(averaged_signal(signal, ave_window))
+
     # if there are less than 3 signals, the calculation is not performed
     if len(signals) < 3:
         print("not enough signals to calculate magnetic field vector")
-        return [], [], cropped_signals, new_x
+        return [], [], cropped_signals, new_x, averaged_sigs
 
     magn_vectors = []
     mag_is = []
@@ -163,7 +168,7 @@ def calc_magn_field_from_signals(signals, xs, vectors, ave_window=400):
     mag_i_offset = new_x[0] - mag_is[0]
     mag_is = [x + mag_i_offset for x in mag_is]
 
-    return magn_vectors, mag_is, cropped_signals, new_x
+    return magn_vectors, mag_is, cropped_signals, new_x, averaged_sigs
 
 
 # reconstruct a signal using a magnetic vector (as a function of time) mag
@@ -186,8 +191,8 @@ def rec_and_diff(signals, xs, vs, ave_window=1):
         return None, None, None, None, None, None, None
 
     # calculate magnetic field vector
-    magn_vectors, mag_is, cropped_signals, new_x = calc_magn_field_from_signals(signals, xs, vs,
-                                                                                ave_window=ave_window)
+    magn_vectors, mag_is, cropped_signals, new_x, averaged_signals = calc_magn_field_from_signals(signals, xs, vs,
+                                                                                                  ave_window=ave_window)
 
     if len(magn_vectors) == 0:
         return None, None, None, None, None, None, None
@@ -201,7 +206,8 @@ def rec_and_diff(signals, xs, vs, ave_window=1):
         rec_sigs.append(rec_sig)
 
         # calculate difference between original and reconstructed signals
-        diffs, diff_x = calc_diff(cropped_signals[i], rec_sig, new_x, mag_is)
+        # diffs, diff_x = calc_diff(cropped_signals[i], rec_sig, new_x, mag_is)
+        diffs, diff_x = calc_diff(averaged_signals[i], rec_sig, mag_is, mag_is)
 
         # calculate averages
         ave = np.mean(diffs)
@@ -210,7 +216,7 @@ def rec_and_diff(signals, xs, vs, ave_window=1):
 
     ave_of_aves = np.mean(aves)
 
-    return ave_of_aves, aves, all_diffs, rec_sigs, mag_is, cropped_signals, new_x
+    return ave_of_aves, aves, all_diffs, rec_sigs, mag_is, averaged_signals, mag_is  # cropped_signals, new_x
 
 
 # from a set of signals, systematically  remove the most unphysical ones
@@ -316,7 +322,7 @@ def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, ave_sens=10 ** (-13
 # it was excluded. also returns the absolute and relative improvement
 # each signal's exclusion caused to the average total difference.
 def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, smooth_window=401,
-                   badness_sens=.5, ave_window=1, ave_sens=10 ** (-13)):
+                   badness_sens=.25, ave_window=1, ave_sens=10 ** (-13)):
     import file_reader as fr
 
     def seg_lens(sig, segs):
@@ -431,15 +437,17 @@ def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, smooth_window=4
 # 1 = unphysical
 # 2 = undetermined
 # 3 = unused
+# TODO keep testing scoring; possibly increase conf_sens
 def analyse_phys_dat(all_diffs, names, all_rel_diffs, chan_dict, frac_w=2.5,
                      diff_w=.5, num_w=.5, unphys_sensitivity=.25, conf_sens=.5,
-                     min_chans=5):
+                     min_chans=5, uncert_chans=7):
     status = []
     confidence = []
 
     for i in range(len(names)):
         name = names[i]
         rel_diffs = all_rel_diffs[name]
+        print(name)
         diffs = all_diffs[name]
         chan_dat = chan_dict[name]
 
@@ -476,7 +484,14 @@ def analyse_phys_dat(all_diffs, names, all_rel_diffs, chan_dict, frac_w=2.5,
 
             frac_conf = frac_w * (1 - frac_excluded / (2.5 * unphys_sensitivity))
 
-        num_conf = num_w * tot / 14
+        if tot < uncert_chans:
+            # TODO CHECK THIS
+            num_w2 = - uncert_chans / tot
+        else:
+            num_w2 = tot / 14
+
+        num_conf = num_w * num_w2
+        print(num_conf / (diff_w + frac_w + num_w))
         conf = (diff_conf + frac_conf + num_conf) / (diff_w + frac_w + num_w)
 
         if conf < conf_sens:
@@ -488,6 +503,30 @@ def analyse_phys_dat(all_diffs, names, all_rel_diffs, chan_dict, frac_w=2.5,
     return status, confidence
 
 
+def averaged_signal(signal, ave_window):
+    new_sig = []
+
+    start_i = 0
+    end_i = ave_window
+    max_i = len(signal) - 1
+
+    cont = True
+    while cont:
+        ave = np.mean(signal[start_i:end_i])
+        new_sig.append(ave)
+
+        start_i = end_i
+        end_i = end_i + ave_window
+
+        if end_i > max_i:
+            end_i = max_i
+
+        if start_i >= max_i:
+            cont = False
+
+    return new_sig
+
+
 # calculate absolute difference between points in two different signals.
 # inputs may have different x-values with different spacings, as long as
 # there is some overlap. x-values must be in indices
@@ -497,16 +536,19 @@ def calc_diff(signal1, signal2, x1, x2):
     new_x = list(range(x_min, x_max))
     new_new_x = []
 
+    # print(len(signal1), len(signal2), len(x1), len(x2))
+
     diffs = []
 
-    for x in new_x:
-        if x not in x1 or x not in x2:
-            continue
-        i1 = x1.index(x)
-        i2 = x2.index(x)
-        new_new_x.append(x)
-        point1 = signal1[i1]
-        point2 = signal2[i2]
+    # for x in new_x:
+    # if x not in x1 or x not in x2:
+    #     continue
+    # i1 = x1.index(x)
+    # i2 = x2.index(x)
+    for i in range(len(signal1)):
+        new_new_x.append(x1[i])
+        point1 = signal1[i]
+        point2 = signal2[i]
         diffs.append(abs(point1 - point2))
 
     return diffs, new_new_x
@@ -745,7 +787,7 @@ def segment_filter_thorough(signal, filter_i, smooth_window=401):
     for j in range(filter_i, sig_len):
         new_smooth.append(smooth_signal[j + offset - filter_i])
 
-    segs, confs = segment_filter_neo(new_smooth, grad_sens=2 * 10**(-13))
+    segs, confs = segment_filter_neo(new_smooth, grad_sens=2 * 10 ** (-13))
 
     fix_segs = hf.fix_segs(segs, filter_i)
 
@@ -1183,7 +1225,7 @@ def analyse_all_neo(signals, names, chan_num,
                     filters=None,
                     badness_sensitivity=.8):
     if filters is None:
-        filters = ["uniq", "segment", "spike", "seg_thorough"]
+        filters = ["uniq", "segment", "spike"]
 
     exec_times = []
     signal_statuses = []
