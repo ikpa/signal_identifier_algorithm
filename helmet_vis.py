@@ -1,4 +1,4 @@
-import calc_eddy_currents_for_patrik.viz as viz
+import viz as viz
 import helper_funcs as hf
 from mayavi import mlab
 import numpy as np

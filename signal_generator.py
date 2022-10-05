@@ -1,9 +1,9 @@
 import random as ran
 import numpy as np
 from numpy.lib import recfunctions as rf
-import calc_eddy_currents_for_patrik.pyfunk as pf
-from calc_eddy_currents_for_patrik.coils.eddycurrents0 import diagonalize, transient_amplitudes, SplitBoxRoom, UNIT
-from calc_eddy_currents_for_patrik.coils.coils import ScalarCoilPlate, DipoleSet
+import pyfunk as pf
+from coils.eddycurrents0 import diagonalize, transient_amplitudes, SplitBoxRoom, UNIT
+from coils.coils import ScalarCoilPlate, DipoleSet
 import matplotlib.pyplot as plt
 import multiprocessing as mp
 

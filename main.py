@@ -15,8 +15,8 @@ def arg_parser():
                                                  "measurements")
 
     parser.add_argument("--filename", required=True, type=str, help="filename of the dataset to analyse")
-    parser.add_argument('--filters', nargs='+', choices=["uniq", "segment", "gradient"],
-                        default=["uniq", "segment", "gradient"], help="the basic filters to use")
+    parser.add_argument('--filters', nargs='+', choices=["uniq", "segment", "spike"],
+                        default=["uniq", "segment", "spike"], help="the basic filters to use")
     parser.add_argument("-p", "--physicality", action="store_true", default=False, help="do physicality analysis")
     parser.add_argument("--plot", action="store_true", default=False, help="plot signals with results")
     return parser.parse_args()
