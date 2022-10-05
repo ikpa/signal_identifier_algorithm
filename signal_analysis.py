@@ -111,6 +111,7 @@ def crop_all_sigs(signals, xs, bad_segs):
     return new_signals, new_x
 
 
+# TODO remove redundancy
 # calculates a magnetic field vector as a function of time from a set of signals
 # and their vectors. the magnetic fields are calculated from averaged
 # signals. averaging window can be changed using ave_window
@@ -322,7 +323,7 @@ def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, ave_sens=10 ** (-13
 # it was excluded. also returns the absolute and relative improvement
 # each signal's exclusion caused to the average total difference.
 def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, smooth_window=401,
-                   badness_sens=.25, ave_window=1, ave_sens=10 ** (-13)):
+                   badness_sens=.3, ave_window=1, ave_sens=10 ** (-13)):
     import file_reader as fr
 
     def seg_lens(sig, segs):
@@ -437,9 +438,8 @@ def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, smooth_window=4
 # 1 = unphysical
 # 2 = undetermined
 # 3 = unused
-# TODO keep testing scoring; possibly increase conf_sens
 def analyse_phys_dat(all_diffs, names, all_rel_diffs, chan_dict, frac_w=2.5,
-                     diff_w=.5, num_w=.5, unphys_sensitivity=.25, conf_sens=.5,
+                     diff_w=.5, num_w=.5, unphys_sensitivity=.3, conf_sens=.55,
                      min_chans=5, uncert_chans=7):
     status = []
     confidence = []
@@ -485,7 +485,6 @@ def analyse_phys_dat(all_diffs, names, all_rel_diffs, chan_dict, frac_w=2.5,
             frac_conf = frac_w * (1 - frac_excluded / (2.5 * unphys_sensitivity))
 
         if tot < uncert_chans:
-            # TODO CHECK THIS
             num_w2 = - uncert_chans / tot
         else:
             num_w2 = tot / 14
@@ -946,6 +945,9 @@ def calc_fft_indices(signal, indices=None, window=400, smooth_window=401):
     if indices is None:
         indices = [1, 2, 6]
 
+    if len(signal) < window:
+        return None, None, None, None, None
+
     sig_len = len(signal)
     ftrans_points = sig_len - window
     i_arr = np.zeros((len(indices), ftrans_points))
@@ -986,7 +988,7 @@ def find_default_y(arr, num_points=5000, step=.1 * 10 ** (-7)):
     arr_len = len(arr)
     frac_arr = []
 
-    # calculate the fraction of signals in a segment of lenght step as a
+    # calculate the fraction of signals in a segment of length step as a
     # function of y
     for y_min in y_arr:
         y_max = y_min + step
@@ -1255,6 +1257,7 @@ def analyse_all_neo(signals, names, chan_num,
             if fltr == "spike":
                 seg_is, confs = spike_filter_neo(signal, filter_i)
 
+            # UNUSED
             if fltr == "seg_thorough":
                 seg_is, confs = segment_filter_thorough(signal, filter_i)
 

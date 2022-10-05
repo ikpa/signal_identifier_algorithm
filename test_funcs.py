@@ -941,24 +941,25 @@ def test_magn2():
             # xs.append(ix)
             # detrended_sigs.append(detrended_signal)
 
-            #smooth_sigs.append(smooth_signal)
-            #xs.append(x)
+            # smooth_sigs.append(smooth_signal)
+            # xs.append(x)
 
-        #for signal in smooth_sigs:
-            #print(len(signal))
+        # for signal in smooth_sigs:
+        # print(len(signal))
 
         cropped_signals, o_new_x = sa.crop_all_sigs(smooth_sigs, xs, [])
-        #print(len(new_x))
+        # print(len(new_x))
 
-        ave_of_aves, aves, all_diffs, rec_sigs, mag_is, new_cropped_signals, crop_x = sa.rec_and_diff(cropped_signals, [o_new_x],
-                                                                                                  near_vs,
-                                                                                                  ave_window=ave_window)
+        ave_of_aves, aves, all_diffs, rec_sigs, mag_is, new_cropped_signals, crop_x = sa.rec_and_diff(cropped_signals,
+                                                                                                      [o_new_x],
+                                                                                                      near_vs,
+                                                                                                      ave_window=ave_window)
 
         excludes, new_x, ave_diffs, rel_diffs = sa.filter_unphysical_sigs(smooth_sigs, new_names, xs, near_vs,
                                                                           [],
                                                                           ave_window=ave_window, ave_sens=ave_sens)
 
-        #print(o_new_x, new_x)
+        # print(o_new_x, new_x)
 
         if cropped_signals is None:
             print()
@@ -978,7 +979,7 @@ def test_magn2():
             good_sigs.append(cropped_signals[k])
             good_names.append(nam)
             good_vs.append(near_vs[k])
-            #good_xs.append(xs[k])
+            # good_xs.append(xs[k])
             good_xs.append(o_new_x)
 
         good_ave_of_aves, good_aves, good_all_diffs, good_rec_sigs, good_mag_is, good_cropped_signals, good_crop_x = sa.rec_and_diff(
@@ -1042,7 +1043,7 @@ def test_new_excluder():
     smooth_window = 401
     offset = int(smooth_window / 2)
 
-    fname = datadir + "many_many_successful2.npz"
+    fname = datadir + "sample_data34.npz"
     signals, names, timex, n_chan = fr.get_signals(fname)
 
     detecs = np.load("array120_trans_newnames.npz")
@@ -1532,3 +1533,83 @@ def test_smooth_seg():
         hf.plot_spans(ax4, g_suss, color="yellow")
 
         plt.show()
+
+
+def test_fft():
+    fname = datadir + "many_many_successful.npz"
+    signals, names, timex, n_chan = fr.get_signals(fname, channels=["MEG2441"])
+
+    detecs = np.load("array120_trans_newnames.npz")
+
+    signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals, names, n_chan,
+                                                                                                badness_sensitivity=.5)
+
+    for i in range(n_chan):
+        name = names[i]
+        print(name)
+        signal = signals[i]
+        bad_segs = bad_segment_list[i]
+        filter_i = sa.filter_start(signal)
+
+        normal_sig = signal[filter_i:]
+        normal_x = list(range(filter_i, len(signal)))
+
+        if len(bad_segs) == 0:
+            final_i = len(signal) - 1
+        else:
+            final_i = bad_segs[0][0]
+
+        filtered_signal = signal[filter_i:final_i]
+        filter_x = list(range(filter_i, final_i))
+
+        i_arr, i_x, smooth_signal, smooth_x, detrended_sig = sa.calc_fft_indices(filtered_signal, [2])
+
+        if i_arr is None:
+            print("skip")
+            print()
+            continue
+
+        filter_i_i = sa.filter_start(i_arr[0])
+        arr = i_arr[0][filter_i_i:]
+        i_arr_ave = np.mean(arr)
+        i_arr_sdev = np.std(arr)
+        ma = np.amax(arr)
+        mi = np.amin(arr)
+        print(i_arr_ave, i_arr_sdev)  # ave < 10e-09 - 5e-09 => SUS, sdev > 3e-09 => SUS
+        print("max min", ma, mi)
+        print("rel diff", (ma - i_arr_ave) / i_arr_ave, (mi - i_arr_ave) / i_arr_ave)
+        print("diff", (ma - i_arr_ave), (mi - i_arr_ave))
+        min_i = np.where(i_arr[0] == mi)
+        max_i = np.where(i_arr[0] == ma)
+
+        grad = np.gradient(i_arr[0])
+        cut_grad = grad[filter_i_i:]
+        grad_ave = np.mean(cut_grad)
+        max_grad = np.amax(cut_grad)
+        min_grad = np.amin(cut_grad)
+        print("grad max min", max_grad, min_grad)
+        print("grad rel", abs(max_grad / grad_ave), abs(min_grad / grad_ave))
+        print(grad_ave)  # > 1e-12 => SUS
+        grad_min_i = np.where(grad == min_grad)
+        grad_max_i = np.where(grad == max_grad)
+        grad_x = list(range(filter_i_i, i_x[-1] + 1))
+
+        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
+
+        ax1.plot(normal_x, normal_sig, label="untreated")
+        ax1.plot(filter_x, filtered_signal, label="sig")
+        ax1.plot(filter_x, detrended_sig, label="detrended")
+        ax2.plot(i_x, i_arr[0])
+        ax2.axvline(max_i, linestyle="--", color="red")
+        ax2.axvline(min_i, linestyle="--", color="green")
+        ax2.axvline(filter_i_i, linestyle="--", color="black")
+        ax3.axvline(grad_max_i, linestyle="--", color="red")
+        ax3.axvline(grad_min_i, linestyle="--", color="green")
+        ax3.plot(grad_x, cut_grad)
+
+        ax1.legend()
+        ax2.set_ylim(0, 10 ** (-7))
+
+        plt.show()
+
+        print()

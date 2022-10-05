@@ -134,8 +134,8 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
-    #tf.test_new_excluder()
+    #main()
+    tf.test_fft()
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
