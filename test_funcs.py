@@ -1536,8 +1536,8 @@ def test_smooth_seg():
 
 
 def test_fft():
-    fname = datadir + "many_many_successful.npz"
-    signals, names, timex, n_chan = fr.get_signals(fname, channels=["MEG2441"])
+    fname = datadir + "many_many_successful2.npz"
+    signals, names, timex, n_chan = fr.get_signals(fname)
 
     detecs = np.load("array120_trans_newnames.npz")
 
@@ -1562,50 +1562,30 @@ def test_fft():
         filtered_signal = signal[filter_i:final_i]
         filter_x = list(range(filter_i, final_i))
 
-        i_arr, i_x, smooth_signal, smooth_x, detrended_sig = sa.calc_fft_indices(filtered_signal, [2])
+        nu_i_x, nu_i_arr, u_filter_i_i, u_i_arr_ave, u_i_arr_sdev, u_ma, u_mi, u_min_i, u_max_i, u_cut_grad, u_grad_ave, u_max_grad, u_min_grad, u_grad_max_i, u_grad_min_i, u_grad_x = sa.fft_filter(signal, bad_segs, filter_i)
 
-        if i_arr is None:
+        if nu_i_x is None:
             print("skip")
-            print()
             continue
-
-        filter_i_i = sa.filter_start(i_arr[0])
-        arr = i_arr[0][filter_i_i:]
-        i_arr_ave = np.mean(arr)
-        i_arr_sdev = np.std(arr)
-        ma = np.amax(arr)
-        mi = np.amin(arr)
-        print(i_arr_ave, i_arr_sdev)  # ave < 10e-09 - 5e-09 => SUS, sdev > 3e-09 => SUS
-        print("max min", ma, mi)
-        print("rel diff", (ma - i_arr_ave) / i_arr_ave, (mi - i_arr_ave) / i_arr_ave)
-        print("diff", (ma - i_arr_ave), (mi - i_arr_ave))
-        min_i = np.where(i_arr[0] == mi)
-        max_i = np.where(i_arr[0] == ma)
-
-        grad = np.gradient(i_arr[0])
-        cut_grad = grad[filter_i_i:]
-        grad_ave = np.mean(cut_grad)
-        max_grad = np.amax(cut_grad)
-        min_grad = np.amin(cut_grad)
-        print("grad max min", max_grad, min_grad)
-        print("grad rel", abs(max_grad / grad_ave), abs(min_grad / grad_ave))
-        print(grad_ave)  # > 1e-12 => SUS
-        grad_min_i = np.where(grad == min_grad)
-        grad_max_i = np.where(grad == max_grad)
-        grad_x = list(range(filter_i_i, i_x[-1] + 1))
 
         fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
 
         ax1.plot(normal_x, normal_sig, label="untreated")
-        ax1.plot(filter_x, filtered_signal, label="sig")
-        ax1.plot(filter_x, detrended_sig, label="detrended")
-        ax2.plot(i_x, i_arr[0])
-        ax2.axvline(max_i, linestyle="--", color="red")
-        ax2.axvline(min_i, linestyle="--", color="green")
-        ax2.axvline(filter_i_i, linestyle="--", color="black")
-        ax3.axvline(grad_max_i, linestyle="--", color="red")
-        ax3.axvline(grad_min_i, linestyle="--", color="green")
-        ax3.plot(grad_x, cut_grad)
+
+        if nu_i_x is not None:
+            ax2.plot(nu_i_x, nu_i_arr, color="red", label="new")
+
+        ax2.legend()
+
+        if len(u_min_i[0]) == 1:
+            ax2.axvline(u_min_i, linestyle="--", color="green")
+
+        ax2.axvline(u_max_i, linestyle="--", color="red")
+        ax2.axvline(u_filter_i_i, linestyle="--", color="black")
+        ax3.axvline(u_grad_max_i, linestyle="--", color="red")
+        ax3.axvline(u_grad_min_i, linestyle="--", color="green")
+
+        ax3.plot(u_grad_x, u_cut_grad)
 
         ax1.legend()
         ax2.set_ylim(0, 10 ** (-7))
