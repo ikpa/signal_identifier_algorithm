@@ -978,35 +978,24 @@ def calc_fft_indices(signal, indices=None, window=400, smooth_window=401):
     return i_arr, list(range(ftrans_points)), smooth_signal, smooth_x, filtered_signal
 
 
-def stats_from_i(i_arr, i_x):
+# TODO normalized sdev (check different methods), RMS for grad, grad average for trends, rolling something for 2 part signals
+def stats_from_i(i_arr, i_x, grad_cut=50, grad_lim=10 ** (-10)):
     filter_i_i = filter_start(i_arr)
     arr = i_arr[filter_i_i:]
     i_arr_ave = np.mean(arr)
     i_arr_sdev = np.std(arr)
-    ma = np.amax(arr)
-    mi = np.amin(arr)
+    i_arr_max = np.amax(arr)
 
-    min_i = np.where(i_arr == mi)
-    max_i = np.where(i_arr == ma)
-
-    grad = np.gradient(i_arr)
+    grad = np.gradient(i_arr)[:-grad_cut]
     cut_grad = grad[filter_i_i:]
     grad_ave = np.mean(cut_grad)
-    max_grad = np.amax(cut_grad)
-    min_grad = np.amin(cut_grad)
+    grad_x = list(range(filter_i_i, i_x[-1] + 1 - grad_cut))
 
-    grad_min_i = np.where(grad == min_grad)
-    grad_max_i = np.where(grad == max_grad)
-    grad_x = list(range(filter_i_i, i_x[-1] + 1))
+    print("i ave:", i_arr_ave, " i sdev:", i_arr_sdev)  # ave < 10e-09 - 5e-09 => SUS, sdev > 3e-09 => SUS
+    print("max norm sdev:", i_arr_sdev / i_arr_max, "ave norm sdev:", i_arr_sdev / i_arr_ave)
+    print("grad ave", grad_ave)  # > 1e-12 => SUS
 
-    print(i_arr_ave, i_arr_sdev)  # ave < 10e-09 - 5e-09 => SUS, sdev > 3e-09 => SUS
-    print("max min", ma, mi)
-    print("rel diff", (ma - i_arr_ave) / i_arr_ave, (mi - i_arr_ave) / i_arr_ave)
-    print("diff", (ma - i_arr_ave), (mi - i_arr_ave))
-
-    print("grad max min", max_grad, min_grad)
-    print("grad rel", abs(max_grad / grad_ave), abs(min_grad / grad_ave))
-    print(grad_ave)  # > 1e-12 => SUS
+    # print(max_sus_is, min_sus_is)
 
     if i_arr_ave < 5 * 10 ** (-9):
         print("NOT ENOUGH 50HZ")
@@ -1019,40 +1008,41 @@ def stats_from_i(i_arr, i_x):
     elif i_arr_sdev > 10 ** (-8):
         print("NO 50HZ LEVEL FOUND")
 
-    return filter_i_i, i_arr_ave, i_arr_sdev, ma, mi, min_i, max_i, cut_grad, grad_ave, max_grad, min_grad, grad_max_i, grad_min_i, grad_x
+    return filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x
 
 
-def fft_filter(signal, bad_segs, filter_i, badness_sens=.8, fft_window=400):
+def fft_filter(signal, bad_segs, filter_i, badness_sens=.8, fft_window=400, indices=[2]):
     normal_sig = signal[filter_i:]
     sig_len = len(signal)
-    normal_x = list(range(filter_i, len(signal)))
 
-    bad_frac = length_of_segments(bad_segs)/sig_len
-    print(length_of_segments(bad_segs))
-    print(bad_frac)
+    bad_frac = length_of_segments(bad_segs) / sig_len
     if bad_frac > badness_sens:
-        return None, None, None, None, None, None, None, None, None, None, None,  None, None, None, None, None
+        return None, None, None, None, None, None, None, None
 
     if len(bad_segs) == 0:
         final_i = len(signal) - fft_window
     else:
         final_i = bad_segs[0][0] - fft_window
 
-    filtered_signal = signal[filter_i:final_i]
-    filter_x = list(range(filter_i, final_i))
+    # filtered_signal = signal[filter_i:final_i]
+    # filter_x = list(range(filter_i, final_i))
 
-    i_arr, i_x, smooth_signal, smooth_x, detrended_sig = calc_fft_indices(normal_sig, [2], window=fft_window)
+    i_arr, i_x, smooth_signal, smooth_x, detrended_sig = calc_fft_indices(normal_sig, indices, window=fft_window)
 
     if i_arr is None:
-        return None, None, None, None, None, None, None, None, None, None, None,  None, None, None, None, None
+        return None, None, None, None, None, None, None, None
 
-    nu_i_arr = i_arr[0][:final_i]
+    nu_i_arr = []
+
+    for arr in i_arr:
+        nu_i_arr.append(arr[:final_i])
+
     nu_i_x = i_x[:final_i]
 
-    u_filter_i_i, u_i_arr_ave, u_i_arr_sdev, u_ma, u_mi, u_min_i, u_max_i, u_cut_grad, u_grad_ave, u_max_grad, u_min_grad, u_grad_max_i, u_grad_min_i, u_grad_x = stats_from_i(
-        nu_i_arr, nu_i_x)
+    filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x = stats_from_i(
+        nu_i_arr[0], nu_i_x)
 
-    return nu_i_x, nu_i_arr, u_filter_i_i, u_i_arr_ave, u_i_arr_sdev, u_ma, u_mi, u_min_i, u_max_i, u_cut_grad, u_grad_ave, u_max_grad, u_min_grad, u_grad_max_i, u_grad_min_i, u_grad_x
+    return nu_i_x, nu_i_arr, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x
 
 
 # UNUSED

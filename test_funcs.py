@@ -10,6 +10,7 @@ import signal_generator as sg
 
 datadir = "example_data_for_patrik/"
 
+brokens = ["MEG0111", "MEG0221", "MEG0234", "MEG0241", "MEG1244", "MEG2131", "MEG2244"]
 
 # various test functions. not commented
 
@@ -1536,7 +1537,7 @@ def test_smooth_seg():
 
 
 def test_fft():
-    fname = datadir + "many_many_successful2.npz"
+    fname = datadir + "sample_data34.npz"
     signals, names, timex, n_chan = fr.get_signals(fname)
 
     detecs = np.load("array120_trans_newnames.npz")
@@ -1554,18 +1555,13 @@ def test_fft():
         normal_sig = signal[filter_i:]
         normal_x = list(range(filter_i, len(signal)))
 
-        if len(bad_segs) == 0:
-            final_i = len(signal) - 1
-        else:
-            final_i = bad_segs[0][0]
+        indices = [2]
 
-        filtered_signal = signal[filter_i:final_i]
-        filter_x = list(range(filter_i, final_i))
-
-        nu_i_x, nu_i_arr, u_filter_i_i, u_i_arr_ave, u_i_arr_sdev, u_ma, u_mi, u_min_i, u_max_i, u_cut_grad, u_grad_ave, u_max_grad, u_min_grad, u_grad_max_i, u_grad_min_i, u_grad_x = sa.fft_filter(signal, bad_segs, filter_i)
+        nu_i_x, nu_i_arr, u_filter_i_i, u_i_arr_ave, u_i_arr_sdev, u_cut_grad, u_grad_ave, u_grad_x = sa.fft_filter(signal, bad_segs, filter_i, indices=indices)
 
         if nu_i_x is None:
             print("skip")
+            print()
             continue
 
         fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
@@ -1573,17 +1569,15 @@ def test_fft():
         ax1.plot(normal_x, normal_sig, label="untreated")
 
         if nu_i_x is not None:
-            ax2.plot(nu_i_x, nu_i_arr, color="red", label="new")
+            for k in range(len(nu_i_arr)):
+                arr = nu_i_arr[k]
+                index = indices[k]
+                ax2.plot(nu_i_x, arr, label=index)
 
         ax2.legend()
 
-        if len(u_min_i[0]) == 1:
-            ax2.axvline(u_min_i, linestyle="--", color="green")
-
-        ax2.axvline(u_max_i, linestyle="--", color="red")
         ax2.axvline(u_filter_i_i, linestyle="--", color="black")
-        ax3.axvline(u_grad_max_i, linestyle="--", color="red")
-        ax3.axvline(u_grad_min_i, linestyle="--", color="green")
+        ax3.set_ylim(-.5*10**(-9), .5*10**(-9))
 
         ax3.plot(u_grad_x, u_cut_grad)
 
