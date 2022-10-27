@@ -502,8 +502,9 @@ def analyse_phys_dat(all_diffs, names, all_rel_diffs, chan_dict, frac_w=2.5,
     return status, confidence
 
 
-def averaged_signal(signal, ave_window):
+def averaged_signal(signal, ave_window, x=[], rms=False):
     new_sig = []
+    new_x = []
 
     start_i = 0
     end_i = ave_window
@@ -511,8 +512,16 @@ def averaged_signal(signal, ave_window):
 
     cont = True
     while cont:
-        ave = np.mean(signal[start_i:end_i])
+        seg = signal[start_i:end_i]
+        if rms:
+            ave = np.sqrt(np.mean([x**2 for x in seg]))
+        else:
+            ave = np.mean(seg)
+
         new_sig.append(ave)
+
+        if len(x) != 0:
+            new_x.append(int(np.mean([x[start_i], x[end_i]])))
 
         start_i = end_i
         end_i = end_i + ave_window
@@ -522,6 +531,9 @@ def averaged_signal(signal, ave_window):
 
         if start_i >= max_i:
             cont = False
+
+    if len(x) != 0:
+        return new_sig, new_x
 
     return new_sig
 
@@ -941,7 +953,7 @@ def get_fft(signal, filter_i=0):
 # before calculating the ffts the trend of the signal is removed by first
 # calculating a rolling average with a very large smoothing window and then
 # getting the difference between the smoothed signal and the original.
-def calc_fft_indices(signal, indices=None, window=400, smooth_window=401):
+def calc_fft_indices(signal, indices=None, window=400, smooth_window=401, filter_offset=0):
     if indices is None:
         indices = [1, 2, 6]
 
@@ -955,7 +967,8 @@ def calc_fft_indices(signal, indices=None, window=400, smooth_window=401):
     # calculate smoothed signal
     offset = int(smooth_window / 2)
     smooth_signal = smooth(signal, window_len=smooth_window)
-    smooth_x = [x - offset for x in list(range(len(smooth_signal)))]
+    # CHECK AGAIN IF THIS IS USED SOMEWHERE
+    smooth_x = [x - offset + filter_offset for x in list(range(len(smooth_signal)))]
 
     # calculate the x values for the smooth signal
     new_smooth = []
@@ -975,11 +988,14 @@ def calc_fft_indices(signal, indices=None, window=400, smooth_window=401):
             index = indices[j]
             i_arr[j][i] = ftrans[index]
 
-    return i_arr, list(range(ftrans_points)), smooth_signal, smooth_x, filtered_signal
+    nu_x = list(range(ftrans_points))
+    # nu_x = [x + filter_offset for x in nu_x]
+
+    return i_arr, nu_x, smooth_signal, smooth_x, filtered_signal
 
 
 # TODO normalized sdev (check different methods), RMS for grad, grad average for trends, rolling something for 2 part signals
-def stats_from_i(i_arr, i_x, grad_cut=50, grad_lim=10 ** (-10)):
+def stats_from_i(i_arr, i_x, grad_cut=70, grad_ave_thresh=2 * 10 ** (-12), sig_len=1000):
     filter_i_i = filter_start(i_arr)
     arr = i_arr[filter_i_i:]
     i_arr_ave = np.mean(arr)
@@ -991,22 +1007,43 @@ def stats_from_i(i_arr, i_x, grad_cut=50, grad_lim=10 ** (-10)):
     grad_ave = np.mean(cut_grad)
     grad_x = list(range(filter_i_i, i_x[-1] + 1 - grad_cut))
 
+    max_norm_sdev = i_arr_sdev / i_arr_max
+    ave_norm_sdev = i_arr_sdev / i_arr_ave
+    grad_rms = np.sqrt(np.mean([x**2 for x in cut_grad]))
+
     print("i ave:", i_arr_ave, " i sdev:", i_arr_sdev)  # ave < 10e-09 - 5e-09 => SUS, sdev > 3e-09 => SUS
-    print("max norm sdev:", i_arr_sdev / i_arr_max, "ave norm sdev:", i_arr_sdev / i_arr_ave)
+    print("max norm sdev:", max_norm_sdev, "ave norm sdev:", ave_norm_sdev) # 0.08 - 0.1, 0.1-0.15
     print("grad ave", grad_ave)  # > 1e-12 => SUS
+    print("grad rms", grad_rms) # sus thresh: 2.5e-11, bad tresh: 7e-11 (raise this possibly)
 
     # print(max_sus_is, min_sus_is)
 
+    if len(i_arr) < sig_len:
+        print("NOT ENOUGH SIGNAL")
+        return filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x
+
+    # sus: 1e-08 - 5e-09, bad < 5e-09
     if i_arr_ave < 5 * 10 ** (-9):
         print("NOT ENOUGH 50HZ")
+        return filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x
+    elif i_arr_ave < 1.5 * 10 ** (-8):
+        print("LOW 50HZ, SDEV RESULTS SKEWED")
 
-    if grad_ave > 1.5 * 10 ** (-12):
+    if grad_ave > grad_ave_thresh:
         print("INCREASING 50HZ")
 
-    if 3.5 * 10 ** (-9) < i_arr_sdev < 10 ** (-8):
-        print("SUSPICIOUSLY HIGH VARIANCE")
-    elif i_arr_sdev > 10 ** (-8):
-        print("NO 50HZ LEVEL FOUND")
+    if ave_norm_sdev > 0.1:
+        print("HIGH SDEV")
+
+    if 2.5 * 10 ** (-11) < grad_rms < 1.5 * 10**(-10):
+        print("SUSPICIOUS RMS")
+    elif grad_rms > 1.5 * 10**(-10):
+        print("EXTREMELY HIGH RMS")
+
+    # if 3.5 * 10 ** (-9) < i_arr_sdev < 10 ** (-8):
+    #     print("SUSPICIOUSLY HIGH VARIANCE")
+    # elif i_arr_sdev > 10 ** (-8):
+    #     print("NO 50HZ LEVEL FOUND")
 
     return filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x
 
@@ -1027,7 +1064,7 @@ def fft_filter(signal, bad_segs, filter_i, badness_sens=.8, fft_window=400, indi
     # filtered_signal = signal[filter_i:final_i]
     # filter_x = list(range(filter_i, final_i))
 
-    i_arr, i_x, smooth_signal, smooth_x, detrended_sig = calc_fft_indices(normal_sig, indices, window=fft_window)
+    i_arr, i_x, smooth_signal, smooth_x, detrended_sig = calc_fft_indices(normal_sig, indices, window=fft_window, filter_offset=filter_i)
 
     if i_arr is None:
         return None, None, None, None, None, None, None, None

@@ -1537,7 +1537,7 @@ def test_smooth_seg():
 
 
 def test_fft():
-    fname = datadir + "sample_data34.npz"
+    fname = datadir + "many_many_successful2.npz"
     signals, names, timex, n_chan = fr.get_signals(fname)
 
     detecs = np.load("array120_trans_newnames.npz")
@@ -1579,10 +1579,24 @@ def test_fft():
         ax2.axvline(u_filter_i_i, linestyle="--", color="black")
         ax3.set_ylim(-.5*10**(-9), .5*10**(-9))
 
-        ax3.plot(u_grad_x, u_cut_grad)
+        ax3.plot(u_grad_x, u_cut_grad, label="orig")
 
         ax1.legend()
         ax2.set_ylim(0, 10 ** (-7))
+
+        #fig, (ax1) = plt.subplots(1, 1, sharex=True)
+
+        # TODO find lowest rolled_grad value (?), also test the smooth() function for rolling ave
+        roll_window = 100
+        rolled_grad, rolled_grad_x = sa.averaged_signal(u_cut_grad, roll_window, x=u_grad_x)
+
+        grad_rms = sa.averaged_signal(u_cut_grad, roll_window, rms=True)
+
+        ax3.plot(rolled_grad_x, rolled_grad, label="rolling average")
+        ax3.plot(rolled_grad_x, grad_rms, label="rolling rms")
+
+        #ax4.set_ylim(-.5 * 10 ** (-9), .5 * 10 ** (-9))
+        ax3.legend()
 
         plt.show()
 
