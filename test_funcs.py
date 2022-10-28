@@ -12,6 +12,7 @@ datadir = "example_data_for_patrik/"
 
 brokens = ["MEG0111", "MEG0221", "MEG0234", "MEG0241", "MEG1244", "MEG2131", "MEG2244"]
 
+
 # various test functions. not commented
 
 def animate_vectors():
@@ -1537,7 +1538,7 @@ def test_smooth_seg():
 
 
 def test_fft():
-    fname = datadir + "many_many_successful2.npz"
+    fname = datadir + "sample_data34.npz"
     signals, names, timex, n_chan = fr.get_signals(fname)
 
     detecs = np.load("array120_trans_newnames.npz")
@@ -1557,16 +1558,34 @@ def test_fft():
 
         indices = [2]
 
-        nu_i_x, nu_i_arr, u_filter_i_i, u_i_arr_ave, u_i_arr_sdev, u_cut_grad, u_grad_ave, u_grad_x = sa.fft_filter(signal, bad_segs, filter_i, indices=indices)
+        # TODO test more datasets, do something with rolling, fix filtering, confidence calculations. try smoothing the fft
+        nu_i_x, nu_i_arr, u_filter_i_i, u_i_arr_ave, u_i_arr_sdev, u_cut_grad, u_grad_ave, u_grad_x, status = sa.fft_filter(
+            signal, bad_segs, filter_i, indices=indices)
+
+        if status == 0:
+            s = "GOOD"
+
+        if status == 1:
+            s = "BAD"
+
+        if status == 2:
+            s = "UNDETERMINED"
+
+        print("SIGNAL FFT STATUS: " + s)
 
         if nu_i_x is None:
             print("skip")
             print()
             continue
 
+        nu_i_x = [x + filter_i for x in nu_i_x]
+        u_filter_i_i = u_filter_i_i + filter_i
+        u_grad_x = [x + filter_i for x in u_grad_x]
+
         fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
 
         ax1.plot(normal_x, normal_sig, label="untreated")
+        ax1.grid()
 
         if nu_i_x is not None:
             for k in range(len(nu_i_arr)):
@@ -1577,27 +1596,58 @@ def test_fft():
         ax2.legend()
 
         ax2.axvline(u_filter_i_i, linestyle="--", color="black")
-        ax3.set_ylim(-.5*10**(-9), .5*10**(-9))
+        ax3.set_ylim(-.25 * 10 ** (-9), .25 * 10 ** (-9))
 
         ax3.plot(u_grad_x, u_cut_grad, label="orig")
 
         ax1.legend()
         ax2.set_ylim(0, 10 ** (-7))
 
-        #fig, (ax1) = plt.subplots(1, 1, sharex=True)
+        # fig, (ax1) = plt.subplots(1, 1, sharex=True)
 
         # TODO find lowest rolled_grad value (?), also test the smooth() function for rolling ave
         roll_window = 100
-        rolled_grad, rolled_grad_x = sa.averaged_signal(u_cut_grad, roll_window, x=u_grad_x)
 
-        grad_rms = sa.averaged_signal(u_cut_grad, roll_window, rms=True)
+        if len(u_cut_grad) > 100:
+            rolled_grad, rolled_grad_x = sa.averaged_signal(u_cut_grad, roll_window, x=u_grad_x)
+            # rolled_grad_x = [x + filter_i for x in rolled_grad_x]
 
-        ax3.plot(rolled_grad_x, rolled_grad, label="rolling average")
-        ax3.plot(rolled_grad_x, grad_rms, label="rolling rms")
+            grad_rms = sa.averaged_signal(u_cut_grad, roll_window, rms=True)
 
-        #ax4.set_ylim(-.5 * 10 ** (-9), .5 * 10 ** (-9))
+            ax3.plot(rolled_grad_x, rolled_grad, label="rolling average")
+            ax3.plot(rolled_grad_x, grad_rms, label="rolling rms")
+
+        smooth_window = 200
+        offset = int(smooth_window / 2)
+
+        if not len(u_cut_grad) <= smooth_window:
+            smooth_grad = sa.smooth(u_cut_grad, window_len=smooth_window)
+
+            new_smooth = []
+            for j in range(len(u_cut_grad)):
+                new_smooth.append(smooth_grad[j + offset])
+
+            ax3.plot(u_grad_x, new_smooth, label="smooth signal")
+
+        # ax4.set_ylim(-.5 * 10 ** (-9), .5 * 10 ** (-9))
+        ax3.axhline(3 * 10 ** (-11), linestyle="--", color="black")
+        ax3.axhline(-3 * 10 ** (-11), linestyle="--", color="black")
         ax3.legend()
 
         plt.show()
 
         print()
+
+def show():
+    channels = ["MEG2111"]
+    fname = datadir + "sample_data25.npz"
+    signals, names, timex, n_chan = fr.get_signals(fname, channels=channels)
+
+    for i in range(n_chan):
+        signal = signals[i]
+        name = names[i]
+
+        plt.plot(signal)
+        plt.title(name)
+
+        plt.show()

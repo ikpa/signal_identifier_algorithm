@@ -136,6 +136,7 @@ def main():
 if __name__ == '__main__':
     #main()
     tf.test_fft()
+    #tf.show()
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
