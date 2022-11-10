@@ -1081,10 +1081,10 @@ def stats_from_i(i_arr, i_x, grad_cut=70, sig_len=1000, cut=False):
     #     print("HIGH SDEV")
 
     # TODO if rms=bad and sdev=sus or good there may be no need to mark signal as bad
-    if 3 * 10 ** (-11) < grad_rms < 1 * 10 ** (-10):
+    if 3 * 10 ** (-11) < grad_rms < 1.1 * 10 ** (-10):
         print("SUSPICIOUS RMS")
         sus_score += 1
-    elif grad_rms > 1 * 10 ** (-10):
+    elif grad_rms > 1.1 * 10 ** (-10):
         print("EXTREMELY HIGH RMS")
         status = 1
 
@@ -1397,7 +1397,7 @@ def analyse_all_neo(signals, names, chan_num,
         signal_length = len(signal)
         segments = []
         confidences = []
-        bad = False
+        # bad = False
 
         start_time = time.time()
         filter_i = filter_start(signal)
