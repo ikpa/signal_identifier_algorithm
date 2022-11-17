@@ -502,7 +502,11 @@ def analyse_phys_dat(all_diffs, names, all_rel_diffs, chan_dict, frac_w=2.5,
     return status, confidence
 
 
-def averaged_signal(signal, ave_window, x=[], rms=False):
+# modes:
+# 0 = average
+# 1 = rms
+# 2 = sdev
+def averaged_signal(signal, ave_window, x=[], mode=0):
     new_sig = []
     new_x = []
 
@@ -513,10 +517,14 @@ def averaged_signal(signal, ave_window, x=[], rms=False):
     cont = True
     while cont:
         seg = signal[start_i:end_i]
-        if rms:
-            ave = np.sqrt(np.mean([x ** 2 for x in seg]))
-        else:
+        if mode == 0:
             ave = np.mean(seg)
+
+        if mode == 1:
+            ave = np.sqrt(np.mean([x ** 2 for x in seg]))
+
+        if mode == 2:
+            ave = np.std(seg)
 
         new_sig.append(ave)
 
@@ -1011,33 +1019,38 @@ def calc_fft_indices(signal, indices=None, window=400, smooth_window=401, filter
 # 0 = good
 # 1 = bad
 # 2 = undetermined
-def stats_from_i(i_arr, i_x, grad_cut=70, sig_len=1000, cut=False):
+def stats_from_i(i_arr, i_x, bad_segs, grad_cut=70, sig_len=1000):
     filter_i_i = filter_start(i_arr, offset=125, max_rel=.1)
     arr = i_arr[filter_i_i:]
     i_arr_ave = np.mean(arr)
     i_arr_sdev = np.std(arr)
     i_arr_max = np.amax(arr)
 
-    if cut:
-        minus_i = grad_cut + 150
-        grad = np.gradient(i_arr)[:-minus_i]
-        print("CUT")
-    else:
+    last_i = len(i_arr) - 1
+
+    if len(bad_segs) == 0:
         minus_i = grad_cut
         grad = np.gradient(i_arr)[:-minus_i]
+    else:
+        final_i = bad_segs[0][0] - grad_cut
+        minus_i = last_i - final_i
+        grad = np.gradient(i_arr)[:-minus_i]
+
+    nu_i_arr = i_arr[:-minus_i]
+    nu_i_x = i_x[:-minus_i]
 
     cut_grad = grad[filter_i_i:]
     grad_ave = np.mean(cut_grad)
     grad_ave_per_i = grad_ave / len(cut_grad)
     grad_x = list(range(filter_i_i, i_x[-1] + 1 - minus_i))
 
-    max_norm_sdev = i_arr_sdev / i_arr_max
-    ave_norm_sdev = i_arr_sdev / i_arr_ave
+    # max_norm_sdev = i_arr_sdev / i_arr_max
+    # ave_norm_sdev = i_arr_sdev / i_arr_ave
     grad_rms = np.sqrt(np.mean([x ** 2 for x in cut_grad]))
     grad_rmsd = np.sqrt(np.mean([(grad_ave - x) ** 2 for x in cut_grad]))
 
     print("i ave:", i_arr_ave, " i sdev:", i_arr_sdev)  # ave < 10e-09 - 5e-09 => SUS, sdev > 3e-09 => SUS
-    print("max norm sdev:", max_norm_sdev, "ave norm sdev:", ave_norm_sdev)  # 0.08 - 0.1, 0.1-0.15
+    # print("max norm sdev:", max_norm_sdev, "ave norm sdev:", ave_norm_sdev)  # 0.08 - 0.1, 0.1-0.15
     print("grad ave", grad_ave, "grad ave per i", grad_ave_per_i)  # > 1e-12 => SUS
     print("grad rms", grad_rms, "grad rmsd", grad_rmsd)  # sus thresh: 2.5e-11, bad tresh: 7e-11 (raise this possibly)
 
@@ -1049,13 +1062,17 @@ def stats_from_i(i_arr, i_x, grad_cut=70, sig_len=1000, cut=False):
     if len(i_arr) < sig_len:
         print("NOT ENOUGH SIGNAL")
         status = 2
-        return filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score
+        return nu_i_arr, nu_i_x, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score
 
     # sus: 1e-08 - 5e-09, bad < 5e-09
-    if i_arr_ave < 6 * 10 ** (-9):
+    if i_arr_ave < 1 * 10 ** (-14):
+        print("NO 50HZ DETECTED")
+        status = 1
+        return nu_i_arr, nu_i_x, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score
+    elif i_arr_ave < 6 * 10 ** (-9):
         print("NOT ENOUGH 50HZ")
         status = 2
-        return filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score
+        return nu_i_arr, nu_i_x, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score
     elif i_arr_ave < 1.5 * 10 ** (-8):
         print("LOW 50HZ")
         sus_score += 1
@@ -1069,7 +1086,7 @@ def stats_from_i(i_arr, i_x, grad_cut=70, sig_len=1000, cut=False):
     if grad_ave > 5 * 10 ** (-12):
         print("EXTREMELY HIGH GRADIENT AVERAGE")
         status = 1
-        return filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score
+        return nu_i_arr, nu_i_x, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score
     elif grad_ave > 2 * 10 ** (-12):
         print("INCREASING 50HZ")
         sus_score += 1
@@ -1081,7 +1098,7 @@ def stats_from_i(i_arr, i_x, grad_cut=70, sig_len=1000, cut=False):
     #     print("HIGH SDEV")
 
     # TODO if rms=bad and sdev=sus or good there may be no need to mark signal as bad
-    if 3 * 10 ** (-11) < grad_rms < 1.1 * 10 ** (-10):
+    if 3.5 * 10 ** (-11) < grad_rms < 1.1 * 10 ** (-10):
         print("SUSPICIOUS RMS")
         sus_score += 1
     elif grad_rms > 1.1 * 10 ** (-10):
@@ -1095,23 +1112,22 @@ def stats_from_i(i_arr, i_x, grad_cut=70, sig_len=1000, cut=False):
         print("EXTREMELY HIGH SDEV")
         status = 1
 
-    return filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score
+    return nu_i_arr, nu_i_x, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score
 
 
-def fft_filter(signal, bad_segs, filter_i, badness_sens=.5, fft_window=400, indices=[2]):
+def fft_filter(signal, filter_i, bad_segs, fft_window=400, indices=[2], badness_sens=.5):
     normal_sig = signal[filter_i:]
-    sig_len = len(signal)
 
-    bad_frac = length_of_segments(bad_segs) / sig_len
-    if bad_frac > badness_sens:
-        print("relative length of bad segments too large")
+    final_i = len(signal) - fft_window
+
+    bad_len = length_of_segments(bad_segs)
+    sig_len = len(normal_sig)
+    rel_bad_len = bad_len / sig_len
+
+    if rel_bad_len >= badness_sens:
+        print("NOT ENOUGH SIGNAL")
         return None, None, None, None, None, None, None, None, 2, 0
 
-    cut = len(bad_segs) != 0
-    if not cut:
-        final_i = len(signal) - fft_window
-    else:
-        final_i = bad_segs[0][0] - fft_window
 
     # filtered_signal = signal[filter_i:final_i]
     # filter_x = list(range(filter_i, final_i))
@@ -1129,10 +1145,36 @@ def fft_filter(signal, bad_segs, filter_i, badness_sens=.5, fft_window=400, indi
 
     nu_i_x = i_x[:final_i]
 
-    filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score = stats_from_i(
-        nu_i_arr[0], nu_i_x, cut=cut)
+    cut_i_arr, cut_i_x, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score = stats_from_i(
+        nu_i_arr[0], nu_i_x, bad_segs)
 
-    return nu_i_x, nu_i_arr, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score
+    return cut_i_x, cut_i_arr, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score
+
+
+def analyze_fft(fft_i, window=400):
+    start_i = 0
+    end_i = window - 1
+
+    final_i = len(fft_i) - 1
+
+    sdev = []
+    cont = True
+    while cont:
+        seg = fft_i[start_i:end_i]
+        sdev.append(np.std(seg))
+
+        start_i = end_i
+        end_i = end_i + window
+
+        if end_i > final_i:
+            end_i = final_i
+
+        if start_i >= final_i:
+            cont = False
+
+
+
+    return sdev
 
 
 # UNUSED
@@ -1382,7 +1424,7 @@ def final_analysis(signal_length, segments, confidences, badness_sensitivity=.8)
 # the time it took to analyse each signal.
 def analyse_all_neo(signals, names, chan_num,
                     filters=None,
-                    badness_sensitivity=.8):
+                    badness_sensitivity=.5):
     if filters is None:
         filters = ["uniq", "segment", "spike"]
 

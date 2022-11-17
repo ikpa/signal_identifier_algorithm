@@ -1538,8 +1538,9 @@ def test_smooth_seg():
 
 
 def test_fft():
-    fname = datadir + "sample_data37.npz"
-    channels = ["MEG1431"]
+    # SUS ONES: sd37: 2214
+    fname = datadir + "many_successful.npz"
+    channels = ["MEG2441"]
     signals, names, timex, n_chan = fr.get_signals(fname)
 
     detecs = np.load("array120_trans_newnames.npz")
@@ -1548,7 +1549,7 @@ def test_fft():
                                                                                                 badness_sensitivity=.5)
 
     span_offset = 50
-    thresh = 3 * 10 ** (-11)
+    thresh = 5 * 10 ** (-11)
 
     for i in range(n_chan):
         name = names[i]
@@ -1565,7 +1566,7 @@ def test_fft():
 
         # TODO test more datasets, do something with rolling, fix filtering, confidence calculations. try smoothing the fft
         nu_i_x, nu_i_arr, u_filter_i_i, u_i_arr_ave, u_i_arr_sdev, u_cut_grad, u_grad_ave, u_grad_x, status, sus_score = sa.fft_filter(
-            signal, bad_segs, filter_i, indices=indices, fft_window=fft_window)
+            signal, filter_i, bad_segs, indices=indices, fft_window=fft_window)
 
         if status == 0:
             s = "GOOD"
@@ -1588,152 +1589,44 @@ def test_fft():
         u_filter_i_i = u_filter_i_i + filter_i
         u_grad_x = [x + filter_i for x in u_grad_x]
 
-        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
+        fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, sharex=True)
 
         ax1.plot(normal_x, normal_sig, label="untreated")
-        hf.plot_spans(ax1, bad_segs, color="red")
         ax1.grid()
 
         if nu_i_x is not None:
-            for k in range(len(nu_i_arr)):
-                arr = nu_i_arr[k]
-                index = indices[k]
-                ax2.plot(nu_i_x, arr, label=index)
+            ax2.plot(nu_i_x, nu_i_arr)
 
-        ax2.legend()
+        # ax2.legend()
 
         ax2.axvline(u_filter_i_i, linestyle="--", color="black")
         ax3.set_ylim(-.25 * 10 ** (-9), .25 * 10 ** (-9))
 
         ax3.plot(u_grad_x, u_cut_grad, label="orig")
 
+        # fig2, ax11 = plt.subplots()
+        sdev_window = 10
+        #fft_sdev = sa.analyze_fft(nu_i_arr[0][u_filter_i_i:], window=sdev_window)
+        x_start_i = np.where(nu_i_x == u_filter_i_i)[0][0]
+        fft_sdev, rms_x = sa.averaged_signal(nu_i_arr[u_filter_i_i:], sdev_window, nu_i_x[x_start_i:], mode=2)
+        sdev_mean = np.mean(fft_sdev)
+        sdev_sdev = np.std(fft_sdev)
+        sdev_thresh = sdev_mean + 1.5 * sdev_sdev
+        where_above_sdev = np.where(fft_sdev > sdev_thresh)[0]
+        if len(where_above_sdev) != 0:
+            sdev_span = [rms_x[where_above_sdev[0]], rms_x[where_above_sdev[-1]]]
+        hf.plot_spans(ax4, [sdev_span])
+        ax4.plot(rms_x, fft_sdev, label="sdev")
+        #ax4.plot(rms_x, fft_rms, label="rms")
+        ax4.legend()
+        ax4.axhline(sdev_thresh, linestyle="--", color="black")
+        ax4.set_ylim(0, 2 * 10 ** (-9))
+
         ax1.legend()
         ax2.set_ylim(0, 10 ** (-7))
 
         # fig, (ax1) = plt.subplots(1, 1, sharex=True)
 
-        # TODO find lowest rolled_grad value (?), also test the smooth() function for rolling ave
-        roll_window = 100
-        smooth_window = 200
-        offset = int(smooth_window / 2)
-
-        if not len(u_cut_grad) <= smooth_window:
-
-            rolled_grad, rolled_grad_x = sa.averaged_signal(u_cut_grad, roll_window, x=u_grad_x)
-            # rolled_grad_x = [x + filter_i for x in rolled_grad_x]
-
-            grad_rms = sa.averaged_signal(u_cut_grad, roll_window, rms=True)
-
-            # ax3.plot(rolled_grad_x, rolled_grad, label="rolling average")
-            ax3.plot(rolled_grad_x, grad_rms, label="rolling rms")
-
-            smooth_grad = sa.smooth(u_cut_grad, window_len=smooth_window)
-
-            new_smooth = []
-            for j in range(len(u_cut_grad)):
-                new_smooth.append(smooth_grad[j + offset])
-
-            ax3.plot(u_grad_x, new_smooth, label="smooth signal")
-
-            # TODO tee tää ripuli valmiiks
-            if sus_score >= 2:
-                roll_under_i = np.where(np.asarray(new_smooth) < - thresh)[0]
-                roll_under_i = [u_grad_x[x] for x in roll_under_i]
-                # print(roll_under_i)
-                new_roll_under_i = sa.split_into_lists(roll_under_i)
-                # print(new_roll_under_i)
-
-                roll_under_spans = []
-                #
-                for l in new_roll_under_i:
-                    roll_under_spans.append([l[0] - span_offset, l[-1] + span_offset])
-                #
-                # hf.plot_spans(ax3, roll_under_spans, color="blue")
-
-                # print("helloooooo")
-                rms_over_i = np.where(np.asarray(grad_rms) > thresh)[0]
-
-                rms_over_frac = len(rms_over_i) / len(grad_rms)
-
-                rms_over_i = [rolled_grad_x[x] for x in rms_over_i]
-                print("rms", rms_over_frac)
-                # print(rms_over_i)
-                # new_rms_over_i = sa.split_into_lists(rms_over_i)
-                #
-                # rms_over_spans = []
-                #
-                # for l in new_rms_over_i:
-                #     rms_over_spans.append([rolled_grad_x[l[0]], rolled_grad_x[l[-1]]])
-                #
-                # hf.plot_spans(ax3, rms_over_spans, color="yellow")
-
-                # intersection = list(set(roll_under_i).intersection(rms_over_i))
-                # new_intersect = sa.split_into_lists(intersection)
-
-                if rms_over_frac <= .7:
-                    intersect = []
-
-                    for span in roll_under_spans:
-                        temp_intersect = []
-                        for index in rms_over_i:
-
-                            if span[0] <= index <= span[1]:
-                                temp_intersect.append(index)
-
-                        # print("temp", temp_intersect)
-                        if len(temp_intersect) != 0:
-                            intersect.append([temp_intersect[0], temp_intersect[-1]])
-
-                    # print(intersect)
-
-                    intersect_spans = []
-
-                    for l in intersect:
-                        intersect_spans.append([l[0], l[-1]])
-
-                    # print(intersect_spans)
-
-                    frac_intersect = sa.length_of_segments(intersect_spans) / len(smooth_grad)
-                    print("intersect", frac_intersect)
-
-                    if len(intersect_spans) != 0 and frac_intersect >= 0.01:
-                        ax1.axvline(intersect_spans[0][0] + fft_window, linestyle="--", color="black")
-                        first_span = intersect_spans[0]
-                        first_i = first_span[0]
-                        last_i = first_span[-1]
-                        print(first_i, last_i)
-                        # print(rolled_grad_x)
-
-                        i_where = []
-                        rms_vals = []
-                        for k in range(len(rolled_grad_x)):
-                            val = rolled_grad_x[k]
-
-                            if first_i <= val <= last_i:
-                                i_where.append(k)
-                                rms_vals.append(grad_rms[k])
-
-                        # where_both = [x for x in where_over if x in where_under]
-
-                        # print(where_both)
-                        # print(i_where)
-                        print(np.mean(rms_vals) - thresh)
-                        # print(first_i, u_grad_x)
-                        # print(np.where(np.asarray(u_grad_x) == first_i)[0])
-                        start_i_smooth = u_grad_x.index(first_i)
-                        end_i_smooth = u_grad_x.index(last_i)
-
-                        if last_i == first_i:
-                            ave_under = smooth_grad[start_i_smooth]
-                        else:
-                            smooth_seg = smooth_grad[start_i_smooth:end_i_smooth]
-                            ave_under = np.mean(smooth_seg)
-
-                        #print(smooth_seg)
-                        print(ave_under - thresh)
-                        # print(grad_rms[i_where])
-
-                    hf.plot_spans(ax3, intersect_spans)
 
         # ax4.set_ylim(-.5 * 10 ** (-9), .5 * 10 ** (-9))
         ax3.axhline(thresh, linestyle="--", color="black")
@@ -1744,17 +1637,143 @@ def test_fft():
 
         print()
 
+        # if not len(u_cut_grad) <= smooth_window:
+        #
+        #     rolled_grad, rolled_grad_x = sa.averaged_signal(u_cut_grad, roll_window, x=u_grad_x)
+        #     # rolled_grad_x = [x + filter_i for x in rolled_grad_x]
+        #
+        #     grad_rms = sa.averaged_signal(u_cut_grad, roll_window, mode=2)
+        #
+        #     # ax3.plot(rolled_grad_x, rolled_grad, label="rolling average")
+        #     ax3.plot(rolled_grad_x, grad_rms, label="rolling rms")
+        #
+        #     smooth_grad = sa.smooth(u_cut_grad, window_len=smooth_window)
+        #
+        #     new_smooth = []
+        #     for j in range(len(u_cut_grad)):
+        #         new_smooth.append(smooth_grad[j + offset])
+        #
+        #     ax3.plot(u_grad_x, new_smooth, label="smooth signal")
+        #
+        #     # TODO tee tää ripuli valmiiks
+        #
+        #     roll_under_i = np.where(np.asarray(new_smooth) < - thresh)[0]
+        #     roll_under_i = [u_grad_x[x] for x in roll_under_i]
+        #     # print(roll_under_i)
+        #     new_roll_under_i = sa.split_into_lists(roll_under_i)
+        #     # print(new_roll_under_i)
+        #
+        #     roll_under_spans = []
+        #     #
+        #     for l in new_roll_under_i:
+        #         roll_under_spans.append([l[0] - span_offset, l[-1] + span_offset])
+        #     #
+        #     # hf.plot_spans(ax3, roll_under_spans, color="blue")
+        #
+        #     # print("helloooooo")
+        #     rms_over_i = np.where(np.asarray(grad_rms) > thresh)[0]
+        #
+        #     rms_over_frac = len(rms_over_i) / len(grad_rms)
+        #
+        #     rms_over_i = [rolled_grad_x[x] for x in rms_over_i]
+        #     print("rms", rms_over_frac)
+        #     # print(rms_over_i)
+        #     # new_rms_over_i = sa.split_into_lists(rms_over_i)
+        #     #
+        #     # rms_over_spans = []
+        #     #
+        #     # for l in new_rms_over_i:
+        #     #     rms_over_spans.append([rolled_grad_x[l[0]], rolled_grad_x[l[-1]]])
+        #     #
+        #     # hf.plot_spans(ax3, rms_over_spans, color="yellow")
+        #
+        #     # intersection = list(set(roll_under_i).intersection(rms_over_i))
+        #     # new_intersect = sa.split_into_lists(intersection)
+        #
+        #     if rms_over_frac <= .7:
+        #         intersect = []
+        #
+        #         for span in roll_under_spans:
+        #             temp_intersect = []
+        #             for index in rms_over_i:
+        #
+        #                 if span[0] <= index <= span[1]:
+        #                     temp_intersect.append(index)
+        #
+        #             # print("temp", temp_intersect)
+        #             if len(temp_intersect) != 0:
+        #                 intersect.append([temp_intersect[0], temp_intersect[-1]])
+        #
+        #         # print(intersect)
+        #
+        #         intersect_spans = []
+        #
+        #         for l in intersect:
+        #             intersect_spans.append([l[0], l[-1]])
+        #
+        #         # print(intersect_spans)
+        #
+        #         frac_intersect = sa.length_of_segments(intersect_spans) / len(smooth_grad)
+        #         print("intersect", frac_intersect)
+        #
+        #         if len(intersect_spans) != 0 and frac_intersect >= 0.01:
+        #             ax1.axvline(intersect_spans[0][0] + fft_window, linestyle="--", color="black")
+        #             first_span = intersect_spans[0]
+        #             first_i = first_span[0]
+        #             last_i = first_span[-1]
+        #             print(first_i, last_i)
+        #             # print(rolled_grad_x)
+        #
+        #             i_where = []
+        #             rms_vals = []
+        #             for k in range(len(rolled_grad_x)):
+        #                 val = rolled_grad_x[k]
+        #
+        #                 if first_i <= val <= last_i:
+        #                     i_where.append(k)
+        #                     rms_vals.append(grad_rms[k])
+        #
+        #             # where_both = [x for x in where_over if x in where_under]
+        #
+        #             # print(where_both)
+        #             # print(i_where)
+        #             print(np.mean(rms_vals) - thresh)
+        #             # print(first_i, u_grad_x)
+        #             # print(np.where(np.asarray(u_grad_x) == first_i)[0])
+        #             start_i_smooth = u_grad_x.index(first_i)
+        #             end_i_smooth = u_grad_x.index(last_i)
+        #
+        #             if last_i == first_i:
+        #                 ave_under = smooth_grad[start_i_smooth]
+        #             else:
+        #                 smooth_seg = smooth_grad[start_i_smooth:end_i_smooth]
+        #                 ave_under = np.mean(smooth_seg)
+        #
+        #             # print(smooth_seg)
+        #             print(ave_under - thresh)
+        #             # print(grad_rms[i_where])
+        #
+        #         hf.plot_spans(ax3, intersect_spans)
+
 
 def show():
     channels = ["MEG2111"]
-    fname = datadir + "sample_data28.npz"
-    signals, names, timex, n_chan = fr.get_signals(fname, channels=brokens)
+    fname = datadir + "many_successful.npz"
+    signals, names, timex, n_chan = fr.get_signals(fname)
+
+    #print(1/0.0001)
 
     for i in range(n_chan):
         signal = signals[i]
         name = names[i]
 
-        plt.plot(signal)
-        plt.title(name)
+        print(name)
+        print()
+
+        plt.plot(timex, signal)
+        #plt.title(name)
+        plt.ylabel("Magnetic Field [T]")
+        plt.xlabel("Time [s]")
+        plt.grid()
 
         plt.show()
