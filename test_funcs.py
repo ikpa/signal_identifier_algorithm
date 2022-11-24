@@ -1539,7 +1539,7 @@ def test_smooth_seg():
 
 def test_fft():
     # SUS ONES: sd37: 2214
-    fname = datadir + "many_successful.npz"
+    fname = datadir + "many_many_successful2.npz"
     channels = ["MEG2441"]
     signals, names, timex, n_chan = fr.get_signals(fname)
 
@@ -1564,7 +1564,6 @@ def test_fft():
         indices = [2]
         fft_window = 400
 
-        # TODO test more datasets, do something with rolling, fix filtering, confidence calculations. try smoothing the fft
         nu_i_x, nu_i_arr, u_filter_i_i, u_i_arr_ave, u_i_arr_sdev, u_cut_grad, u_grad_ave, u_grad_x, status, sus_score = sa.fft_filter(
             signal, filter_i, bad_segs, indices=indices, fft_window=fft_window)
 
@@ -1592,6 +1591,7 @@ def test_fft():
         fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, sharex=True)
 
         ax1.plot(normal_x, normal_sig, label="untreated")
+        hf.plot_spans(ax1, bad_segs, color="red")
         ax1.grid()
 
         if nu_i_x is not None:
@@ -1605,16 +1605,12 @@ def test_fft():
         ax3.plot(u_grad_x, u_cut_grad, label="orig")
 
         # fig2, ax11 = plt.subplots()
-        sdev_window = 10
-        #fft_sdev = sa.analyze_fft(nu_i_arr[0][u_filter_i_i:], window=sdev_window)
-        x_start_i = np.where(nu_i_x == u_filter_i_i)[0][0]
-        fft_sdev, rms_x = sa.averaged_signal(nu_i_arr[u_filter_i_i:], sdev_window, nu_i_x[x_start_i:], mode=2)
-        sdev_mean = np.mean(fft_sdev)
-        sdev_sdev = np.std(fft_sdev)
-        sdev_thresh = sdev_mean + 1.5 * sdev_sdev
-        where_above_sdev = np.where(fft_sdev > sdev_thresh)[0]
-        if len(where_above_sdev) != 0:
-            sdev_span = [rms_x[where_above_sdev[0]], rms_x[where_above_sdev[-1]]]
+
+        rms_x, fft_sdev, error_start, sdev_thresh, sdev_span, c = sa.find_saturation_point_from_fft(nu_i_x, nu_i_arr, u_filter_i_i, fft_window)
+
+        if error_start is not None:
+            ax1.axvline(error_start, linestyle="--", color=c)
+
         hf.plot_spans(ax4, [sdev_span])
         ax4.plot(rms_x, fft_sdev, label="sdev")
         #ax4.plot(rms_x, fft_rms, label="rms")
@@ -1629,9 +1625,9 @@ def test_fft():
 
 
         # ax4.set_ylim(-.5 * 10 ** (-9), .5 * 10 ** (-9))
-        ax3.axhline(thresh, linestyle="--", color="black")
-        ax3.axhline(-thresh, linestyle="--", color="black")
-        ax3.legend()
+        # ax3.axhline(thresh, linestyle="--", color="black")
+        # ax3.axhline(-thresh, linestyle="--", color="black")
+        # ax3.legend()
 
         plt.show()
 

@@ -65,7 +65,7 @@ def smooth(x, window_len=21, window='hanning'):
     return y
 
 
-# calculates the magnetic field vector from a set of signal magnitudes (point)
+# calculates the lengths of the magnetic field vector from a set of signal magnitudes (point)
 # and detectors direction vectors (a) using pseudoinverse
 def magn_from_point(a, point):
     a_pinv = np.linalg.pinv(a)
@@ -264,6 +264,7 @@ def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, ave_sens=10 ** (-13
 
         print(len(temp_sigs), "signals left")
 
+        # TODO possibly change it so that these cases arent counted as being present in a calculation
         if len(temp_sigs) <= min_sigs:
             print("no optimal magnetic field found")
             return [], new_x, [], []
@@ -357,10 +358,22 @@ def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, smooth_window=4
         new_near = []
         for nam in nearby_names:
             index = names.index(nam)
-            bad = seg_lens(signals[index], bad_seg_list[index]) > badness_sens
+            # sig_len = len(signals[index])
+            # last_i = sig_len - 1
+            # bad_segs = bad_seg_list[index]
+            #
+            # if len(bad_segs) != 0:
+            #     first_bad_i = bad_segs[0][0]
+            #     bad_len = last_i - first_bad_i
+            #     bad = bad_len / sig_len > badness_sens
+            # else:
+            #     bad = False
+
+            bad_segs = bad_seg_list[index]
+            bad = len(bad_segs) != 0
 
             if bad:
-                print("excluding " + nam + " from calculation")
+                print("excluding " + nam + " from calculation due to presense of bad segments")
                 continue
 
             new_near.append(nam)
@@ -464,6 +477,14 @@ def analyse_phys_dat(all_diffs, names, all_rel_diffs, chan_dict, frac_w=2.5,
             confidence.append(3)
             continue
 
+        # determine weight of the total number of times the signal has been in calculation
+        if tot < uncert_chans:
+            num_w2 = - uncert_chans / tot
+        else:
+            num_w2 = tot / 14
+
+        num_conf = num_w * num_w2
+
         ex = np.float64(len([x for x in chan_dat if chan_dat[x] == 1]))
         frac_excluded = ex / tot
 
@@ -484,13 +505,7 @@ def analyse_phys_dat(all_diffs, names, all_rel_diffs, chan_dict, frac_w=2.5,
 
             frac_conf = frac_w * (1 - frac_excluded / (2.5 * unphys_sensitivity))
 
-        if tot < uncert_chans:
-            num_w2 = - uncert_chans / tot
-        else:
-            num_w2 = tot / 14
-
-        num_conf = num_w * num_w2
-        print(num_conf / (diff_w + frac_w + num_w))
+        # print(num_conf / (diff_w + frac_w + num_w))
         conf = (diff_conf + frac_conf + num_conf) / (diff_w + frac_w + num_w)
 
         if conf < conf_sens:
@@ -855,19 +870,12 @@ def cal_goodness_spike(gradient, spikes, all_diffs, max_sensitivities=None,
     seg_end = last_spike[len(last_spike) - 1]
     seg_len = seg_end - seg_start
 
-    if n == 1:
-        return [seg_start, seg_end], .1
-
-    spike_density = n / seg_len
-
     max_diffs = []
     for i in range(n):
         diffs = all_diffs[i]
         max_diffs.append(np.amax(diffs))
 
     av_max = np.mean(max_diffs)
-
-    grad_ave = abs(np.mean(gradient[seg_start:seg_end]))
 
     # TEST DIFFS----------------------------------------
     if av_max >= max_sensitivities[0]:
@@ -877,6 +885,13 @@ def cal_goodness_spike(gradient, spikes, all_diffs, max_sensitivities=None,
     elif av_max >= max_sensitivities[2]:
         score += .5
     # --------------------------------------------------
+
+    if n == 1:
+        return [seg_start, seg_end], score
+
+    spike_density = n / seg_len
+
+    grad_ave = abs(np.mean(gradient[seg_start:seg_end]))
 
     # TEST NUMBER OF SPIKES-----------------------------
     if n >= n_sensitivities[1]:
@@ -1019,27 +1034,28 @@ def calc_fft_indices(signal, indices=None, window=400, smooth_window=401, filter
 # 0 = good
 # 1 = bad
 # 2 = undetermined
-def stats_from_i(i_arr, i_x, bad_segs, grad_cut=70, sig_len=1000):
-    filter_i_i = filter_start(i_arr, offset=125, max_rel=.1)
+def stats_from_i(i_arr, i_x, bad_segs, fft_window, cut_length=70, max_sig_len=1000):
+    filter_i_i = filter_start(i_arr, offset=225, max_rel=.1)
     arr = i_arr[filter_i_i:]
-    i_arr_ave = np.mean(arr)
-    i_arr_sdev = np.std(arr)
     i_arr_max = np.amax(arr)
 
     last_i = len(i_arr) - 1
 
     if len(bad_segs) == 0:
-        minus_i = grad_cut
-        grad = np.gradient(i_arr)[:-minus_i]
+        minus_i = cut_length
     else:
-        final_i = bad_segs[0][0] - grad_cut
-        minus_i = last_i - final_i
-        grad = np.gradient(i_arr)[:-minus_i]
+        final_i = bad_segs[0][0] - 2 * cut_length
+        minus_i = last_i - final_i + fft_window
+
+    grad = np.gradient(i_arr)
 
     nu_i_arr = i_arr[:-minus_i]
     nu_i_x = i_x[:-minus_i]
 
-    cut_grad = grad[filter_i_i:]
+    i_arr_ave = np.mean(nu_i_arr[filter_i_i:])
+    i_arr_sdev = np.std(nu_i_arr[filter_i_i:])
+
+    cut_grad = grad[filter_i_i:-minus_i]
     grad_ave = np.mean(cut_grad)
     grad_ave_per_i = grad_ave / len(cut_grad)
     grad_x = list(range(filter_i_i, i_x[-1] + 1 - minus_i))
@@ -1059,7 +1075,7 @@ def stats_from_i(i_arr, i_x, bad_segs, grad_cut=70, sig_len=1000):
     status = 0
     sus_score = 0
 
-    if len(i_arr) < sig_len:
+    if len(i_arr) < max_sig_len:
         print("NOT ENOUGH SIGNAL")
         status = 2
         return nu_i_arr, nu_i_x, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score
@@ -1083,6 +1099,7 @@ def stats_from_i(i_arr, i_x, bad_segs, grad_cut=70, sig_len=1000):
     #     print("INCREASING 50HZ (REL)")
 
     grad_ave_thresh = 2 * 10 ** (-12)
+    # TODO turn into abs and test
     if grad_ave > 5 * 10 ** (-12):
         print("EXTREMELY HIGH GRADIENT AVERAGE")
         status = 1
@@ -1097,11 +1114,11 @@ def stats_from_i(i_arr, i_x, bad_segs, grad_cut=70, sig_len=1000):
     # elif ave_norm_sdev > 0.1:
     #     print("HIGH SDEV")
 
-    # TODO if rms=bad and sdev=sus or good there may be no need to mark signal as bad
-    if 3.5 * 10 ** (-11) < grad_rms < 1.1 * 10 ** (-10):
+    # TODO if rms=bad and sdev=sus or good
+    if 3.5 * 10 ** (-11) < grad_rms < 1.5 * 10 ** (-10):
         print("SUSPICIOUS RMS")
         sus_score += 1
-    elif grad_rms > 1.1 * 10 ** (-10):
+    elif grad_rms > 1.5 * 10 ** (-10):
         print("EXTREMELY HIGH RMS")
         status = 1
 
@@ -1113,6 +1130,46 @@ def stats_from_i(i_arr, i_x, bad_segs, grad_cut=70, sig_len=1000):
         status = 1
 
     return nu_i_arr, nu_i_x, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score
+
+
+def find_saturation_point_from_fft(i_x, i_arr, filter_i, fft_window, sdev_window=10):
+    # TODO do this before testing anything else (?) test sdev_span_frac more
+    # fft_sdev = sa.analyze_fft(nu_i_arr[0][u_filter_i_i:], window=sdev_window)
+    x_start_i = np.where(i_x == filter_i)[0][0]
+    fft_sdev, rms_x = averaged_signal(i_arr[filter_i:], sdev_window, i_x[x_start_i:], mode=2)
+    sdev_mean = np.mean(fft_sdev)
+    sdev_sdev = np.std(fft_sdev)
+    sdev_thresh = sdev_mean + 1.55 * sdev_sdev
+    where_above_sdev = np.where(fft_sdev > sdev_thresh)[0]
+    if len(where_above_sdev) != 0:
+        sdev_span = [rms_x[where_above_sdev[0]], rms_x[where_above_sdev[-1]]]
+        span_sdev_ave = np.mean(fft_sdev[where_above_sdev[0]:where_above_sdev[-1]])
+        seg_len = length_of_segments([sdev_span])
+        print("ave sdev in span", span_sdev_ave, "tot_sdev", sdev_mean)
+        print("frac", span_sdev_ave / sdev_mean, "diff", span_sdev_ave - sdev_mean)
+        highsdev = span_sdev_ave > 1.1 * 10 ** (-10)
+
+        sdev_span_frac = seg_len / length_of_segments([[rms_x[0], rms_x[-1]]])
+        print(sdev_span_frac, seg_len)
+
+        local_err = True
+
+        if seg_len < 600:
+            c = "red"
+        elif sdev_span_frac > .55:
+            c = None
+            local_err = False
+        else:
+            c = "yellow"
+
+        if highsdev and local_err and where_above_sdev[0] > 1:
+            print("localized error")
+            print(where_above_sdev[0])
+            error_start = sdev_span[0] + fft_window + sdev_window
+        else:
+            error_start = None
+
+        return rms_x, fft_sdev, error_start, sdev_thresh, sdev_span, c
 
 
 def fft_filter(signal, filter_i, bad_segs, fft_window=400, indices=[2], badness_sens=.5):
@@ -1146,7 +1203,7 @@ def fft_filter(signal, filter_i, bad_segs, fft_window=400, indices=[2], badness_
     nu_i_x = i_x[:final_i]
 
     cut_i_arr, cut_i_x, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score = stats_from_i(
-        nu_i_arr[0], nu_i_x, bad_segs)
+        nu_i_arr[0], nu_i_x, bad_segs, fft_window)
 
     return cut_i_x, cut_i_arr, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score
 
@@ -1171,8 +1228,6 @@ def analyze_fft(fft_i, window=400):
 
         if start_i >= final_i:
             cont = False
-
-
 
     return sdev
 
