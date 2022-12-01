@@ -1537,19 +1537,28 @@ def test_smooth_seg():
         plt.show()
 
 
+def test_fft_full():
+    fname = datadir + "sample_data39.npz"
+    channels = ["MEG2*1"]
+    signals, names, timex, n_chan = fr.get_signals(fname)
+
+    signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals, names, n_chan,
+                                                                                                badness_sensitivity=.5)
+
+    hf.plot_in_order_ver3(signals, names, n_chan, signal_statuses, bad_segment_list, suspicious_segment_list)
+
+
 def test_fft():
     # SUS ONES: sd37: 2214
-    fname = datadir + "many_many_successful2.npz"
-    channels = ["MEG2441"]
+    fname = datadir + "sample_data27.npz"
+    channels = ["MEG2*1"]
     signals, names, timex, n_chan = fr.get_signals(fname)
 
     detecs = np.load("array120_trans_newnames.npz")
 
     signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals, names, n_chan,
-                                                                                                badness_sensitivity=.5)
-
-    span_offset = 50
-    thresh = 5 * 10 ** (-11)
+                                                                                                badness_sensitivity=.5,
+                                                                                                filters=["uniq", "segment", "spike"])
 
     for i in range(n_chan):
         name = names[i]
@@ -1560,12 +1569,13 @@ def test_fft():
 
         normal_sig = signal[filter_i:]
         normal_x = list(range(filter_i, len(signal)))
+        full_x = list(range(len(signal)))
 
         indices = [2]
         fft_window = 400
 
-        nu_i_x, nu_i_arr, u_filter_i_i, u_i_arr_ave, u_i_arr_sdev, u_cut_grad, u_grad_ave, u_grad_x, status, sus_score = sa.fft_filter(
-            signal, filter_i, bad_segs, indices=indices, fft_window=fft_window)
+        nu_i_x, nu_i_arr, u_filter_i_i, u_i_arr_ave, u_i_arr_sdev, u_cut_grad, u_grad_ave, u_grad_x, status, sus_score, rms_x, fft_sdev, error_start, sdev_thresh, sdev_span = sa.fft_filter(
+            signal, filter_i, bad_segs, indices=indices, fft_window=fft_window, debug=True)
 
         if status == 0:
             s = "GOOD"
@@ -1590,7 +1600,7 @@ def test_fft():
 
         fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, sharex=True)
 
-        ax1.plot(normal_x, normal_sig, label="untreated")
+        ax1.plot(full_x, signal, label="untreated")
         hf.plot_spans(ax1, bad_segs, color="red")
         ax1.grid()
 
@@ -1606,23 +1616,24 @@ def test_fft():
 
         # fig2, ax11 = plt.subplots()
 
-        rms_x, fft_sdev, error_start, sdev_thresh, sdev_span, c = sa.find_saturation_point_from_fft(nu_i_x, nu_i_arr, u_filter_i_i, fft_window)
+        # rms_x, fft_sdev, error_start, sdev_thresh, sdev_span = sa.find_saturation_point_from_fft(nu_i_x, nu_i_arr, u_filter_i_i, fft_window)
 
         if error_start is not None:
-            ax1.axvline(error_start, linestyle="--", color=c)
+            ax1.axvline(error_start, linestyle="--", color="red")
 
-        hf.plot_spans(ax4, [sdev_span])
-        ax4.plot(rms_x, fft_sdev, label="sdev")
-        #ax4.plot(rms_x, fft_rms, label="rms")
+        if sdev_span is not None:
+            hf.plot_spans(ax4, [sdev_span])
+            ax4.plot(rms_x, fft_sdev, label="sdev")
+            ax4.axhline(sdev_thresh, linestyle="--", color="black")
+
+        # ax4.plot(rms_x, fft_rms, label="rms")
         ax4.legend()
-        ax4.axhline(sdev_thresh, linestyle="--", color="black")
-        ax4.set_ylim(0, 2 * 10 ** (-9))
+        # ax4.set_ylim(0, 2 * 10 ** (-9))
 
         ax1.legend()
         ax2.set_ylim(0, 10 ** (-7))
 
         # fig, (ax1) = plt.subplots(1, 1, sharex=True)
-
 
         # ax4.set_ylim(-.5 * 10 ** (-9), .5 * 10 ** (-9))
         # ax3.axhline(thresh, linestyle="--", color="black")
@@ -1753,9 +1764,9 @@ def test_fft():
 
 
 def show():
-    channels = ["MEG2111"]
-    fname = datadir + "many_successful.npz"
-    signals, names, timex, n_chan = fr.get_signals(fname)
+    channels = ["MEG2341"]
+    fname = datadir + "sample_data38.npz"
+    signals, names, timex, n_chan = fr.get_signals(fname, channels=channels)
 
     #print(1/0.0001)
 
