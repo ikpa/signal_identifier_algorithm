@@ -9,6 +9,8 @@ from operator import itemgetter
 # all sensitivity and weight values in this file have been determined
 # experimentally and changing them will affect the accuracy of the program
 # significantly
+from helper_funcs import split_into_lists
+
 
 def smooth(x, window_len=21, window='hanning'):
     """smooth the data using a window with requested size.
@@ -460,7 +462,7 @@ def analyse_phys_dat(all_diffs, names, all_rel_diffs, chan_dict, frac_w=2.5,
     for i in range(len(names)):
         name = names[i]
         rel_diffs = all_rel_diffs[name]
-        print(name)
+        # print(name)
         diffs = all_diffs[name]
         chan_dat = chan_dict[name]
 
@@ -1390,7 +1392,7 @@ def combine_segments(segments):
     return combined_segs
 
 
-# sort segments into bad and suspicious based on their goodness values
+# sort segments into bad and suspicious based on their confidence values
 def separate_segments(segments, confidences, conf_threshold=1):
     n = len(segments)
 
@@ -1417,32 +1419,6 @@ def length_of_segments(segments):
         tot_len += length
 
     return tot_len
-
-
-# split a single list of integers into several lists so that each new list
-# contains no gaps between each integer
-def split_into_lists(original_list):
-    n = len(original_list)
-
-    if n == 0:
-        return original_list
-
-    new_lists = []
-    lst = [original_list[0]]
-    for i in range(1, n):
-        integer = original_list[i]
-        prev_int = integer - 1
-
-        if prev_int not in lst:
-            new_lists.append(lst)
-            lst = [integer]
-        elif i == n - 1:
-            lst.append(integer)
-            new_lists.append(lst)
-        else:
-            lst.append(integer)
-
-    return new_lists
 
 
 # fix overlap between suspicious and bad segments. bad segments take priority
@@ -1496,7 +1472,7 @@ def final_analysis(signal_length, segments, confidences, badness_sensitivity=.8)
 # the time it took to analyse each signal.
 def analyse_all_neo(signals, names, chan_num,
                     filters=None,
-                    badness_sensitivity=.5):
+                    badness_sensitivity=.5, filter_beginning=True):
     if filters is None:
         filters = ["uniq", "segment", "spike", "fft"]
 
@@ -1514,7 +1490,11 @@ def analyse_all_neo(signals, names, chan_num,
         # bad = False
 
         start_time = time.time()
-        filter_i = filter_start(signal)
+
+        if filter_beginning:
+            filter_i = filter_start(signal)
+        else:
+            filter_i = 0
 
         for fltr in filters:
             print("beginning analysis with " + fltr + " filter")
@@ -1542,7 +1522,10 @@ def analyse_all_neo(signals, names, chan_num,
             if new_segs == 0:
                 print("no segments found")
             else:
-                print(new_segs, "segment(s) found")
+                print(new_segs, "segment(s) found:")
+
+                for seg in seg_is:
+                    print(seg)
 
             segments += seg_is
             confidences += confs

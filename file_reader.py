@@ -1,5 +1,6 @@
 import dataio as dat
 
+time_window = (0.210, 0.50)
 
 # finds and returns signals based on channel names
 def find_signals(channels, signals, names):
@@ -34,9 +35,9 @@ def load_all(fname):
 
 
 # get all reformatted signals from filename
-def get_signals(fname, channels=["MEG*1", "MEG*4"]):
+def get_signals(fname, channels=["MEG*1", "MEG*4"], time_win=time_window):
     fname_full = fname
-    data = load_all(fname_full).subpool(channels).clip((0.210, 0.50))
+    data = load_all(fname_full).subpool(channels).clip(time_win)
     unorganized_signals = data.data
     names = data.names
     n_chan = data.n_channels

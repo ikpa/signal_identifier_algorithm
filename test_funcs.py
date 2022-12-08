@@ -1,7 +1,9 @@
 import time
 
-import helmet_vis as vis
+#import helmet_vis as vis
 import numpy as np
+
+import helper_funcs
 import helper_funcs as hf
 import file_reader as fr
 import signal_analysis as sa
@@ -27,7 +29,7 @@ def animate_vectors():
     # print(np.shape(signals))
     # print(np.shape(ffts))
     # print(type(ffts))
-    vis.helmet_animation(names, ffts, 1000, cmap="Purples", vlims=[0, 1 * 10 ** (-7)])
+    # vis.helmet_animation(names, ffts, 1000, cmap="Purples", vlims=[0, 1 * 10 ** (-7)])
 
 
 def angle_test():
@@ -100,7 +102,7 @@ def signal_sim():
         # ax3.plot(diffs, color="green")
         # plt.show()
 
-    vis.helmet_animation(names, all_diffs, cmap="plasma", vlims=[0, 5])
+    # vis.helmet_animation(names, all_diffs, cmap="plasma", vlims=[0, 5])
 
 
 def compare_nearby2():
@@ -270,7 +272,7 @@ def compare_nearby():
 
         plt.show()
 
-        vis.plot_all(names, fracs, vmin=0, vmax=.5 * 10 ** (-10))
+        # vis.plot_all(names, fracs, vmin=0, vmax=.5 * 10 ** (-10))
 
     # plot_fft_components("lol", names, signals, detecs)
 
@@ -383,7 +385,7 @@ def simo():
     # plot_in_order(signals,names, chan_num, statuses,
     #               fracs=fracs, uniq_stats_list=uniq_stats_list,
     #               exec_times=exec_times)
-    vis.helmet_animation(detecs, signals, 1000)
+    # vis.helmet_animation(detecs, signals, 1000)
 
 
 def nearby():
@@ -395,7 +397,7 @@ def nearby():
     bads.append(nears)
     print(bads)
 
-    vis.plot_all(names, np.full(np.shape(names), 1), nears)
+    # vis.plot_all(names, np.full(np.shape(names), 1), nears)
 
 
 def plottest():
@@ -414,7 +416,7 @@ def plottest():
     statuses, bad_segs, sus_segs, exec_times = sa.analyse_all_neo(signals, names, n)
     bad_list = hf.bad_list_for_anim(names, statuses)
 
-    vis.helmet_animation(names, signals, frames=1000, bads=bad_list)
+    # vis.helmet_animation(names, signals, frames=1000, bads=bad_list)
 
 
 def simulation():
@@ -1358,7 +1360,7 @@ def test_gradient():
                 low_vals.append(val)
                 low_x.append(x_val)
 
-        low_x_lists = sa.split_into_lists(low_x)
+        low_x_lists = helper_funcs.split_into_lists(low_x)
 
         segs = []
         unfilt_segs = []
@@ -1550,7 +1552,7 @@ def test_fft_full():
 
 def test_fft():
     # SUS ONES: sd37: 2214
-    fname = datadir + "sample_data27.npz"
+    fname = datadir + "sample_data40.npz"
     channels = ["MEG2*1"]
     signals, names, timex, n_chan = fr.get_signals(fname)
 
@@ -1644,123 +1646,7 @@ def test_fft():
 
         print()
 
-        # if not len(u_cut_grad) <= smooth_window:
-        #
-        #     rolled_grad, rolled_grad_x = sa.averaged_signal(u_cut_grad, roll_window, x=u_grad_x)
-        #     # rolled_grad_x = [x + filter_i for x in rolled_grad_x]
-        #
-        #     grad_rms = sa.averaged_signal(u_cut_grad, roll_window, mode=2)
-        #
-        #     # ax3.plot(rolled_grad_x, rolled_grad, label="rolling average")
-        #     ax3.plot(rolled_grad_x, grad_rms, label="rolling rms")
-        #
-        #     smooth_grad = sa.smooth(u_cut_grad, window_len=smooth_window)
-        #
-        #     new_smooth = []
-        #     for j in range(len(u_cut_grad)):
-        #         new_smooth.append(smooth_grad[j + offset])
-        #
-        #     ax3.plot(u_grad_x, new_smooth, label="smooth signal")
-        #
-        #     # TODO tee tää ripuli valmiiks
-        #
-        #     roll_under_i = np.where(np.asarray(new_smooth) < - thresh)[0]
-        #     roll_under_i = [u_grad_x[x] for x in roll_under_i]
-        #     # print(roll_under_i)
-        #     new_roll_under_i = sa.split_into_lists(roll_under_i)
-        #     # print(new_roll_under_i)
-        #
-        #     roll_under_spans = []
-        #     #
-        #     for l in new_roll_under_i:
-        #         roll_under_spans.append([l[0] - span_offset, l[-1] + span_offset])
-        #     #
-        #     # hf.plot_spans(ax3, roll_under_spans, color="blue")
-        #
-        #     # print("helloooooo")
-        #     rms_over_i = np.where(np.asarray(grad_rms) > thresh)[0]
-        #
-        #     rms_over_frac = len(rms_over_i) / len(grad_rms)
-        #
-        #     rms_over_i = [rolled_grad_x[x] for x in rms_over_i]
-        #     print("rms", rms_over_frac)
-        #     # print(rms_over_i)
-        #     # new_rms_over_i = sa.split_into_lists(rms_over_i)
-        #     #
-        #     # rms_over_spans = []
-        #     #
-        #     # for l in new_rms_over_i:
-        #     #     rms_over_spans.append([rolled_grad_x[l[0]], rolled_grad_x[l[-1]]])
-        #     #
-        #     # hf.plot_spans(ax3, rms_over_spans, color="yellow")
-        #
-        #     # intersection = list(set(roll_under_i).intersection(rms_over_i))
-        #     # new_intersect = sa.split_into_lists(intersection)
-        #
-        #     if rms_over_frac <= .7:
-        #         intersect = []
-        #
-        #         for span in roll_under_spans:
-        #             temp_intersect = []
-        #             for index in rms_over_i:
-        #
-        #                 if span[0] <= index <= span[1]:
-        #                     temp_intersect.append(index)
-        #
-        #             # print("temp", temp_intersect)
-        #             if len(temp_intersect) != 0:
-        #                 intersect.append([temp_intersect[0], temp_intersect[-1]])
-        #
-        #         # print(intersect)
-        #
-        #         intersect_spans = []
-        #
-        #         for l in intersect:
-        #             intersect_spans.append([l[0], l[-1]])
-        #
-        #         # print(intersect_spans)
-        #
-        #         frac_intersect = sa.length_of_segments(intersect_spans) / len(smooth_grad)
-        #         print("intersect", frac_intersect)
-        #
-        #         if len(intersect_spans) != 0 and frac_intersect >= 0.01:
-        #             ax1.axvline(intersect_spans[0][0] + fft_window, linestyle="--", color="black")
-        #             first_span = intersect_spans[0]
-        #             first_i = first_span[0]
-        #             last_i = first_span[-1]
-        #             print(first_i, last_i)
-        #             # print(rolled_grad_x)
-        #
-        #             i_where = []
-        #             rms_vals = []
-        #             for k in range(len(rolled_grad_x)):
-        #                 val = rolled_grad_x[k]
-        #
-        #                 if first_i <= val <= last_i:
-        #                     i_where.append(k)
-        #                     rms_vals.append(grad_rms[k])
-        #
-        #             # where_both = [x for x in where_over if x in where_under]
-        #
-        #             # print(where_both)
-        #             # print(i_where)
-        #             print(np.mean(rms_vals) - thresh)
-        #             # print(first_i, u_grad_x)
-        #             # print(np.where(np.asarray(u_grad_x) == first_i)[0])
-        #             start_i_smooth = u_grad_x.index(first_i)
-        #             end_i_smooth = u_grad_x.index(last_i)
-        #
-        #             if last_i == first_i:
-        #                 ave_under = smooth_grad[start_i_smooth]
-        #             else:
-        #                 smooth_seg = smooth_grad[start_i_smooth:end_i_smooth]
-        #                 ave_under = np.mean(smooth_seg)
-        #
-        #             # print(smooth_seg)
-        #             print(ave_under - thresh)
-        #             # print(grad_rms[i_where])
-        #
-        #         hf.plot_spans(ax3, intersect_spans)
+
 
 
 def show():
@@ -1784,3 +1670,54 @@ def show():
         plt.grid()
 
         plt.show()
+
+
+def test_seg_finder():
+    fname = datadir + "many_successful.npz"
+    channels = ["MEG2*1"]
+    time_window = (0.210, 0.50)
+    signals, names, timex, n_chan = fr.get_signals(fname, time_win=time_window)
+
+    signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals, names, n_chan,
+                                                                                                badness_sensitivity=.5)
+
+    window_to_check = [0.4, 0.45]
+
+    good_names, good_times, good_is = hf.find_sigs_with_good_segs(window_to_check, timex, names, bad_segment_list)
+
+    print(good_is)
+    good_i = 0
+
+    for i in range(len(names)):
+        signal = signals[i]
+        name = names[i]
+        bad_segs = bad_segment_list[i]
+        print(name)
+
+        fig, ax = plt.subplots()
+        ax.plot(signal)
+        hf.plot_spans(ax, bad_segs, color="red")
+        if name in good_names:
+            good_seg = good_is[good_i]
+            hf.plot_spans(ax, good_seg)
+            print(good_seg, good_times[good_i])
+            good_i +=1
+
+        print()
+        plt.show()
+
+        # print(good_names[i], good_times[i])
+
+
+def test_crop():
+    fname = datadir + "sample_data40.npz"
+    channels = ["MEG2*1"]
+    signals, names, timex, n_chan = fr.get_signals(fname)
+
+    detecs = np.load("array120_trans_newnames.npz")
+
+    signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals, names, n_chan,
+                                                                                                badness_sensitivity=.5,
+                                                                                             filter_beginning=False)
+
+    hf.plot_in_order_ver3(signals, names, n_chan, signal_statuses, bad_segment_list, suspicious_segment_list)

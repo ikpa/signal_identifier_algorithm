@@ -1,5 +1,8 @@
 import argparse
 import time
+
+import matplotlib.pyplot as plt
+
 import signal_analysis as sa
 import file_reader as fr
 import helper_funcs as hf
@@ -130,15 +133,31 @@ def thirdver(fname, filters, phys, plot):
         hf.plot_in_order_ver3(signals, names, n_chan, signal_statuses, bad_segs, suspicious_segs, physicality=phys_stat)
 
 
+# TODO finish this + make fft faster
+def partial_analysis(time_seg, fname, channels=["MEG*1", "MEG*4"], seg_extend=200):
+    signals, names, t, n_chan = fr.get_signals(fname, channels=channels)
+    cropped_signals, cropped_ix = hf.crop_signals_time(time_seg, t, signals, seg_extend)
+
+    for i in range(n_chan):
+        i_x = cropped_ix[i]
+        t_x = t[i_x]
+        cropped_sig = cropped_signals[i]
+        plt.plot(t_x, cropped_sig)
+        plt.show()
+
 def main():
     args = arg_parser()
     thirdver(args.filename, args.filters, args.physicality, args.plot)
 
 
 if __name__ == '__main__':
-    main()
-    #tf.test_fft_full()
+    #main()
+    #tf.test_fft()
     #tf.show()
+    #tf.test_seg_finder()
+    #tf.test_crop()
+    datadir = "example_data_for_patrik/"
+    partial_analysis([0.45, 0.48], datadir + "sample_data39.npz")
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/

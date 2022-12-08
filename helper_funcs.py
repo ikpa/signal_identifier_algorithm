@@ -149,3 +149,120 @@ def fix_segs(segs, offset):
         new_segs.append([seg[0] + offset, seg[1] + offset])
 
     return new_segs
+
+
+def find_sigs_with_good_segs(time_to_find, t_x, names, bad_seg_list):
+    good_names = []
+    good_times_list = []
+    good_is_list = []
+
+    # print(bad_seg_list)
+
+    #for i in range(len(t_x)):
+    #    print(t_x[i], i)
+    #print(np.where(abs(time_to_find[0] - t_x) == min(abs(time_to_find[0] - t_x))))
+
+    start_i = np.where(abs(time_to_find[0] - t_x) == min(abs(time_to_find[0] - t_x)))[0][0]
+    end_i = np.where(abs(time_to_find[1] - t_x) == min(abs(time_to_find[1] - t_x)))[0][0]
+    # seg_to_find = [start_i, end_i]
+    seg_to_find_list = list(range(start_i, end_i + 1))
+
+    for i in range(len(names)):
+        # print(i)
+        name = names[i]
+        bad_segs = bad_seg_list[i]
+        # print(bad_segs)
+
+        print(name)
+        segs_of_seg_to_find = seg_to_find_list
+
+        for bad_seg in bad_segs:
+            bad_seg_temp_list = list(range(bad_seg[0], bad_seg[1] + 1))
+            segs_of_seg_to_find = list(set(segs_of_seg_to_find) - set(bad_seg_temp_list))
+            # print(segs_of_seg_to_find)
+
+        segs_of_seg_to_find.sort()
+        segs_of_seg_to_find_list = split_into_lists(segs_of_seg_to_find)
+        # print(segs_of_seg_to_find_list)
+        # print(segs_of_seg_to_find_list)
+
+        good_times = []
+        good_is = []
+        for lst in segs_of_seg_to_find_list:
+            seg_start_i = lst[0]
+            seg_end_i = lst[-1]
+            start_time = t_x[seg_start_i]
+            end_time = t_x[seg_end_i]
+            good_times.append([start_time, end_time])
+            good_is.append([seg_start_i, seg_end_i])
+
+        if len(good_times) != 0:
+            good_names.append(name)
+            good_times_list.append(good_times)
+            good_is_list.append(good_is)
+
+        # print()
+
+    return good_names, good_times_list, good_is_list
+
+
+
+# split a single list of integers into several lists so that each new list
+# contains no gaps between each integer
+def split_into_lists(original_list):
+    n = len(original_list)
+
+    if n == 0:
+        return original_list
+
+    new_lists = []
+    lst = [original_list[0]]
+    for i in range(1, n):
+        integer = original_list[i]
+        prev_int = integer - 1
+
+        if prev_int not in lst:
+            new_lists.append(lst)
+            lst = [integer]
+        elif i == n - 1:
+            lst.append(integer)
+            new_lists.append(lst)
+        else:
+            lst.append(integer)
+
+    return new_lists
+
+def i_seg_from_time_seg(time_seg, t_x):
+    start_i = np.where(abs(time_seg[0] - t_x) == min(abs(time_seg[0] - t_x)))[0][0]
+    end_i = np.where(abs(time_seg[1] - t_x) == min(abs(time_seg[1] - t_x)))[0][0]
+    return [start_i, end_i]
+
+
+def crop_signals_time(time_seg, t, signals, seg_extend):
+    final_i = len(t) - 1
+    i_seg = i_seg_from_time_seg(time_seg, t)
+    i_seg_extend = [i_seg[0] - seg_extend, i_seg[-1] + seg_extend]
+
+    if i_seg_extend[0] < 0:
+        i_seg_extend[0] = 0
+
+    if i_seg_extend[-1] > final_i:
+        i_seg_extend[-1] = final_i
+
+    cropped_signals = []
+    cropped_ix = []
+
+    print(i_seg_extend)
+
+    for signal in signals:
+        filter_i = sa.filter_start(signal)
+
+        if filter_i > i_seg_extend[0]:
+            start_i = filter_i
+        else:
+            start_i = i_seg_extend[0]
+
+        cropped_signals.append(signal[start_i:i_seg_extend[-1]])
+        cropped_ix.append(list(range(start_i, i_seg_extend[-1])))
+
+    return cropped_signals, cropped_ix
