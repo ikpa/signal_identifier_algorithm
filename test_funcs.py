@@ -1552,32 +1552,36 @@ def test_fft_full():
 
 def test_fft():
     # SUS ONES: sd37: 2214
-    fname = datadir + "sample_data40.npz"
+    fname = datadir + "sample_data06.npz"
     channels = ["MEG2*1"]
     signals, names, timex, n_chan = fr.get_signals(fname)
 
     detecs = np.load("array120_trans_newnames.npz")
 
-    signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals, names, n_chan,
+    time_window = [0.21, 0.3]
+    cropped_signals, cropped_ix = hf.crop_signals_time(time_window, timex, signals, 200)
+
+    signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(cropped_signals, names, n_chan,
                                                                                                 badness_sensitivity=.5,
-                                                                                                filters=["uniq", "segment", "spike"])
+                                                                                                filters=["uniq", "segment", "spike"],
+                                                                                                filter_beginning=False)
 
     for i in range(n_chan):
         name = names[i]
         print(name)
-        signal = signals[i]
+        signal = cropped_signals[i]
         bad_segs = bad_segment_list[i]
-        filter_i = sa.filter_start(signal)
+        # filter_i = sa.filter_start(signal)
 
-        normal_sig = signal[filter_i:]
-        normal_x = list(range(filter_i, len(signal)))
+        #normal_sig = signal[filter_i:]
+        #normal_x = list(range(filter_i, len(signal)))
         full_x = list(range(len(signal)))
 
         indices = [2]
         fft_window = 400
 
         nu_i_x, nu_i_arr, u_filter_i_i, u_i_arr_ave, u_i_arr_sdev, u_cut_grad, u_grad_ave, u_grad_x, status, sus_score, rms_x, fft_sdev, error_start, sdev_thresh, sdev_span = sa.fft_filter(
-            signal, filter_i, bad_segs, indices=indices, fft_window=fft_window, debug=True)
+            signal, 0, bad_segs, indices=indices, fft_window=fft_window, debug=True)
 
         if status == 0:
             s = "GOOD"
@@ -1596,9 +1600,13 @@ def test_fft():
             print()
             continue
 
-        nu_i_x = [x + filter_i for x in nu_i_x]
-        u_filter_i_i = u_filter_i_i + filter_i
-        u_grad_x = [x + filter_i for x in u_grad_x]
+        #nu_i_x = [x + filter_i for x in nu_i_x]
+        #u_filter_i_i = u_filter_i_i + filter_i
+        #u_grad_x = [x + filter_i for x in u_grad_x]
+
+        nu_i_x = [x for x in nu_i_x]
+        u_filter_i_i = u_filter_i_i
+        u_grad_x = [x for x in u_grad_x]
 
         fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, sharex=True)
 

@@ -6,6 +6,8 @@ import numpy as np
 # this file contains certain helper functions used in various places.
 # not all of them are used or commented
 
+orig_time_window = (0.210, 0.50)
+
 # plot all segments onto a figure
 def plot_spans(ax, segments, color="blue"):
     if len(segments) == 0:
@@ -249,10 +251,14 @@ def crop_signals_time(time_seg, t, signals, seg_extend):
     if i_seg_extend[-1] > final_i:
         i_seg_extend[-1] = final_i
 
+    if time_seg[0] < orig_time_window[0] or time_seg[1] > orig_time_window[1]:
+        print("the window you have requested is out of bounds for the data window."
+              " outputting the following window instead:", t[i_seg_extend])
+
     cropped_signals = []
     cropped_ix = []
 
-    print(i_seg_extend)
+    # print(i_seg_extend)
 
     for signal in signals:
         filter_i = sa.filter_start(signal)
@@ -266,3 +272,23 @@ def crop_signals_time(time_seg, t, signals, seg_extend):
         cropped_ix.append(list(range(start_i, i_seg_extend[-1])))
 
     return cropped_signals, cropped_ix
+
+
+def segs_from_i_to_time(ix_list, t_x, bad_segs):
+    bad_segs_time = []
+    for i in range(len(bad_segs)):
+        bad_seg = bad_segs[i]
+        i_x = ix_list[i]
+        offset = i_x[0]
+
+        fixed_bads = fix_segs(bad_seg, offset)
+
+        bad_segs_time_1 = []
+        for bad_seg_1 in fixed_bads:
+            start_t = t_x[bad_seg_1[0]]
+            end_t = t_x[bad_seg_1[-1]]
+            bad_segs_time_1.append([start_t, end_t])
+
+        bad_segs_time.append(bad_segs_time_1)
+
+    return bad_segs_time

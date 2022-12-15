@@ -613,11 +613,13 @@ def find_nearby_detectors(d_name, detectors, r_sens=0.06):
     return nears
 
 
-# filter the jump in the beginning of the signal. works better on good signals
+# filter the jump in the beginning of the signal
 def filter_start(signal, offset=50, max_rel=0.05):
     max_i = int(max_rel * len(signal))
     grad = np.gradient(signal)
     new_grad = grad[:max_i]
+
+    grad_ave = np.mean(grad)
     # max_grad_i = np.argmax(new_grad)
     # min_grad_i = np.argmin(new_grad)
 
@@ -625,9 +627,19 @@ def filter_start(signal, offset=50, max_rel=0.05):
     mini = np.amin(new_grad)
 
     if maxi > abs(mini):
+        max_val = maxi
         farther_i = np.where(grad == maxi)[0][0]
     else:
+        max_val = abs(mini)
         farther_i = np.where(grad == mini)[0][0]
+
+    rel_max = abs(max_val/grad_ave)
+
+    print(max_val, grad_ave, rel_max)
+
+    # TODO convert to absolute values
+    if rel_max < 10.0:
+        return np.int64(0)
 
     # print("filter_i", farther_i)
 
@@ -1036,8 +1048,11 @@ def calc_fft_indices(signal, indices=None, window=400, smooth_window=401, filter
 # 0 = good
 # 1 = bad
 # 2 = undetermined
-def stats_from_i(i_arr, i_x, bad_segs, fft_window, cut_length=70, max_sig_len=1000):
-    filter_i_i = filter_start(i_arr, offset=225, max_rel=.1)
+# 3 = too short
+def stats_from_i(i_arr, i_x, bad_segs, fft_window, cut_length=70, max_sig_len=800):
+    print("filtering fft:")
+    offset = int(len(i_arr) * 0.0775)
+    filter_i_i = filter_start(i_arr, offset=offset, max_rel=.1)
 
     last_i = len(i_arr) - 1
 
@@ -1050,10 +1065,11 @@ def stats_from_i(i_arr, i_x, bad_segs, fft_window, cut_length=70, max_sig_len=10
     grad = np.gradient(i_arr)
 
     nu_i_arr = i_arr[:-minus_i]
+    cut_i_arr = nu_i_arr[filter_i_i:]
     nu_i_x = i_x[:-minus_i]
 
-    i_arr_ave = np.mean(nu_i_arr[filter_i_i:])
-    i_arr_sdev = np.std(nu_i_arr[filter_i_i:])
+    i_arr_ave = np.mean(cut_i_arr)
+    i_arr_sdev = np.std(cut_i_arr)
 
     cut_grad = grad[filter_i_i:-minus_i]
     grad_ave = np.mean(cut_grad)
@@ -1073,13 +1089,17 @@ def stats_from_i(i_arr, i_x, bad_segs, fft_window, cut_length=70, max_sig_len=10
 
         return new_stat
 
+    short = False
     status = 0
     sus_score = 0
 
-    if len(nu_i_arr) < max_sig_len:
-        print("NOT ENOUGH SIGNAL")
-        status = change_status(2, status)
-        return nu_i_arr, nu_i_x, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score
+    print("signal length ", len(cut_i_arr))
+    # TODO another check for signals under 400 (?)
+    if len(cut_i_arr) < max_sig_len:
+        print("NOT ENOUGH SIGNAL FOR ERROR LOCALIZATION")
+        # status = change_status(3, status)
+        short = True
+        # return nu_i_arr, nu_i_x, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score
 
     # sus: 1e-08 - 5e-09, bad < 5e-09
     if i_arr_ave < 1 * 10 ** (-14):
@@ -1094,6 +1114,7 @@ def stats_from_i(i_arr, i_x, bad_segs, fft_window, cut_length=70, max_sig_len=10
 
     grad_ave_thresh = 2 * 10 ** (-12)
     # TODO turn into abs and test
+    # TODO check value for cropped signals
     if grad_ave > 5 * 10 ** (-12):
         print("EXTREMELY HIGH GRADIENT AVERAGE")
         status = change_status(1, status)
@@ -1119,7 +1140,7 @@ def stats_from_i(i_arr, i_x, bad_segs, fft_window, cut_length=70, max_sig_len=10
         print("SUSPICIOUS SIGNAL")
         status = change_status(2, status)
 
-    return nu_i_arr, nu_i_x, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score
+    return nu_i_arr, nu_i_x, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score, short
 
 
 def find_saturation_point_from_fft(i_x, i_arr, filter_i, fft_window, sdev_window=10, rel_sdev_thresh=1.6,
@@ -1139,8 +1160,9 @@ def find_saturation_point_from_fft(i_x, i_arr, filter_i, fft_window, sdev_window
         span_sdev_ave = np.mean(fft_sdev[where_above_sdev[0]:where_above_sdev[-1]])
         seg_len = length_of_segments([sdev_span])
         highsdev = span_sdev_ave > abs_sdev_thresh
+        print(span_sdev_ave, seg_len)
 
-        if seg_len < 600:
+        if seg_len < 550:
             local_err = True
         else:
             local_err = False
@@ -1173,7 +1195,7 @@ def fft_filter(signal, filter_i, bad_segs, fft_window=400, indices=[2], badness_
     rel_bad_len = bad_len / sig_len
 
     if rel_bad_len >= badness_sens:
-        print("NOT ENOUGH SIGNAL")
+        print("BAD SEGMENTS TOO LONG")
         if debug:
             return None, None, None, None, None, None, None, None, 2, 0, None, None, None, None, None
         else:
@@ -1198,17 +1220,24 @@ def fft_filter(signal, filter_i, bad_segs, fft_window=400, indices=[2], badness_
 
     nu_i_x = i_x[:final_i_fft]
 
-    cut_i_arr, cut_i_x, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score = stats_from_i(
+    cut_i_arr, cut_i_x, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score, short = stats_from_i(
         nu_i_arr[0], nu_i_x, bad_segs, fft_window)
 
-    rms_x, fft_sdev, error_start, sdev_thresh, sdev_span = find_saturation_point_from_fft(cut_i_x, cut_i_arr,
-                                                                                          filter_i_i,
-                                                                                          fft_window)
+    if not short:
+        rms_x, fft_sdev, error_start, sdev_thresh, sdev_span = find_saturation_point_from_fft(cut_i_x, cut_i_arr,
+                                                                                              filter_i_i,
+                                                                                              fft_window)
+    else:
+        rms_x, fft_sdev, error_start, sdev_thresh, sdev_span = None, None, None, None, None
+
     if debug:
         return cut_i_x, cut_i_arr, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score, rms_x, fft_sdev, error_start, sdev_thresh, sdev_span
 
     if status == 0:
         score = -.5
+
+    if status == 3:
+        score = 0.0
 
     if status == 1:
         score = 1.5
@@ -1475,6 +1504,10 @@ def analyse_all_neo(signals, names, chan_num,
                     badness_sensitivity=.5, filter_beginning=True):
     if filters is None:
         filters = ["uniq", "segment", "spike", "fft"]
+
+    # move fft filter to last place (requires other bad segments as input)
+    if "fft" in filters:
+        filters.append(filters.pop(filters.index("fft")))
 
     exec_times = []
     signal_statuses = []
