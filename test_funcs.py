@@ -1552,13 +1552,14 @@ def test_fft_full():
 
 def test_fft():
     # SUS ONES: sd37: 2214
-    fname = datadir + "sample_data06.npz"
-    channels = ["MEG2*1"]
-    signals, names, timex, n_chan = fr.get_signals(fname)
+    fname = datadir + "sample_data27.npz"
+    #channels = ["MEG0311", "MEG1114"]
+    channels = ["MEG*1", "MEG*4"]
+    signals, names, timex, n_chan = fr.get_signals(fname, channels=channels)
 
     detecs = np.load("array120_trans_newnames.npz")
 
-    time_window = [0.21, 0.3]
+    time_window = [0.4, 0.5]
     cropped_signals, cropped_ix = hf.crop_signals_time(time_window, timex, signals, 200)
 
     signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(cropped_signals, names, n_chan,
@@ -1570,6 +1571,7 @@ def test_fft():
         name = names[i]
         print(name)
         signal = cropped_signals[i]
+        # signal = signals[i]
         bad_segs = bad_segment_list[i]
         # filter_i = sa.filter_start(signal)
 
@@ -1604,9 +1606,9 @@ def test_fft():
         #u_filter_i_i = u_filter_i_i + filter_i
         #u_grad_x = [x + filter_i for x in u_grad_x]
 
-        nu_i_x = [x for x in nu_i_x]
-        u_filter_i_i = u_filter_i_i
-        u_grad_x = [x for x in u_grad_x]
+        #nu_i_x = [x for x in nu_i_x]
+        #u_filter_i_i = u_filter_i_i
+        #u_grad_x = [x for x in u_grad_x]
 
         fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, sharex=True)
 
@@ -1729,3 +1731,11 @@ def test_crop():
                                                                                              filter_beginning=False)
 
     hf.plot_in_order_ver3(signals, names, n_chan, signal_statuses, bad_segment_list, suspicious_segment_list)
+
+
+def test_ffft():
+    fname = datadir + "sample_data40.npz"
+    channels = ["MEG2*1"]
+    signals, names, timex, n_chan = fr.get_signals(fname)
+
+    detecs = np.load("array120_trans_newnames.npz")

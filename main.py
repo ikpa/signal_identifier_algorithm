@@ -134,21 +134,24 @@ def thirdver(fname, filters, phys, plot):
 
 
 # TODO finish this + make fft faster
+# TODO physicality analysis next!!!
 def partial_analysis(time_seg, fname, channels=["MEG*1", "MEG*4"], filters=default_filters, seg_extend=200):
     signals, names, t, n_chan = fr.get_signals(fname, channels=channels)
     cropped_signals, cropped_ix = hf.crop_signals_time(time_seg, t, signals, seg_extend)
-    signal_statuses, bad_segs, suspicious_segs, exec_times = sa.analyse_all_neo(cropped_signals, names, n_chan, filters=["uniq", "segment", "spike"], filter_beginning=False)
+    signal_statuses, bad_segs, suspicious_segs, exec_times = sa.analyse_all_neo(cropped_signals, names, n_chan, filters=filters, filter_beginning=False)
 
     bad_segs_time = hf.segs_from_i_to_time(cropped_ix, t, bad_segs)
 
     for i in range(n_chan):
         i_x = cropped_ix[i]
         t_x = t[i_x]
+        name = names[i]
         bad_seg_plot = bad_segs_time[i]
         cropped_sig = cropped_signals[i]
         figure, ax = plt.subplots()
         plt.plot(t_x, cropped_sig)
         hf.plot_spans(ax, bad_seg_plot, color="red")
+        ax.set_title(name)
         plt.show()
 
 def main():
@@ -158,12 +161,12 @@ def main():
 
 if __name__ == '__main__':
     #main()
-    tf.test_fft()
+    #tf.test_fft()
     #tf.show()
     #tf.test_seg_finder()
     #tf.test_crop()
-    #datadir = "example_data_for_patrik/"
-    #partial_analysis([0.3, 0.35], datadir + "many_failed.npz")
+    datadir = "example_data_for_patrik/"
+    partial_analysis([0.3, 0.35], datadir + "many_many_successful.npz")
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
