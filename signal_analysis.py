@@ -635,7 +635,7 @@ def filter_start(signal, offset=50, max_rel=0.05):
 
     rel_max = abs(max_val/grad_ave)
 
-    print(max_val, grad_ave, rel_max)
+    # print(max_val, grad_ave, rel_max)
 
     # TODO convert to absolute values
     if rel_max < 10.0:
@@ -992,7 +992,46 @@ def get_fft(signal, filter_i=0):
 
     ftrans = fft(signal[filter_i:])
     ftrans_abs = [abs(x) for x in ftrans]
-    return ftrans_abs
+    return ftrans_abs, ftrans
+
+
+def get_ffft(signal, k=2):
+    sig_len = len(signal)
+    const = 2 * np.pi / sig_len
+
+    fft_sum = 0
+
+    for n in range(sig_len):
+        sig_val = signal[n]
+        # print(sig_val)
+        fft_real = np.cos(const * k * n)
+        fft_imag = - np.sin(const * k * n)
+        fft = sig_val * complex(fft_real, fft_imag)
+        # print(fft_real, fft_imag, sig_val, fft)
+        fft_sum += fft
+
+
+    #print(fft_sum, abs(fft_sum))
+    return fft_sum, abs(fft_sum)
+
+
+# TODO do it better
+def get_ffft_alt(signal, k=2):
+    sig_len = len(signal)
+    const = 2 * np.pi / sig_len
+    n_range = list(range(sig_len))
+    exp_list = [const * k * n for n in n_range]
+    reals = np.cos(exp_list)
+    imags = - np.sin(exp_list)
+    nu_reals = np.dot(signal, reals)
+    nu_imags = np.dot(signal, imags)
+    real_sum = np.sum(nu_reals)
+    imag_sum = np.sum(nu_imags)
+    #abs_vals = np.sqrt(nu_reals ** 2 + nu_imags ** 2)
+    # fin_list = np.dot(signal, abs_vals)
+    #fft_sum = np.sum(abs_vals)
+    abs_sum = np.sqrt(real_sum ** 2 + imag_sum ** 2)
+    return abs_sum
 
 
 # calculate the fft for a windowed part of the signal. the window is scanned across
@@ -1001,7 +1040,7 @@ def get_fft(signal, filter_i=0):
 # before calculating the ffts the trend of the signal is removed by first
 # calculating a rolling average with a very large smoothing window and then
 # getting the difference between the smoothed signal and the original.
-def calc_fft_indices(signal, indices=None, window=400, smooth_window=401, filter_offset=0):
+def calc_fft_indices(signal, indices=None, window=400, smooth_window=401, filter_offset=0, faster=False):
     if indices is None:
         indices = [1, 2, 6]
 
@@ -1031,11 +1070,21 @@ def calc_fft_indices(signal, indices=None, window=400, smooth_window=401, filter
     for i in range(ftrans_points):
         end_i = i + window
         signal_windowed = filtered_signal[i: end_i]
-        ftrans = get_fft(signal_windowed)
 
-        for j in range(len(indices)):
-            index = indices[j]
-            i_arr[j][i] = ftrans[index]
+        if not faster:
+            ftrans, ftrans_comp = get_fft(signal_windowed)
+
+            for j in range(len(indices)):
+                index = indices[j]
+                # print("orig", ftrans_comp[index])
+                i_arr[j][i] = ftrans[index]
+        else:
+            for j in range(len(indices)):
+                index = indices[j]
+                # fft_comp, fft_abs = get_ffft(signal_windowed, k=index)
+                fft_abs = get_ffft_alt(signal_windowed, k=index)
+                # print("new", fft_comp)
+                i_arr[j][i] = fft_abs
 
     nu_x = list(range(ftrans_points))
     # nu_x = [x + filter_offset for x in nu_x]
@@ -1070,14 +1119,9 @@ def stats_from_i(i_arr, i_x, bad_segs, fft_window, cut_length=70, max_sig_len=80
     grad = np.gradient(i_arr)
     cut_grad = grad[filter_i_i:-minus_i]
     grad_ave = np.mean(cut_grad)
-    grad_ave_per_i = grad_ave / len(cut_grad)
     grad_x = list(range(filter_i_i, i_x[-1] + 1 - minus_i))
 
-    grad_rms = np.sqrt(np.mean([x ** 2 for x in cut_grad]))
     grad_rmsd = np.sqrt(np.mean([(grad_ave - x) ** 2 for x in cut_grad]))
-
-    abs_increase = cut_i_arr[-1] - cut_i_arr[0]
-    ave_x_len = grad_ave * len(cut_i_arr)
 
     print("i ave:", i_arr_ave, " i sdev:", i_arr_sdev)  # ave < 10e-09 - 5e-09 => SUS, sdev > 3e-09 => SUS
     print("grad rmsd", grad_rmsd)  # sus thresh: 2.5e-11, bad tresh: 7e-11 (raise this possibly)

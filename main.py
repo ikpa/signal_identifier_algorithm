@@ -165,8 +165,9 @@ if __name__ == '__main__':
     #tf.show()
     #tf.test_seg_finder()
     #tf.test_crop()
-    datadir = "example_data_for_patrik/"
-    partial_analysis([0.3, 0.35], datadir + "many_many_successful.npz")
+    tf.test_ffft()
+    #datadir = "example_data_for_patrik/"
+    #partial_analysis([0.3, 0.35], datadir + "many_many_successful.npz")
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/

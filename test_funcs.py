@@ -1733,9 +1733,40 @@ def test_crop():
     hf.plot_in_order_ver3(signals, names, n_chan, signal_statuses, bad_segment_list, suspicious_segment_list)
 
 
+# TODO cropped phys anal after this is finished
 def test_ffft():
     fname = datadir + "sample_data40.npz"
-    channels = ["MEG2*1"]
-    signals, names, timex, n_chan = fr.get_signals(fname)
+    channels = ["MEG1041"]
+    signals, names, timex, n_chan = fr.get_signals(fname, channels=channels)
 
     detecs = np.load("array120_trans_newnames.npz")
+
+    for i in range(n_chan):
+        name = names[i]
+        signal = signals[i]
+        print(name)
+        filter_i = sa.filter_start(signal)
+        filt_signal = signal[filter_i:]
+
+        start_t_o = time.time()
+        orig_i_arr, orig_nu_x, orig_smooth_signal, orig_smooth_x, orig_filtered_signal = sa.calc_fft_indices(filt_signal, [2])
+        end_t_o = time.time()
+        o_t = end_t_o - start_t_o
+
+        start_t_n = time.time()
+        new_i_arr, new_nu_x, new_smooth_signal, new_smooth_x, new_filtered_signal = sa.calc_fft_indices(
+            filt_signal, [2], faster=True)
+        end_t_n = time.time()
+        n_t = end_t_n - start_t_n
+
+        fig1, ax1 = plt.subplots()
+        ax1.plot(orig_i_arr[0], label="original " + str(o_t))
+        ax1.plot(new_i_arr[0], label="new " + str(n_t))
+        ax1.legend()
+
+        fig3, ax3 = plt.subplots()
+        ax3.plot(filt_signal)
+        ax3.set_title("signal " + name)
+
+        plt.show()
+        print()
