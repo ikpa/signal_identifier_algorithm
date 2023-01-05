@@ -95,9 +95,9 @@ def thirdver(fname, filters, phys, plot):
     print("beginning analysis with the following filters:", filters)
     print()
     start_time = time.time()
-    signal_statuses, bad_segs, suspicious_segs, exec_times = sa.analyse_all_neo(signals, names, n_chan, filters=filters)
+    signal_statuses, bad_segs, suspicious_segs, exec_times = sa.analyse_all_neo(signals, names, n_chan, filters=filters, fft_goertzel=False)
     end_time = time.time()
-    filt_time = (end_time - start_time) / 60
+    filt_time = (end_time - start_time)
     print("time elapsed in filtering: " + str(filt_time) + " mins")
     print()
 
@@ -112,7 +112,7 @@ def thirdver(fname, filters, phys, plot):
 
         phys_stat, phys_conf = sa.analyse_phys_dat(all_diffs, names, all_rel_diffs, chan_dict)
         end_time = time.time()
-        phys_time = (end_time - start_time) / 60
+        phys_time = (end_time - start_time)
         print()
         print("time elapsed in physicality analysis: " + str(phys_time) + " mins")
     else:
@@ -127,7 +127,7 @@ def thirdver(fname, filters, phys, plot):
     print()
     print_results(names, signals, signal_statuses, bad_segs, suspicious_segs,
                   phys_stat, phys_conf, all_rel_diffs, chan_dict)
-    print("total time elapsed: " + str(tot_time) + " mins")
+    print("total time elapsed: " + str(tot_time) + " secs")
 
     if plot:
         hf.plot_in_order_ver3(signals, names, n_chan, signal_statuses, bad_segs, suspicious_segs, physicality=phys_stat)
@@ -160,7 +160,7 @@ def main():
 
 
 if __name__ == '__main__':
-    #main()
+    # main()
     #tf.test_fft()
     #tf.show()
     #tf.test_seg_finder()

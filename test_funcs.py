@@ -10,6 +10,8 @@ import signal_analysis as sa
 import matplotlib.pyplot as plt
 import signal_generator as sg
 
+# from sklearn import preprocessing
+
 datadir = "example_data_for_patrik/"
 
 brokens = ["MEG0111", "MEG0221", "MEG0234", "MEG0241", "MEG1244", "MEG2131", "MEG2244"]
@@ -1552,28 +1554,28 @@ def test_fft_full():
 
 def test_fft():
     # SUS ONES: sd37: 2214
-    fname = datadir + "sample_data27.npz"
+    fname = datadir + "many_many_successful.npz"
     #channels = ["MEG0311", "MEG1114"]
     channels = ["MEG*1", "MEG*4"]
     signals, names, timex, n_chan = fr.get_signals(fname, channels=channels)
 
     detecs = np.load("array120_trans_newnames.npz")
 
-    time_window = [0.4, 0.5]
-    cropped_signals, cropped_ix = hf.crop_signals_time(time_window, timex, signals, 200)
+    #time_window = [0.4, 0.5]
+    #cropped_signals, cropped_ix = hf.crop_signals_time(time_window, timex, signals, 200)
 
-    signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(cropped_signals, names, n_chan,
+    signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals, names, n_chan,
                                                                                                 badness_sensitivity=.5,
                                                                                                 filters=["uniq", "segment", "spike"],
-                                                                                                filter_beginning=False)
+                                                                                                filter_beginning=True)
 
     for i in range(n_chan):
         name = names[i]
         print(name)
-        signal = cropped_signals[i]
+        signal = signals[i]
         # signal = signals[i]
         bad_segs = bad_segment_list[i]
-        # filter_i = sa.filter_start(signal)
+        filter_i = sa.filter_start(signal)
 
         #normal_sig = signal[filter_i:]
         #normal_x = list(range(filter_i, len(signal)))
@@ -1583,7 +1585,7 @@ def test_fft():
         fft_window = 400
 
         nu_i_x, nu_i_arr, u_filter_i_i, u_i_arr_ave, u_i_arr_sdev, u_cut_grad, u_grad_ave, u_grad_x, status, sus_score, rms_x, fft_sdev, error_start, sdev_thresh, sdev_span = sa.fft_filter(
-            signal, 0, bad_segs, indices=indices, fft_window=fft_window, debug=True)
+            signal, filter_i, bad_segs, indices=indices, fft_window=fft_window, debug=True, goertzel=True)
 
         if status == 0:
             s = "GOOD"
@@ -1602,9 +1604,9 @@ def test_fft():
             print()
             continue
 
-        #nu_i_x = [x + filter_i for x in nu_i_x]
-        #u_filter_i_i = u_filter_i_i + filter_i
-        #u_grad_x = [x + filter_i for x in u_grad_x]
+        nu_i_x = [x + filter_i for x in nu_i_x]
+        u_filter_i_i = u_filter_i_i + filter_i
+        u_grad_x = [x + filter_i for x in u_grad_x]
 
         #nu_i_x = [x for x in nu_i_x]
         #u_filter_i_i = u_filter_i_i
@@ -1736,10 +1738,12 @@ def test_crop():
 # TODO cropped phys anal after this is finished
 def test_ffft():
     fname = datadir + "sample_data40.npz"
-    channels = ["MEG1041"]
-    signals, names, timex, n_chan = fr.get_signals(fname, channels=channels)
+    # channels = ["MEG1041"]
+    signals, names, timex, n_chan = fr.get_signals(fname)
 
     detecs = np.load("array120_trans_newnames.npz")
+
+    indices = [2]
 
     for i in range(n_chan):
         name = names[i]
@@ -1749,24 +1753,37 @@ def test_ffft():
         filt_signal = signal[filter_i:]
 
         start_t_o = time.time()
-        orig_i_arr, orig_nu_x, orig_smooth_signal, orig_smooth_x, orig_filtered_signal = sa.calc_fft_indices(filt_signal, [2])
+        orig_i_arr, orig_nu_x, orig_smooth_signal, orig_smooth_x, orig_filtered_signal = sa.calc_fft_indices(filt_signal,
+                                                                                                             indices=indices)
         end_t_o = time.time()
         o_t = end_t_o - start_t_o
 
         start_t_n = time.time()
         new_i_arr, new_nu_x, new_smooth_signal, new_smooth_x, new_filtered_signal = sa.calc_fft_indices(
-            filt_signal, [2], faster=True)
+            filt_signal, indices=indices, goertzel=True)
         end_t_n = time.time()
         n_t = end_t_n - start_t_n
+
+        def normalize(dat):
+            return (dat - dat.min()) / (dat.max() - dat.min())
+
+
+        percent_decrease = 100 * (1 - n_t / o_t)
+
+        print("n_t / o_t:", n_t/o_t)
+        print(percent_decrease, "% faster")
+        print(np.mean(new_i_arr[0]),np.mean(orig_i_arr[0]),np.mean(new_i_arr[0]) / np.mean(orig_i_arr[0]))
 
         fig1, ax1 = plt.subplots()
         ax1.plot(orig_i_arr[0], label="original " + str(o_t))
         ax1.plot(new_i_arr[0], label="new " + str(n_t))
         ax1.legend()
+        ax1.set_title(name)
+        # ax2.legend()
 
-        fig3, ax3 = plt.subplots()
-        ax3.plot(filt_signal)
-        ax3.set_title("signal " + name)
+        # fig3, ax3 = plt.subplots()
+        # ax3.plot(filt_signal)
+        # ax3.set_title("signal " + name)
 
         plt.show()
         print()

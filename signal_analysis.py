@@ -11,6 +11,7 @@ from operator import itemgetter
 # significantly
 from helper_funcs import split_into_lists
 
+sample_freq = 10000 # sampling frequency of the squids
 
 def smooth(x, window_len=21, window='hanning'):
     """smooth the data using a window with requested size.
@@ -988,10 +989,12 @@ def get_fft(signal, filter_i=0):
     from scipy.fft import fft
 
     if len(signal) == 0:
-        return [0]
+         return [0]
 
     ftrans = fft(signal[filter_i:])
-    ftrans_abs = [abs(x) for x in ftrans]
+    # ftrans_abs = [abs(x) for x in ftrans]
+    ftrans_abs = abs(ftrans)
+    # ftrans_abs = ftrans
     return ftrans_abs, ftrans
 
 
@@ -1015,23 +1018,87 @@ def get_ffft(signal, k=2):
     return fft_sum, abs(fft_sum)
 
 
+#import math
+
+
+def goertzel(samples, sample_rate, *freqs):
+    """
+    Implementation of the Goertzel algorithm, useful for calculating individual
+    terms of a discrete Fourier transform.
+    `samples` is a windowed one-dimensional signal originally sampled at `sample_rate`.
+    The function returns 2 arrays, one containing the actual frequencies calculated,
+    the second the coefficients `(real part, imag part, power)` for each of those frequencies.
+    For simple spectral analysis, the power is usually enough.
+    Example of usage :
+
+        freqs, results = goertzel(some_samples, 44100, (400, 500), (1000, 1100))
+    """
+    window_size = len(samples)
+    f_step = sample_rate / float(window_size)
+    f_step_normalized = 1.0 / window_size
+
+    # Calculate all the DFT bins we have to compute to include frequencies
+    # in `freqs`.
+    bins = set()
+    for f_range in freqs:
+        f_start, f_end = f_range
+        k_start = int(math.floor(f_start / f_step))
+        k_end = int(math.ceil(f_end / f_step))
+
+        if k_end > window_size - 1: raise ValueError('frequency out of range %s' % k_end)
+        bins = bins.union(range(k_start, k_end))
+
+    # For all the bins, calculate the DFT term
+    n_range = range(0, window_size)
+    freqs = []
+    results = []
+    for k in bins:
+
+        # Bin frequency and coefficients for the computation
+        f = k * f_step_normalized
+        w_real = 2.0 * math.cos(2.0 * math.pi * f)
+        w_imag = math.sin(2.0 * math.pi * f)
+
+        # Doing the calculation on the whole sample
+        d1, d2 = 0.0, 0.0
+        for n in n_range:
+            y = samples[n] + w_real * d1 - d2
+            d2, d1 = d1, y
+
+        # Storing results `(real part, imag part, power)`
+        results.append((
+            0.5 * w_real * d1 - d2, w_imag * d1,
+            d2 ** 2 + d1 ** 2 - w_real * d1 * d2)
+        )
+        freqs.append(f * sample_rate)
+    return freqs, results
+
+
 # TODO do it better
-def get_ffft_alt(signal, k=2):
-    sig_len = len(signal)
-    const = 2 * np.pi / sig_len
-    n_range = list(range(sig_len))
-    exp_list = [const * k * n for n in n_range]
-    reals = np.cos(exp_list)
-    imags = - np.sin(exp_list)
-    nu_reals = np.dot(signal, reals)
-    nu_imags = np.dot(signal, imags)
-    real_sum = np.sum(nu_reals)
-    imag_sum = np.sum(nu_imags)
+def get_ffft_alt(signal, freq_range, magic_factor=1.5e7):
+    # N = len(signal)
+    #const = 2 * np.pi / N
+    #x = list(range(N))
+    #exp_list = [const * k * n for n in n_range]
+    # reals = np.cos(exp_list)
+    # imags = - np.sin(exp_list)
+    # nu_reals = np.dot(signal, reals)
+    # nu_imags = np.dot(signal, imags)
+    # real_sum = np.sum(nu_reals)
+    # imag_sum = np.sum(nu_imags)
     #abs_vals = np.sqrt(nu_reals ** 2 + nu_imags ** 2)
     # fin_list = np.dot(signal, abs_vals)
     #fft_sum = np.sum(abs_vals)
-    abs_sum = np.sqrt(real_sum ** 2 + imag_sum ** 2)
-    return abs_sum
+    # abs_sum = np.sqrt(real_sum ** 2 + imag_sum ** 2)
+
+    # bin_freq = k * sample_freq / N
+    freqs, results = goertzel(signal, sample_freq, freq_range)
+    res = results[0]
+    nu_abs = np.sqrt(res[0]**2 + res[1]**2)
+    # nu_abs = res[0]
+    # print(freqs, results, nu_abs)
+    #return results[0][2] * magic_factor
+    return  nu_abs
 
 
 # calculate the fft for a windowed part of the signal. the window is scanned across
@@ -1040,13 +1107,20 @@ def get_ffft_alt(signal, k=2):
 # before calculating the ffts the trend of the signal is removed by first
 # calculating a rolling average with a very large smoothing window and then
 # getting the difference between the smoothed signal and the original.
-def calc_fft_indices(signal, indices=None, window=400, smooth_window=401, filter_offset=0, faster=False):
+def calc_fft_indices(signal, indices=None, window=400, smooth_window=401, filter_offset=0, goertzel=False):
     if indices is None:
         indices = [1, 2, 6]
 
     if len(signal) < window:
         print("stopping fft, window larger than signal")
         return None, None, None, None, None
+
+    if goertzel:
+        goertzel_freqs = []
+
+        for i in indices:
+            freq_start = i * sample_freq / window
+            goertzel_freqs.append((freq_start, freq_start + 1))
 
     sig_len = len(signal)
     ftrans_points = sig_len - window
@@ -1071,18 +1145,21 @@ def calc_fft_indices(signal, indices=None, window=400, smooth_window=401, filter
         end_i = i + window
         signal_windowed = filtered_signal[i: end_i]
 
-        if not faster:
+        if not goertzel:
             ftrans, ftrans_comp = get_fft(signal_windowed)
 
             for j in range(len(indices)):
                 index = indices[j]
                 # print("orig", ftrans_comp[index])
                 i_arr[j][i] = ftrans[index]
+                # i_arr[j][i] = ftrans_comp[index]
         else:
             for j in range(len(indices)):
-                index = indices[j]
+                # index = indices[j]
+                freq_range = goertzel_freqs[j]
                 # fft_comp, fft_abs = get_ffft(signal_windowed, k=index)
-                fft_abs = get_ffft_alt(signal_windowed, k=index)
+                # fft_abs = get_ffft_alt(signal_windowed, k=index)
+                fft_abs = get_ffft_alt(signal_windowed, freq_range)
                 # print("new", fft_comp)
                 i_arr[j][i] = fft_abs
 
@@ -1228,7 +1305,8 @@ def find_saturation_point_from_fft(i_x, i_arr, filter_i, fft_window, sdev_window
     return rms_x, fft_sdev, None, sdev_thresh, None
 
 
-def fft_filter(signal, filter_i, bad_segs, fft_window=400, indices=[2], badness_sens=.5, debug=False, fft_cut=70, min_length=400):
+def fft_filter(signal, filter_i, bad_segs, fft_window=400, indices=[2], badness_sens=.5, debug=False, fft_cut=70, min_length=400,
+               goertzel=False):
     normal_sig = signal[filter_i:]
     sig_len = len(normal_sig)
     final_i_filtsignal = sig_len - 1
@@ -1254,7 +1332,7 @@ def fft_filter(signal, filter_i, bad_segs, fft_window=400, indices=[2], badness_
             return [], []
 
     i_arr, i_x, smooth_signal, smooth_x, detrended_sig = calc_fft_indices(normal_sig, indices, window=fft_window,
-                                                                          filter_offset=filter_i)
+                                                                          filter_offset=filter_i, goertzel=goertzel)
 
     if i_arr is None:
         if debug:
@@ -1547,7 +1625,8 @@ def final_analysis(signal_length, segments, confidences, badness_sensitivity=.8)
 # the time it took to analyse each signal.
 def analyse_all_neo(signals, names, chan_num,
                     filters=None,
-                    badness_sensitivity=.5, filter_beginning=True):
+                    badness_sensitivity=.5, filter_beginning=True,
+                    fft_goertzel=False):
     if filters is None:
         filters = ["uniq", "segment", "spike", "fft"]
 
@@ -1594,7 +1673,7 @@ def analyse_all_neo(signals, names, chan_num,
             if fltr == "fft":
                 temp_bad, temp_bad_segs, temp_suspicious_segs = final_analysis(signal_length, segments, confidences,
                                                                                badness_sensitivity=badness_sensitivity)
-                seg_is, confs = fft_filter(signal, filter_i, temp_bad_segs)
+                seg_is, confs = fft_filter(signal, filter_i, temp_bad_segs, goertzel=fft_goertzel)
 
             new_segs = len(seg_is)
 
