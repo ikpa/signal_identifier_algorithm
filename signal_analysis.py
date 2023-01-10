@@ -114,7 +114,6 @@ def crop_all_sigs(signals, xs, bad_segs):
     return new_signals, new_x
 
 
-# TODO remove redundancy
 # calculates a magnetic field vector as a function of time from a set of signals
 # and their vectors. the magnetic fields are calculated from averaged
 # signals. averaging window can be changed using ave_window
@@ -127,9 +126,13 @@ def calc_magn_field_from_signals(signals, xs, vectors, ave_window=400):
         cropped_signals, new_x = crop_all_sigs(signals, xs, [])
 
     averaged_sigs = []
+    new_is = []
 
     for signal in cropped_signals:
-        averaged_sigs.append(averaged_signal(signal, ave_window))
+        ave_sig, new_i = averaged_signal(signal, ave_window, x=new_x)
+        # print(new_i)
+        averaged_sigs.append(ave_sig)
+        new_is.append(new_i)
 
     # if there are less than 3 signals, the calculation is not performed
     if len(signals) < 3:
@@ -139,44 +142,56 @@ def calc_magn_field_from_signals(signals, xs, vectors, ave_window=400):
     magn_vectors = []
     mag_is = []
 
-    len_sig = len(new_x)
-    max_i = len_sig - 1
-    cont = True
-    start_i = 0
-    end_i = ave_window
+    # len_sig = len(new_x)
+    # max_i = len_sig - 1
+    # cont = True
+    # start_i = 0
+    # end_i = ave_window
 
-    while cont:
-        # calculate rolling average
-        aves = []
-        for i in range(len(signals)):
-            signal = signals[i]
-            segment = signal[start_i:end_i]
-            aves.append(np.mean(segment))
+    for i in range(len(averaged_sigs[0])):
+        points = []
+        for j in range(len(averaged_sigs)):
+            points.append(averaged_sigs[j][i])
 
-        # calculate magnetic field vector
-        magn = magn_from_point(vectors, aves)
-        magn_vectors.append(magn)
-        mag_is.append(int(np.mean([start_i, end_i])))
-
-        # calculate next averaging window
-        start_i = end_i
-        end_i = end_i + ave_window
-
-        if end_i > max_i:
-            end_i = max_i
-
-        if start_i >= max_i:
-            cont = False
-
-    # calculate the x-values for the signals (in indices)
-    mag_i_offset = new_x[0] - mag_is[0]
-    mag_is = [x + mag_i_offset for x in mag_is]
+        mag = magn_from_point(vectors, points)
+        magn_vectors.append(mag)
+        current_index = new_is[0][i]
+        mag_is.append(current_index)
 
     return magn_vectors, mag_is, cropped_signals, new_x, averaged_sigs
 
+    # while cont:
+    #     # calculate rolling average
+    #     aves = []
+    #     for i in range(len(signals)):
+    #         signal = signals[i]
+    #         segment = signal[start_i:end_i]
+    #         aves.append(np.mean(segment))
+    #
+    #     # calculate magnetic field vector
+    #     magn = magn_from_point(vectors, aves)
+    #     magn_vectors.append(magn)
+    #     mag_is.append(int(np.mean([start_i, end_i])))
+    #
+    #     # calculate next averaging window
+    #     start_i = end_i
+    #     end_i = end_i + ave_window
+    #
+    #     if end_i > max_i:
+    #         end_i = max_i
+    #
+    #     if start_i >= max_i:
+    #         cont = False
+    #
+    # # calculate the x-values for the signals (in indices)
+    # mag_i_offset = new_x[0] - mag_is[0]
+    # mag_is = [x + mag_i_offset for x in mag_is]
+    #
+    # return magn_vectors, mag_is, cropped_signals, new_x, averaged_sigs
+
 
 # reconstruct a signal using a magnetic vector (as a function of time) mag
-# and a detector direction vector
+# and a detector direction vector v
 def reconstruct(mag, v):
     rec_sig = []
     for mag_point in mag:
@@ -237,11 +252,44 @@ def rec_and_diff(signals, xs, vs, ave_window=1):
 # 10**(-13) 1
 # 10**(-12) 100
 # 5*10**(-13) 100 CHECK THIS
-def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, ave_sens=10 ** (-13), ave_window=1,
+def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, sus_segs, ave_sens=10 ** (-13), ave_window=1,
                            min_sigs=4):
     if len(signals) <= min_sigs:
         print("too few signals, stopping")
         return [], [], [], []
+
+    # find the index of the channel to exclude. favors channels with suspicious
+    # channels present that have an average below ave_sens
+    # TODO make this more general possibly
+    def exclude(averages, sus_list):
+        sus_present = False
+
+        for sus in sus_list:
+
+            if len(sus) != 0:
+                sus_present = True
+                break
+
+        if not sus_present:
+            best = np.amin(averages)
+            return best, averages.index(best)
+
+        best_aves = []
+
+        for j in range(len(sus_list)):
+            sus = sus_list[j]
+            ave = averages[j]
+
+            if len(sus) != 0 and ave < ave_sens:
+                best_aves.append(ave)
+
+        if len(best_aves) == 0:
+            best = np.amin(averages)
+        else:
+            best = np.amin(best_aves)
+
+        return best, averages.index(best)
+
 
     # crop signals
     cropped_signals, new_x = crop_all_sigs(signals, xs, bad_segs)
@@ -250,6 +298,7 @@ def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, ave_sens=10 ** (-13
     temp_sigs = cropped_signals[:]
     temp_names = names[:]
     temp_vs = vs[:]
+    temp_sus = sus_segs[:]
 
     # calculate initial reconstruction
     ave_of_aves, aves, diffs, rec_sigs, magis, cropped_signals, new_new_x = rec_and_diff(cropped_signals, [new_x], vs,
@@ -267,7 +316,6 @@ def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, ave_sens=10 ** (-13
 
         print(len(temp_sigs), "signals left")
 
-        # TODO possibly change it so that these cases arent counted as being present in a calculation
         if len(temp_sigs) <= min_sigs:
             print("no optimal magnetic field found")
             return [], new_x, [], []
@@ -292,20 +340,27 @@ def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, ave_sens=10 ** (-13
 
         # choose the lowest average difference and permanently exclude this signal
         # from the rest of the calculation
-        best_ave = np.amin(new_aves)
+        # best_ave = np.amin(new_aves)
+        # best_exclusion_i = new_aves.index(best_ave)
+        best_ave, best_exclusion_i = exclude(new_aves, temp_sus)
+        # all_diffs = [ave_of_aves - x for x in new_aves]
         diff = ave_of_aves - best_ave
         rel_diff = diff / ave_of_aves
         print("average", best_ave)
+        #print("names", temp_names)
+        #print("all aves", new_aves)
+        #print("all diffs", all_diffs)
+        #print("sus", temp_sus)
         # print(ave_of_aves, best_ave, diff)
         ave_diffs.append(diff)
         rel_diffs.append(rel_diff)
-        best_exclusion_i = new_aves.index(best_ave)
         ex_nam = temp_names[best_exclusion_i]
         print(ex_nam + " excluded")
         excludes.append(ex_nam)
         temp_vs.pop(best_exclusion_i)
         temp_sigs.pop(best_exclusion_i)
         temp_names.pop(best_exclusion_i)
+        temp_sus.pop(best_exclusion_i)
         ave_of_aves = best_ave
 
     print(len(temp_names), "signals left at the end of calculation")
@@ -326,7 +381,7 @@ def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, ave_sens=10 ** (-13
 # a dictionary of all the calculations it was included in and whether
 # it was excluded. also returns the absolute and relative improvement
 # each signal's exclusion caused to the average total difference.
-def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, smooth_window=401,
+def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, sus_seg_list, smooth_window=401,
                    badness_sens=.3, ave_window=1, ave_sens=10 ** (-13)):
     import file_reader as fr
 
@@ -389,7 +444,8 @@ def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, smooth_window=4
             near_rs.append(detecs[name][:3, 3])
 
         near_sigs = fr.find_signals(new_near, signals, names)
-        cluster_bad_segs = fr.find_signals(new_near, bad_seg_list, names)
+        near_bad_segs = fr.find_signals(new_near, bad_seg_list, names)
+        near_sus_segs = fr.find_signals(new_near, sus_seg_list, names)
 
         smooth_sigs = []
         xs = []
@@ -405,7 +461,7 @@ def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, smooth_window=4
 
         # calculate which signals in the cluster to exclude
         exclude_chans, new_x, diffs, rel_diffs = filter_unphysical_sigs(smooth_sigs, new_near, xs, near_vs,
-                                                                        cluster_bad_segs, ave_window=ave_window,
+                                                                        near_bad_segs, near_sus_segs, ave_window=ave_window,
                                                                         ave_sens=ave_sens)
 
         if len(new_x) != 0:
@@ -516,6 +572,43 @@ def analyse_phys_dat(all_diffs, names, all_rel_diffs, chan_dict, frac_w=2.5,
 
         confidence.append(conf)
         status.append(stat)
+
+    return status, confidence
+
+
+# 0 = physical
+# 1 = unphysical
+# 2 = undetermined
+# 3 = unused
+def analyse_phys_dat_alt(all_diffs, names, all_rel_diffs, chan_dict):
+    status = []
+    confidence = []
+
+    for i in range(len(names)):
+        name = names[i]
+        rel_diffs = all_rel_diffs[name]
+        # print(name)
+        diffs = all_diffs[name]
+        chan_dat = chan_dict[name]
+
+        tot = np.float64(len(chan_dat))
+
+        if tot == 0:
+            status.append(3)
+            confidence.append(3)
+            continue
+
+        ex = np.float64(len([x for x in chan_dat if chan_dat[x] == 1]))
+        frac_excluded = ex / tot
+
+        if .6 < frac_excluded:
+            status.append(1)
+        elif frac_excluded < .4:
+            status.append(0)
+        else:
+            status.append(2)
+
+        confidence.append(3)
 
     return status, confidence
 

@@ -107,7 +107,7 @@ def thirdver(fname, filters, phys, plot):
         print()
         start_time = time.time()
         # ave_sens = 10**(-12)
-        all_diffs, all_rel_diffs, chan_dict = sa.check_all_phys(signals, detecs, names, n_chan, bad_segs,
+        all_diffs, all_rel_diffs, chan_dict = sa.check_all_phys(signals, detecs, names, n_chan, bad_segs, suspicious_segs,
                                                                 ave_window=100, ave_sens=5 * 10 ** (-13))
 
         phys_stat, phys_conf = sa.analyse_phys_dat(all_diffs, names, all_rel_diffs, chan_dict)
@@ -162,10 +162,12 @@ def main():
 if __name__ == '__main__':
     # main()
     #tf.test_fft()
-    #tf.show()
+    # tf.show()
+    tf.test_new_excluder()
+    # tf.test_magn2()
     #tf.test_seg_finder()
     #tf.test_crop()
-    tf.test_ffft()
+    #tf.test_ffft()
     #datadir = "example_data_for_patrik/"
     #partial_analysis([0.3, 0.35], datadir + "many_many_successful.npz")
 

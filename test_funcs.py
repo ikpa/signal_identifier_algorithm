@@ -906,7 +906,7 @@ def test_magn2():
         for name in nearby_names:
             index = names.index(name)
             bad_segs = bad_segment_list[index]
-            bad = seg_lens(signals[index], bad_segs) > .5
+            bad = len(bad_segs) != 0
 
             if bad:
                 print("excluding " + name)
@@ -921,13 +921,15 @@ def test_magn2():
         near_vs = []
         near_rs = []
 
+
         for name in new_names:
             near_vs.append(detecs[name][:3, 2])
             near_rs.append(detecs[name][:3, 3])
 
         # nearby_names.append(comp_detec)
         near_sigs = fr.find_signals(new_names, signals, names)
-        cluster_bad_segs = fr.find_signals(new_names, bad_segment_list, names)
+        near_sus = fr.find_signals(new_names, suspicious_segment_list, names)
+        near_bads = fr.find_signals(new_names, bad_segment_list, names)
 
         smooth_sigs = []
         detrended_sigs = []
@@ -962,7 +964,7 @@ def test_magn2():
                                                                                                       ave_window=ave_window)
 
         excludes, new_x, ave_diffs, rel_diffs = sa.filter_unphysical_sigs(smooth_sigs, new_names, xs, near_vs,
-                                                                          [],
+                                                                          near_bads, near_sus,
                                                                           ave_window=ave_window, ave_sens=ave_sens)
 
         # print(o_new_x, new_x)
@@ -1026,9 +1028,9 @@ def test_magn2():
         ax33.legend()
 
         if len(new_x) != 0:
-            print(new_x[0], new_x[len(new_x) - 1])
-            hf.plot_spans(ax11, [[new_x[0], new_x[len(new_x) - 1]]])
-            hf.plot_spans(ax1, [[new_x[0], new_x[len(new_x) - 1]]])
+            print(new_x[0], new_x[-1])
+            hf.plot_spans(ax11, [[new_x[0], new_x[-1]]])
+            hf.plot_spans(ax1, [[new_x[0], new_x[-1]]])
         else:
             print("no span")
 
@@ -1049,7 +1051,7 @@ def test_new_excluder():
     smooth_window = 401
     offset = int(smooth_window / 2)
 
-    fname = datadir + "sample_data34.npz"
+    fname = datadir + "many_successful.npz"
     signals, names, timex, n_chan = fr.get_signals(fname)
 
     detecs = np.load("array120_trans_newnames.npz")
@@ -1061,11 +1063,11 @@ def test_new_excluder():
                                                                                                 badness_sensitivity=.5)
 
     start_time = time.time()
-    all_diffs, all_rel_diffs, chan_dict = sa.check_all_phys(signals, detecs, names, n_chan, bad_segment_list,
+    all_diffs, all_rel_diffs, chan_dict = sa.check_all_phys(signals, detecs, names, n_chan, bad_segment_list, suspicious_segment_list,
                                                             ave_window=100, ave_sens=10 ** (-13))
     end_time = time.time()
 
-    status, confidence = sa.analyse_phys_dat(all_diffs, names, all_rel_diffs, chan_dict)
+    status, confidence = sa.analyse_phys_dat_alt(all_diffs, names, all_rel_diffs, chan_dict)
 
     ex_time = (end_time - start_time) / 60
     print("execution time:", ex_time, "mins")
@@ -1140,7 +1142,7 @@ def test_excluder():
     smooth_window = 401
     offset = int(smooth_window / 2)
 
-    fname = "sample_data30.npz"
+    fname = datadir + "sample_data30.npz"
     signals, names, timex, n_chan = fr.get_signals(fname)
 
     detecs = np.load("array120_trans_newnames.npz")
@@ -1204,7 +1206,7 @@ def test_excluder():
             smooth_sigs.append(np.gradient(new_smooth))
             xs.append(x)
 
-        exclude_chans, new_x = sa.filter_unphysical_sigs(smooth_sigs, new_near, xs, near_vs, cluster_bad_segs,
+        exclude_chans, new_x, ave_diffs, rel_diffs = sa.filter_unphysical_sigs(smooth_sigs, new_near, xs, near_vs, cluster_bad_segs,
                                                          ave_window=1)
 
         if len(new_x) != 0:
@@ -1662,24 +1664,35 @@ def test_fft():
 
 
 def show():
-    channels = ["MEG2341"]
-    fname = datadir + "sample_data38.npz"
+    channels = ["MEG0511", "MEG0541"]
+    fname = datadir + "many_many_successful.npz"
     signals, names, timex, n_chan = fr.get_signals(fname, channels=channels)
 
     #print(1/0.0001)
 
+    signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals, names, n_chan,
+                                                                                                badness_sensitivity=.5,
+                                                                                                filter_beginning=True)
+
     for i in range(n_chan):
         signal = signals[i]
         name = names[i]
+        bad_segs = bad_segment_list[i]
+        sus_segs = suspicious_segment_list[i]
 
         print(name)
         print()
 
-        plt.plot(timex, signal)
-        #plt.title(name)
+        # plt.plot(timex, signal)
+        fig, ax = plt.subplots()
+        plt.plot(signal)
+        plt.title(name)
         plt.ylabel("Magnetic Field [T]")
         plt.xlabel("Time [s]")
         plt.grid()
+
+        hf.plot_spans(ax, bad_segs, color="red")
+        hf.plot_spans(ax, sus_segs, color="yellow")
 
         plt.show()
 
