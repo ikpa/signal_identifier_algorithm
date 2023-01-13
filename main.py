@@ -160,10 +160,10 @@ def main():
 
 
 if __name__ == '__main__':
-    # main()
-    #tf.test_fft()
+    main()
+    # tf.test_fft()
     # tf.show()
-    tf.test_new_excluder()
+    # tf.test_new_excluder()
     # tf.test_magn2()
     #tf.test_seg_finder()
     #tf.test_crop()

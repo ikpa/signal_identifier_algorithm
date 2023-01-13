@@ -385,19 +385,14 @@ def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, sus_seg_list, s
                    badness_sens=.3, ave_window=1, ave_sens=10 ** (-13)):
     import file_reader as fr
 
-    def seg_lens(sig, segs):
-        length = 0
-        for seg in segs:
-            length += seg[1] - seg[0]
-
-        return length / len(sig)
-
     offset = int(smooth_window / 2)
 
     # initalise dictionaries
     all_diffs = {}
     all_rel_diffs = {}
     chan_dict = {}
+
+    tested_groups = []
 
     for name in names:
         all_diffs[name] = []
@@ -435,6 +430,19 @@ def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, sus_seg_list, s
                 continue
 
             new_near.append(nam)
+
+        new_near = sorted(new_near)
+        print("detector group:", new_near)
+
+        if len(new_near) == 0:
+            print("no signals in group\n")
+            continue
+
+        if new_near in tested_groups:
+            print("already calculated, skipping\n")
+            continue
+
+        tested_groups.append(new_near)
 
         near_vs = []
         near_rs = []
@@ -482,8 +490,9 @@ def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, sus_seg_list, s
             all_rel_diffs[chan].append(rel_diff)
             chan_dict[chan][comp_detec] += 1
 
-            tot = len(chan_dict[chan])
-            ex = len([x for x in chan_dict[chan] if x == 1])
+            chan_dat = chan_dict[chan]
+            tot = np.float64(len(chan_dat))
+            ex = np.float64(len([x for x in chan_dat if chan_dat[x] == 1]))
 
             print(chan, "times excluded:", ex, ", times in calculation:", tot,
                   ", fraction excluded:", float(ex / tot),
@@ -601,14 +610,14 @@ def analyse_phys_dat_alt(all_diffs, names, all_rel_diffs, chan_dict):
         ex = np.float64(len([x for x in chan_dat if chan_dat[x] == 1]))
         frac_excluded = ex / tot
 
-        if .6 < frac_excluded:
+        if .6 <= frac_excluded:
             status.append(1)
-        elif frac_excluded < .4:
+        elif frac_excluded <= .4:
             status.append(0)
         else:
             status.append(2)
 
-        confidence.append(3)
+        confidence.append(tot/14)
 
     return status, confidence
 
@@ -661,10 +670,7 @@ def averaged_signal(signal, ave_window, x=[], mode=0):
 # inputs may have different x-values with different spacings, as long as
 # there is some overlap. x-values must be in indices
 def calc_diff(signal1, signal2, x1, x2):
-    x_min = max(np.amin(x1), np.amin(x2))
-    x_max = min(np.amax(x1), np.amax(x2))
-    new_x = list(range(x_min, x_max))
-    new_new_x = []
+    new_x = []
 
     # print(len(signal1), len(signal2), len(x1), len(x2))
 
@@ -676,12 +682,12 @@ def calc_diff(signal1, signal2, x1, x2):
     # i1 = x1.index(x)
     # i2 = x2.index(x)
     for i in range(len(signal1)):
-        new_new_x.append(x1[i])
+        new_x.append(x1[i])
         point1 = signal1[i]
         point2 = signal2[i]
         diffs.append(abs(point1 - point2))
 
-    return diffs, new_new_x
+    return diffs, new_x
 
 
 # find detectors within a radius r_sens from a given detector.
@@ -1355,6 +1361,9 @@ def stats_from_i(i_arr, i_x, bad_segs, fft_window, cut_length=70, max_sig_len=80
         status = change_status(1, status)
 
     if sus_score >= 3:
+        print("BAD SIGNAL")
+        status = change_status(1, status)
+    elif sus_score >= 2:
         print("SUSPICIOUS SIGNAL")
         status = change_status(2, status)
 
@@ -1362,8 +1371,8 @@ def stats_from_i(i_arr, i_x, bad_segs, fft_window, cut_length=70, max_sig_len=80
 
 
 # TODO increase abs sdev thresh and/or rel sdev thresh
-def find_saturation_point_from_fft(i_x, i_arr, filter_i, fft_window, sdev_window=10, rel_sdev_thresh=1.6,
-                                   abs_sdev_thresh=1.1 * 10 ** (-10)):
+def find_saturation_point_from_fft(i_x, i_arr, filter_i, fft_window, sdev_window=10, rel_sdev_thresh=1.65,
+                                   abs_sdev_thresh=2 * 10 ** (-10)):
     if len(i_arr) == 0:
         return None, None, None, None, None
 

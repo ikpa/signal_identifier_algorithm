@@ -131,8 +131,12 @@ def exclude_from_lists(i, lists):
 
 
 # filter the beginning spike from a signal and smooth it
-def filter_and_smooth(signal, offset, smooth_window):
-    filter_i = sa.filter_start(signal)
+def filter_and_smooth(signal, offset, smooth_window, smooth_only=False):
+    if not smooth_only:
+        filter_i = sa.filter_start(signal)
+    else:
+        filter_i = 0
+
     filtered_signal = signal[filter_i:]
     x = list(range(filter_i, len(signal)))
 

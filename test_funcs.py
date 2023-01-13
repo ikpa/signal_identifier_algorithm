@@ -879,8 +879,14 @@ def test_magn2():
     smooth_window = 401
     offset = int(smooth_window / 2)
 
-    fname = datadir + "many_many_successful.npz"
+    crop = True
+
+    fname = datadir + "many_many_successful2.npz"
     signals, names, timex, n_chan = fr.get_signals(fname)
+
+    if crop:
+        time_window = [0.4, 0.5]
+        precropped_signals, precropped_ix = hf.crop_signals_time(time_window, timex, signals, 200)
 
     detecs = np.load("array120_trans_newnames.npz")
 
@@ -894,8 +900,14 @@ def test_magn2():
 
         return length / len(sig)
 
-    signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals, names,
-                                                                                                len(signals))
+    if crop:
+        signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(precropped_signals, names,
+                                                                                                len(signals), filter_beginning=False)
+    else:
+        signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals,
+                                                                                                    names,
+                                                                                                    len(signals),
+                                                                                                    filter_beginning=True)
 
     for i in range(len(signals)):
         comp_detec = names[i]
@@ -914,6 +926,8 @@ def test_magn2():
 
             new_names.append(name)
 
+        print(len(new_names))
+
         if len(new_names) == 0:
             print()
             continue
@@ -921,13 +935,16 @@ def test_magn2():
         near_vs = []
         near_rs = []
 
-
         for name in new_names:
             near_vs.append(detecs[name][:3, 2])
             near_rs.append(detecs[name][:3, 3])
 
         # nearby_names.append(comp_detec)
-        near_sigs = fr.find_signals(new_names, signals, names)
+        if crop:
+            near_sigs = fr.find_signals(new_names, precropped_signals, names)
+        else:
+            near_sigs = fr.find_signals(new_names, signals, names)
+
         near_sus = fr.find_signals(new_names, suspicious_segment_list, names)
         near_bads = fr.find_signals(new_names, bad_segment_list, names)
 
@@ -940,7 +957,7 @@ def test_magn2():
             # filter_i = sa.filter_start(signal)
             # filt_sig = signal[filter_i:]
             filtered_signal, x, smooth_signal, smooth_x, new_smooth = hf.filter_and_smooth(signal, offset,
-                                                                                           smooth_window)
+                                                                                           smooth_window, smooth_only=crop)
             smooth_sigs.append(np.gradient(new_smooth))
             xs.append(x)
 
@@ -958,6 +975,7 @@ def test_magn2():
         cropped_signals, o_new_x = sa.crop_all_sigs(smooth_sigs, xs, [])
         # print(len(new_x))
 
+        # print(len(cropped_signals))
         ave_of_aves, aves, all_diffs, rec_sigs, mag_is, new_cropped_signals, crop_x = sa.rec_and_diff(cropped_signals,
                                                                                                       [o_new_x],
                                                                                                       near_vs,
@@ -969,7 +987,7 @@ def test_magn2():
 
         # print(o_new_x, new_x)
 
-        if cropped_signals is None:
+        if cropped_signals is None or rec_sigs is None:
             print()
             continue
 
@@ -1051,8 +1069,14 @@ def test_new_excluder():
     smooth_window = 401
     offset = int(smooth_window / 2)
 
-    fname = datadir + "many_successful.npz"
+    crop = True
+
+    fname = datadir + "sample_data29.npz"
     signals, names, timex, n_chan = fr.get_signals(fname)
+
+    if crop:
+        time_window = [0.21, 0.3]
+        signals, ix = hf.crop_signals_time(time_window, timex, signals, 200)
 
     detecs = np.load("array120_trans_newnames.npz")
 
@@ -1060,7 +1084,8 @@ def test_new_excluder():
     # times_in_calc = np.zeros(n_chan)
 
     signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals, names, n_chan,
-                                                                                                badness_sensitivity=.5)
+                                                                                                badness_sensitivity=.5,
+                                                                                                filter_beginning=(not crop))
 
     start_time = time.time()
     all_diffs, all_rel_diffs, chan_dict = sa.check_all_phys(signals, detecs, names, n_chan, bad_segment_list, suspicious_segment_list,
@@ -1556,7 +1581,7 @@ def test_fft_full():
 
 def test_fft():
     # SUS ONES: sd37: 2214
-    fname = datadir + "many_many_successful.npz"
+    fname = datadir + "sample_data34.npz"
     #channels = ["MEG0311", "MEG1114"]
     channels = ["MEG*1", "MEG*4"]
     signals, names, timex, n_chan = fr.get_signals(fname, channels=channels)
@@ -1659,8 +1684,6 @@ def test_fft():
         plt.show()
 
         print()
-
-
 
 
 def show():
