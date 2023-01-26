@@ -8,9 +8,19 @@ import file_reader as fr
 import helper_funcs as hf
 import numpy as np
 
+import sys, os
+
+# Disable print
+def blockPrint():
+    sys.stdout = open(os.devnull, 'w')
+
+# Restore print
+def enablePrint():
+    sys.stdout = sys.__stdout__
+
 import test_funcs as tf
 
-default_filters = ["uniq", "segment", "spike", "fft"]
+default_filters = ["uniq", "flat", "spike", "fft"]
 
 
 # get command line arguments
@@ -22,8 +32,9 @@ def arg_parser():
     parser.add_argument("--filename", required=True, type=str, help="filename of the dataset to analyse")
     parser.add_argument('--filters', nargs='+', choices=default_filters,
                         default=default_filters, help="the basic filters to use")
-    parser.add_argument("-p", "--physicality", action="store_true", default=False, help="do physicality analysis")
+    parser.add_argument("-p", "--physicality", action="store_true", default=False, help="do physical consistency analysis")
     parser.add_argument("--plot", action="store_true", default=False, help="plot signals with results")
+    parser.add_argument("-np", "--noprint", action="store_true", default=False, help="suppress all printed messages")
     return parser.parse_args()
 
 
@@ -85,11 +96,15 @@ def print_results(names, signals, filt_statuses, bad_segs, suspicious_segs,
 
 
 # current version of the program.
-def thirdver(fname, filters, phys, plot):
+def thirdver(fname, filters, phys, plot, noprint):
     detecs = np.load("array120_trans_newnames.npz")
 
     print("analysing " + fname)
     print()
+
+    if noprint:
+        blockPrint()
+
 
     signals, names, t, n_chan = fr.get_signals(fname)
     print("beginning analysis with the following filters:", filters)
@@ -125,12 +140,18 @@ def thirdver(fname, filters, phys, plot):
     tot_time = phys_time + filt_time
     print("-----------------------------------------------------")
     print()
-    print_results(names, signals, signal_statuses, bad_segs, suspicious_segs,
-                  phys_stat, phys_conf, all_rel_diffs, chan_dict)
+
+    if not noprint:
+        print_results(names, signals, signal_statuses, bad_segs, suspicious_segs,
+                        phys_stat, phys_conf, all_rel_diffs, chan_dict)
+
+    if noprint:
+        enablePrint()
+
     print("total time elapsed: " + str(tot_time) + " secs")
 
     if plot:
-        hf.plot_in_order_ver3(signals, names, n_chan, signal_statuses, bad_segs, suspicious_segs, physicality=phys_stat)
+        hf.plot_in_order_ver3(signals, names, n_chan, signal_statuses, bad_segs, suspicious_segs, physicality=phys_stat, time_x=t)
 
 
 # TODO finish this + make fft faster
@@ -156,12 +177,13 @@ def partial_analysis(time_seg, fname, channels=["MEG*1", "MEG*4"], filters=defau
 
 def main():
     args = arg_parser()
-    thirdver(args.filename, args.filters, args.physicality, args.plot)
+
+    thirdver(args.filename, args.filters, args.physicality, args.plot, args.noprint)
 
 
 if __name__ == '__main__':
-    main()
-    # tf.test_fft()
+    # main()
+    tf.test_fft()
     # tf.show()
     # tf.test_new_excluder()
     # tf.test_magn2()

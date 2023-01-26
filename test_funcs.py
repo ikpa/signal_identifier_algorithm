@@ -471,7 +471,7 @@ def test_uniq():
         segments += where_repeat
         seg_confidences += conf
 
-        where_repeat, conf = sa.segment_filter_neo(signal)
+        where_repeat, conf = sa.flat_filter(signal)
         segments += where_repeat
         seg_confidences += conf
 
@@ -881,11 +881,11 @@ def test_magn2():
 
     crop = True
 
-    fname = datadir + "many_many_successful2.npz"
+    fname = datadir + "many_many_successful.npz"
     signals, names, timex, n_chan = fr.get_signals(fname)
 
     if crop:
-        time_window = [0.4, 0.5]
+        time_window = [0.4, 0.45]
         precropped_signals, precropped_ix = hf.crop_signals_time(time_window, timex, signals, 200)
 
     detecs = np.load("array120_trans_newnames.npz")
@@ -1071,12 +1071,13 @@ def test_new_excluder():
 
     crop = True
 
-    fname = datadir + "sample_data29.npz"
+    fname = datadir + "sample_data34.npz"
     signals, names, timex, n_chan = fr.get_signals(fname)
 
     if crop:
-        time_window = [0.21, 0.3]
+        time_window = [0.22, 0.25]
         signals, ix = hf.crop_signals_time(time_window, timex, signals, 200)
+        signals, ix = sa.crop_all_sigs(signals, ix, [])
 
     detecs = np.load("array120_trans_newnames.npz")
 
@@ -1089,7 +1090,7 @@ def test_new_excluder():
 
     start_time = time.time()
     all_diffs, all_rel_diffs, chan_dict = sa.check_all_phys(signals, detecs, names, n_chan, bad_segment_list, suspicious_segment_list,
-                                                            ave_window=100, ave_sens=10 ** (-13))
+                                                            ave_window=100, ave_sens=10 ** (-13), smooth_only=crop)
     end_time = time.time()
 
     status, confidence = sa.analyse_phys_dat_alt(all_diffs, names, all_rel_diffs, chan_dict)
@@ -1581,7 +1582,7 @@ def test_fft_full():
 
 def test_fft():
     # SUS ONES: sd37: 2214
-    fname = datadir + "sample_data34.npz"
+    fname = datadir + "sample_data27.npz"
     #channels = ["MEG0311", "MEG1114"]
     channels = ["MEG*1", "MEG*4"]
     signals, names, timex, n_chan = fr.get_signals(fname, channels=channels)
@@ -1593,7 +1594,7 @@ def test_fft():
 
     signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals, names, n_chan,
                                                                                                 badness_sensitivity=.5,
-                                                                                                filters=["uniq", "segment", "spike"],
+                                                                                                filters=["uniq", "flat", "spike"],
                                                                                                 filter_beginning=True)
 
     for i in range(n_chan):
@@ -1688,8 +1689,8 @@ def test_fft():
 
 def show():
     channels = ["MEG0511", "MEG0541"]
-    fname = datadir + "many_many_successful.npz"
-    signals, names, timex, n_chan = fr.get_signals(fname, channels=channels)
+    fname = datadir + "sample_data21.npz"
+    signals, names, timex, n_chan = fr.get_signals(fname)
 
     #print(1/0.0001)
 

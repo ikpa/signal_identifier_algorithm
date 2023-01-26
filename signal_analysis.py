@@ -382,7 +382,7 @@ def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, sus_segs, ave_sens=
 # it was excluded. also returns the absolute and relative improvement
 # each signal's exclusion caused to the average total difference.
 def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, sus_seg_list, smooth_window=401,
-                   badness_sens=.3, ave_window=1, ave_sens=10 ** (-13)):
+                   badness_sens=.3, ave_window=1, ave_sens=10 ** (-13), smooth_only=False):
     import file_reader as fr
 
     offset = int(smooth_window / 2)
@@ -422,6 +422,7 @@ def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, sus_seg_list, s
             # else:
             #     bad = False
 
+            sig_len = len(signals[index])
             bad_segs = bad_seg_list[index]
             bad = len(bad_segs) != 0
 
@@ -429,10 +430,16 @@ def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, sus_seg_list, s
                 print("excluding " + nam + " from calculation due to presense of bad segments")
                 continue
 
+            if sig_len < smooth_window:
+                print("excluding " + nam + " from calculation due to shortness")
+                continue
+
             new_near.append(nam)
 
-        new_near = sorted(new_near)
-        print("detector group:", new_near)
+
+
+        # new_near = sorted(new_near)
+        # print("detector group:", new_near)
 
         if len(new_near) == 0:
             print("no signals in group\n")
@@ -463,7 +470,7 @@ def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, sus_seg_list, s
         for i in range(len(near_sigs)):
             signal = near_sigs[i]
             filtered_signal, x, smooth_signal, smooth_x, new_smooth = hf.filter_and_smooth(signal, offset,
-                                                                                           smooth_window)
+                                                                                           smooth_window, smooth_only=smooth_only)
             smooth_sigs.append(np.gradient(new_smooth))
             xs.append(x)
 
@@ -824,6 +831,38 @@ def cal_goodness_seg(signal, start_i, end_i,
     return tot_conf
 
 
+# find segments where a certain value repeats. this filter ignores parts
+# where the signal deviates from the unique value momentarily.
+def uniq_filter_neo(signal, filter_i):
+    uniqs, indices, counts = np.unique(signal[:], return_index=True, return_counts=True)
+    max_repeat = np.amax(counts)
+    if max_repeat <= 10:
+        return [], []
+    uniq_is = np.where(counts == max_repeat)
+
+    max_vals = uniqs[uniq_is]
+    where_repeat = np.where(signal == max_vals[0])
+    where_repeat = list(where_repeat[0])
+    where_repeat = [x for x in where_repeat if x > filter_i]
+
+    if len(where_repeat) == 0:
+        return [], []
+
+    seg_start = np.amin(where_repeat)
+    seg_end = np.amax(where_repeat)
+
+    return [[seg_start, seg_end]], [2]
+
+
+# reformat segment start and end indices into a single list
+def reformat_segments(start_is, end_is):
+    lst = []
+    for i in range(len(start_is)):
+        lst.append([start_is[i], end_is[i]])
+
+    return lst
+
+
 # finds segments in the signal where the value stays approximately the same for long periods.
 # returns lengths of segments, as well as their start and end indices.
 # rel_sensitive_length determines how long a segment needs to be marked
@@ -858,43 +897,10 @@ def find_flat_segments(signal, rel_sensitive_length=0.07, relative_sensitivity=0
 
     return lengths, start_is, end_is
 
-
-# find segments where a certain value repeats. this filter ignores parts
-# where the signal deviates from the unique value momentarily.
-def uniq_filter_neo(signal, filter_i):
-    uniqs, indices, counts = np.unique(signal[:], return_index=True, return_counts=True)
-    max_repeat = np.amax(counts)
-    if max_repeat <= 10:
-        return [], []
-    uniq_is = np.where(counts == max_repeat)
-
-    max_vals = uniqs[uniq_is]
-    where_repeat = np.where(signal == max_vals[0])
-    where_repeat = list(where_repeat[0])
-    where_repeat = [x for x in where_repeat if x > filter_i]
-
-    if len(where_repeat) == 0:
-        return [], []
-
-    seg_start = np.amin(where_repeat)
-    seg_end = np.amax(where_repeat)
-
-    return [[seg_start, seg_end]], [2]
-
-
-# reformat segment start and end indices into a single list
-def reformat_segments(start_is, end_is):
-    lst = []
-    for i in range(len(start_is)):
-        lst.append([start_is[i], end_is[i]])
-
-    return lst
-
-
 # find segments where the value stays the same value for a long period.
 # also recalculates the tail of the signal and calculates
 # a confidence value for the segment
-def segment_filter_neo(signal, grad_sens=0.5 * 10 ** (-13)):
+def flat_filter(signal, grad_sens=0.5 * 10 ** (-13)):
     lengths, start_is, end_is = find_flat_segments(signal)
 
     if len(start_is) == 0:
@@ -947,7 +953,7 @@ def segment_filter_thorough(signal, filter_i, smooth_window=401):
     for j in range(filter_i, sig_len):
         new_smooth.append(smooth_signal[j + offset - filter_i])
 
-    segs, confs = segment_filter_neo(new_smooth, grad_sens=2 * 10 ** (-13))
+    segs, confs = flat_filter(new_smooth, grad_sens=2 * 10 ** (-13))
 
     fix_segs = hf.fix_segs(segs, filter_i)
 
@@ -1036,12 +1042,13 @@ def cal_goodness_spike(gradient, spikes, all_diffs, max_sensitivities=None,
 # find spikes in the signal by checking where the absolute gradient of the signal
 # abruptly goes above grad_sensitivity. returns the spikes and their
 # difference between the gradient and the grad_sensitivity
-def find_spikes(gradient, filter_i, grad_sensitivity, len_sensitivity=6):
+def find_spikes(gradient, filter_i, grad_sensitivity, len_sensitivity=6, start_sens=150):
     spikes = []
     all_diffs = []
 
     diffs = []
     spike = []
+    # print("filter i", filter_i)
     for i in range(filter_i, len(gradient)):
         val = abs(gradient[i])
 
@@ -1051,7 +1058,7 @@ def find_spikes(gradient, filter_i, grad_sensitivity, len_sensitivity=6):
             continue
 
         if i - 1 in spike:
-            if len(spike) < len_sensitivity:
+            if len(spike) < len_sensitivity and abs(filter_i - spike[0]) > start_sens:
                 spikes.append(spike)
                 all_diffs.append(diffs)
 
@@ -1268,14 +1275,15 @@ def calc_fft_indices(signal, indices=None, window=400, smooth_window=401, filter
     return i_arr, nu_x, smooth_signal, smooth_x, filtered_signal
 
 
+# TODO filter the start better
 # status:
 # 0 = good
 # 1 = bad
 # 2 = undetermined
 def stats_from_i(i_arr, i_x, bad_segs, fft_window, cut_length=70, max_sig_len=800):
     print("filtering fft:")
-    offset = int(len(i_arr) * 0.0775)
-    filter_i_i = filter_start(i_arr, offset=offset, max_rel=.1)
+    offset = int(len(i_arr) * 0.0875)
+    filter_i_i = filter_start(i_arr, offset=offset, max_rel=.175)
 
     last_i = len(i_arr) - 1
 
@@ -1327,7 +1335,7 @@ def stats_from_i(i_arr, i_x, bad_segs, fft_window, cut_length=70, max_sig_len=80
         # return nu_i_arr, nu_i_x, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score
 
     # sus: 1e-08 - 5e-09, bad < 5e-09
-    if i_arr_ave < 1 * 10 ** (-14):
+    if i_arr_ave < 1 * 10 ** (-14): # 1.5e-09
         print("NO 50HZ DETECTED")
         status = change_status(1, status)
     elif i_arr_ave < 6 * 10 ** (-9):
@@ -1338,6 +1346,7 @@ def stats_from_i(i_arr, i_x, bad_segs, fft_window, cut_length=70, max_sig_len=80
         sus_score += 1
 
     grad_ave_thresh = 2 * 10 ** (-12)
+    # maybe 8.5e-12
     # TODO check value for cropped signals
     if grad_ave > 10 ** (-11):
         print("EXTREMELY HIGH GRADIENT AVERAGE")
@@ -1370,9 +1379,9 @@ def stats_from_i(i_arr, i_x, bad_segs, fft_window, cut_length=70, max_sig_len=80
     return nu_i_arr, nu_i_x, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score, short
 
 
-# TODO increase abs sdev thresh and/or rel sdev thresh
-def find_saturation_point_from_fft(i_x, i_arr, filter_i, fft_window, sdev_window=10, rel_sdev_thresh=1.65,
-                                   abs_sdev_thresh=2 * 10 ** (-10)):
+# TODO increase abs sdev thresh and/or rel sdev thresh, abs_dev maybe 1.4e-10
+def find_saturation_point_from_fft(i_x, i_arr, filter_i, fft_window, sdev_window=10, rel_sdev_thresh=1.75,
+                                   abs_sdev_thresh=1.4 * 10 ** (-10)):
     if len(i_arr) == 0:
         return None, None, None, None, None
 
@@ -1712,9 +1721,10 @@ def final_analysis(signal_length, segments, confidences, badness_sensitivity=.8)
 
     suspicious_segs = fix_overlap(bad_segs, suspicious_segs)
 
-    tot_bad_length = length_of_segments(bad_segs)
-    rel_bad_length = tot_bad_length / signal_length
-    badness = rel_bad_length >= badness_sensitivity
+    # tot_bad_length = length_of_segments(bad_segs)
+    # rel_bad_length = tot_bad_length / signal_length
+    # badness = rel_bad_length >= badness_sensitivity
+    badness = len(bad_segs) >= 1
 
     return badness, bad_segs, suspicious_segs
 
@@ -1730,7 +1740,7 @@ def analyse_all_neo(signals, names, chan_num,
                     badness_sensitivity=.5, filter_beginning=True,
                     fft_goertzel=False):
     if filters is None:
-        filters = ["uniq", "segment", "spike", "fft"]
+        filters = ["uniq", "flat", "spike", "fft"]
 
     # move fft filter to last place (requires other bad segments as input)
     if "fft" in filters:
@@ -1762,8 +1772,8 @@ def analyse_all_neo(signals, names, chan_num,
             if fltr == "uniq":
                 seg_is, confs = uniq_filter_neo(signal, filter_i)
 
-            if fltr == "segment":
-                seg_is, confs = segment_filter_neo(signal)
+            if fltr == "flat":
+                seg_is, confs = flat_filter(signal)
 
             if fltr == "spike":
                 seg_is, confs = spike_filter_neo(signal, filter_i)

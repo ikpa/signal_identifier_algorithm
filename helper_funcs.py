@@ -22,8 +22,18 @@ def plot_spans(ax, segments, color="blue"):
 # plot all signals as well as show data calculated by the program
 def plot_in_order_ver3(signals, names, n_chan, statuses,
                        bad_seg_list, suspicious_seg_list, exec_times=[],
-                       physicality=[], ylims=None):
+                       physicality=[], time_x=None, ylims=None, showtitle=True):
     print_phys = not len(physicality) == 0
+
+    def seg_to_time(x, segs):
+        new_segs = []
+        for seg in segs:
+            new_segs.append(x[seg])
+
+        return new_segs
+
+
+    plt.rcParams.update({'font.size': 33})
     for i in range(n_chan):
         name = names[i]
         signal = signals[i]
@@ -31,6 +41,10 @@ def plot_in_order_ver3(signals, names, n_chan, statuses,
         bad_segs = bad_seg_list[i]
         suspicious_segs = suspicious_seg_list[i]
         exec_time = exec_times[i] if len(exec_times) != 0 else 0
+
+        if time_x is not None:
+            bad_segs = seg_to_time(time_x, bad_segs)
+            suspicious_segs = seg_to_time(time_x, suspicious_segs)
 
         if print_phys:
             phys = physicality[i]
@@ -48,19 +62,29 @@ def plot_in_order_ver3(signals, names, n_chan, statuses,
             phys_stat = ""
 
         if bad:
-            status = "bad"
+            status = "bad segments present"
         else:
-            status = "good"
+            status = "no bad segments found"
 
-        fig, ax = plt.subplots()
-        ax.plot(signal)
+        fig, ax = plt.subplots(figsize=(14,10))
+        linewidth = 4
+
+        if time_x is None:
+            ax.plot(signal, linewidth=linewidth)
+        else:
+            ax.plot(time_x, signal, linewidth=linewidth)
 
         plot_spans(ax, bad_segs, color="red")
         plot_spans(ax, suspicious_segs, color="yellow")
 
         ax.grid()
-        title = name + ": " + status + phys_stat
-        ax.set_title(title)
+        ax.set_ylabel("Magnetic Field [T]")
+        ax.set_xlabel("Time [s]")
+
+        if showtitle:
+            title = name + ": " + status + phys_stat
+            ax.set_title(title)
+
         plt.show()
 
 
