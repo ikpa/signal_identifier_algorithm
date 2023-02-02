@@ -45,3 +45,31 @@ def get_signals(fname, channels=["MEG*1", "MEG*4"], time_win=time_window):
     signals = reorganize_signals(unorganized_signals, n_chan)
 
     return signals, names, time, n_chan
+
+def write_data_compact(fname, data, col_names):
+    f = open(fname, "w")
+    header = ""
+
+    for name in col_names:
+        if header == "":
+            header += name
+        else:
+            header += ",\t" + name
+
+    f.write(header + "\n")
+
+    n_points = len(data[0])
+
+    for i in range(n_points):
+        line = ""
+
+        for data_arr in data:
+            data_value = data_arr[i]
+            if line == "":
+                line += str(data_value)
+            else:
+                line += ",\t" + str(data_value)
+
+        f.write(line + "\n")
+
+    f.close()

@@ -4,7 +4,7 @@ import time
 import matplotlib.pyplot as plt
 
 import signal_analysis as sa
-import file_reader as fr
+import file_handler as fr
 import helper_funcs as hf
 import numpy as np
 
@@ -156,23 +156,58 @@ def thirdver(fname, filters, phys, plot, noprint):
 
 # TODO finish this + make fft faster
 # TODO physicality analysis next!!!
-def partial_analysis(time_seg, fname, channels=["MEG*1", "MEG*4"], filters=default_filters, seg_extend=200):
+def partial_analysis(time_seg, fname, channels=["MEG*1", "MEG*4"], filters=default_filters, seg_extend=200, phys=False):
     signals, names, t, n_chan = fr.get_signals(fname, channels=channels)
-    cropped_signals, cropped_ix = hf.crop_signals_time(time_seg, t, signals, seg_extend)
+    cropped_signals, cropped_ix, seg_i = hf.crop_signals_time(time_seg, t, signals, seg_extend)
     signal_statuses, bad_segs, suspicious_segs, exec_times = sa.analyse_all_neo(cropped_signals, names, n_chan, filters=filters, filter_beginning=False)
+    detecs = np.load("array120_trans_newnames.npz")
+    good_seg_list = hf.find_good_segs(seg_i, bad_segs, cropped_ix[0])
+
+    if phys:
+        all_diffs, all_rel_diffs, chan_dict = sa.check_all_phys(cropped_signals, detecs, names, n_chan, bad_segs,
+                                                                suspicious_segs,
+                                                                ave_window=100, ave_sens=5 * 10 ** (-13))
+
+        phys_stat, phys_conf = sa.analyse_phys_dat(all_diffs, names, all_rel_diffs, chan_dict)
 
     bad_segs_time = hf.segs_from_i_to_time(cropped_ix, t, bad_segs)
+    sus_segs_time = hf.segs_from_i_to_time(cropped_ix, t, suspicious_segs)
+    good_segs_time = hf.segs_from_i_to_time(cropped_ix, t, good_seg_list)
+
+    col_names = ["name", "good segments"]
+    write_data = [names, good_segs_time]
+
+    if phys:
+        write_data.append(phys_stat)
+        write_data.append(phys_conf)
+        col_names.append("pca status")
+        col_names.append("pca confidence")
+
+    fr.write_data_compact("output_test.txt", write_data, col_names)
 
     for i in range(n_chan):
         i_x = cropped_ix[i]
         t_x = t[i_x]
         name = names[i]
         bad_seg_plot = bad_segs_time[i]
+        sus_segs_plot = sus_segs_time[i]
+        good_segs_plot = good_segs_time[i]
         cropped_sig = cropped_signals[i]
         figure, ax = plt.subplots()
         plt.plot(t_x, cropped_sig)
         hf.plot_spans(ax, bad_seg_plot, color="red")
-        ax.set_title(name)
+        hf.plot_spans(ax, sus_segs_plot, color="yellow")
+        hf.plot_spans(ax, good_segs_plot, color="green")
+
+        ax.axvline(t[seg_i[0]], linestyle="--", color="black")
+        ax.axvline(t[seg_i[-1]], linestyle="--", color="black")
+
+        status = name + ", " + str(good_segs_plot)
+
+        if phys:
+            status += ", " + str(phys_stat) + ", " + str(phys_conf)
+
+        ax.set_title(status)
         plt.show()
 
 def main():
@@ -183,15 +218,15 @@ def main():
 
 if __name__ == '__main__':
     # main()
-    tf.test_fft()
+    # tf.test_fft()
     # tf.show()
     # tf.test_new_excluder()
     # tf.test_magn2()
-    #tf.test_seg_finder()
+    # tf.test_seg_finder()
     #tf.test_crop()
     #tf.test_ffft()
-    #datadir = "example_data_for_patrik/"
-    #partial_analysis([0.3, 0.35], datadir + "many_many_successful.npz")
+    datadir = "example_data_for_patrik/"
+    partial_analysis([0.3, 0.4], datadir + "many_failed.npz")
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/

@@ -5,7 +5,7 @@ import numpy as np
 
 import helper_funcs
 import helper_funcs as hf
-import file_reader as fr
+import file_handler as fr
 import signal_analysis as sa
 import matplotlib.pyplot as plt
 import signal_generator as sg
@@ -1076,7 +1076,7 @@ def test_new_excluder():
 
     if crop:
         time_window = [0.22, 0.25]
-        signals, ix = hf.crop_signals_time(time_window, timex, signals, 200)
+        signals, ix, i_seg = hf.crop_signals_time(time_window, timex, signals, 200)
         signals, ix = sa.crop_all_sigs(signals, ix, [])
 
     detecs = np.load("array120_trans_newnames.npz")
@@ -1596,7 +1596,7 @@ def test_fft():
                                                                                                 badness_sensitivity=.5,
                                                                                                 filters=["uniq", "flat", "spike"],
                                                                                                 filter_beginning=True)
-
+    plt.rcParams.update({'font.size': 42})
     for i in range(n_chan):
         name = names[i]
         print(name)
@@ -1640,40 +1640,63 @@ def test_fft():
         #u_filter_i_i = u_filter_i_i
         #u_grad_x = [x for x in u_grad_x]
 
-        fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, sharex=True)
+        #fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, sharex=True)
 
-        ax1.plot(full_x, signal, label="untreated")
-        hf.plot_spans(ax1, bad_segs, color="red")
-        ax1.grid()
+        fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True, figsize=(12, 10))
+        plt.tight_layout(rect=(0.045, 0.02, 0.99, 0.98))
+        linewidth = 4
 
-        if nu_i_x is not None:
-            ax2.plot(nu_i_x, nu_i_arr)
-
-        # ax2.legend()
-
-        ax2.axvline(u_filter_i_i, linestyle="--", color="black")
-        ax3.set_ylim(-.25 * 10 ** (-9), .25 * 10 ** (-9))
-
-        ax3.plot(u_grad_x, u_cut_grad, label="orig")
-
-        # fig2, ax11 = plt.subplots()
-
-        # rms_x, fft_sdev, error_start, sdev_thresh, sdev_span = sa.find_saturation_point_from_fft(nu_i_x, nu_i_arr, u_filter_i_i, fft_window)
+        ax1.plot(timex[full_x], signal, linewidth=linewidth)
+        hf.plot_spans(ax1, hf.seg_to_time(timex, bad_segs), color="darkred")
 
         if error_start is not None:
-            ax1.axvline(error_start, linestyle="--", color="red")
+            hf.plot_spans(ax1, hf.seg_to_time(timex, [[error_start, len(signal) - 1]]), color="red")
+        elif status == 1:
+            hf.plot_spans(ax1, hf.seg_to_time(timex, [[filter_i, len(signal) - 1]]), color="red")
+        elif status == 2:
+            hf.plot_spans(ax1, hf.seg_to_time(timex, [[filter_i, len(signal) - 1]]), color="yellow")
 
-        if sdev_span is not None:
-            hf.plot_spans(ax4, [sdev_span])
-            ax4.plot(rms_x, fft_sdev, label="sdev")
-            ax4.axhline(sdev_thresh, linestyle="--", color="black")
+        ax1.grid()
+        ax1.set_ylabel("Mag. Field [T]")
 
-        # ax4.plot(rms_x, fft_rms, label="rms")
-        ax4.legend()
-        # ax4.set_ylim(0, 2 * 10 ** (-9))
+        if nu_i_x is not None:
+            ax2.plot(timex[nu_i_x], nu_i_arr, linewidth=linewidth)
 
-        ax1.legend()
-        ax2.set_ylim(0, 10 ** (-7))
+        ax2.set_ylim(-0.1 * 10 ** (-7), 1.2 * 10 ** (-7))
+        ax2.grid()
+        ax2.set_xlabel("Time [s]")
+        ax2.set_ylabel("FT Amplitude")
+
+        # ax1.grid()
+        #
+        # if nu_i_x is not None:
+        #     ax2.plot(nu_i_x, nu_i_arr)
+        #
+        # # ax2.legend()
+        #
+        # ax2.axvline(u_filter_i_i, linestyle="--", color="black")
+        # ax3.set_ylim(-.25 * 10 ** (-9), .25 * 10 ** (-9))
+        #
+        # ax3.plot(u_grad_x, u_cut_grad, label="orig")
+        #
+        # # fig2, ax11 = plt.subplots()
+        #
+        # # rms_x, fft_sdev, error_start, sdev_thresh, sdev_span = sa.find_saturation_point_from_fft(nu_i_x, nu_i_arr, u_filter_i_i, fft_window)
+        #
+        # if error_start is not None:
+        #     ax1.axvline(error_start, linestyle="--", color="red")
+        #
+        # if sdev_span is not None:
+        #     hf.plot_spans(ax4, [sdev_span])
+        #     ax4.plot(rms_x, fft_sdev, label="sdev")
+        #     ax4.axhline(sdev_thresh, linestyle="--", color="black")
+        #
+        # # ax4.plot(rms_x, fft_rms, label="rms")
+        # ax4.legend()
+        # # ax4.set_ylim(0, 2 * 10 ** (-9))
+        #
+        # ax1.legend()
+        # ax2.set_ylim(0, 10 ** (-7))
 
         # fig, (ax1) = plt.subplots(1, 1, sharex=True)
 
@@ -1772,7 +1795,6 @@ def test_crop():
     hf.plot_in_order_ver3(signals, names, n_chan, signal_statuses, bad_segment_list, suspicious_segment_list)
 
 
-# TODO cropped phys anal after this is finished
 def test_ffft():
     fname = datadir + "sample_data40.npz"
     # channels = ["MEG1041"]

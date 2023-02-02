@@ -19,23 +19,24 @@ def plot_spans(ax, segments, color="blue"):
     return
 
 
+def seg_to_time(x, segs):
+    new_segs = []
+    for seg in segs:
+        new_segs.append(x[seg])
+
+    return new_segs
+
+
 # plot all signals as well as show data calculated by the program
 def plot_in_order_ver3(signals, names, n_chan, statuses,
                        bad_seg_list, suspicious_seg_list, exec_times=[],
-                       physicality=[], time_x=None, ylims=None, showtitle=True):
+                       physicality=[], time_x=None, ylims=None, showtitle=False):
     print_phys = not len(physicality) == 0
 
-    def seg_to_time(x, segs):
-        new_segs = []
-        for seg in segs:
-            new_segs.append(x[seg])
-
-        return new_segs
-
-
-    plt.rcParams.update({'font.size': 33})
+    plt.rcParams.update({'font.size': 42})
     for i in range(n_chan):
         name = names[i]
+        print(name)
         signal = signals[i]
         bad = statuses[i]
         bad_segs = bad_seg_list[i]
@@ -66,7 +67,8 @@ def plot_in_order_ver3(signals, names, n_chan, statuses,
         else:
             status = "no bad segments found"
 
-        fig, ax = plt.subplots(figsize=(14,10))
+        fig, ax = plt.subplots(figsize=(12,10))
+        plt.tight_layout(rect=(0.02, 0.02, 0.98, 0.98))
         linewidth = 4
 
         if time_x is None:
@@ -86,6 +88,7 @@ def plot_in_order_ver3(signals, names, n_chan, statuses,
             ax.set_title(title)
 
         plt.show()
+        print()
 
 
 # USED FOR TESTING
@@ -245,6 +248,7 @@ def split_into_lists(original_list):
     if n == 0:
         return original_list
 
+    original_list.sort()
     new_lists = []
     lst = [original_list[0]]
     for i in range(1, n):
@@ -299,7 +303,7 @@ def crop_signals_time(time_seg, t, signals, seg_extend):
         cropped_signals.append(signal[start_i:i_seg_extend[-1]])
         cropped_ix.append(list(range(start_i, i_seg_extend[-1])))
 
-    return cropped_signals, cropped_ix
+    return cropped_signals, cropped_ix, i_seg
 
 
 def segs_from_i_to_time(ix_list, t_x, bad_segs):
@@ -320,3 +324,32 @@ def segs_from_i_to_time(ix_list, t_x, bad_segs):
         bad_segs_time.append(bad_segs_time_1)
 
     return bad_segs_time
+
+
+def find_good_segs(i_x_target, bad_seg_list, i_x_tot):
+    ix_set = set(list(range(i_x_target[0] - i_x_tot[0], i_x_target[1] - i_x_tot[0] + 1)))
+    good_seg_is = []
+
+    for i in range(len(bad_seg_list)):
+        bad_segs = bad_seg_list[i]
+
+        bad_i_set = set()
+        for bad_seg in bad_segs:
+            bad_list = list(range(bad_seg[0], bad_seg[-1] + 1))
+            bad_i_set.update(bad_list)
+
+        good_list_all = list(ix_set - bad_i_set)
+
+        split_good_list = split_into_lists(good_list_all)
+
+        good_is = []
+        for good_list in split_good_list:
+            good_is.append([good_list[0], good_list[-1]])
+
+        good_seg_is.append(good_is)
+
+        if len(good_is) > 1:
+            print(good_list_all)
+            print(good_is)
+
+    return good_seg_is

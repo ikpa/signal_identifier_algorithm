@@ -383,7 +383,7 @@ def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, sus_segs, ave_sens=
 # each signal's exclusion caused to the average total difference.
 def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, sus_seg_list, smooth_window=401,
                    badness_sens=.3, ave_window=1, ave_sens=10 ** (-13), smooth_only=False):
-    import file_reader as fr
+    import file_handler as fr
 
     offset = int(smooth_window / 2)
 
@@ -789,48 +789,6 @@ def average_of_gradient(signal, start_i, end_i, offset_percentage=0.05):
     return np.mean(grad)
 
 
-# TODO fix confidences
-# calculate a goodness value (a value determining how likely a flat segment
-# has been wrongly detected by find_flat_segments) for a segment in a
-# signal. a goodness value is increased if a segment has no clear trend,
-# has a small fraction of unique values and is long.
-# goodness > 1 -> bad
-# goodness < 1 -> good/suspicious
-# goodness < 0 -> very good
-def cal_goodness_seg(signal, start_i, end_i,
-                     uniq_w=1.5, grad_sensitivity=0.5 * 10 ** (-13),
-                     grad_w=10 ** 12, len_w=1):
-    segment = signal[start_i: end_i]
-    uniqs = np.unique(segment)
-
-    uniquevals = len(uniqs)
-    totvals = len(segment)
-    frac_of_uniq = 1 - uniquevals / totvals
-
-    uniq_conf = uniq_w * frac_of_uniq
-
-    grad_average = abs(average_of_gradient(signal, start_i, end_i))
-    print("grad_average: ", grad_average)
-
-    if grad_average < grad_sensitivity:
-        grad_conf = 0
-    else:
-        grad_conf = - grad_w * grad_average
-
-    rel_len = (end_i - start_i) / len(signal)
-
-    if rel_len >= .5:
-        len_w = 1.5 * len_w
-        grad_conf *= 1.5
-
-    len_conf = rel_len * len_w
-
-    print("uniq_conf:", uniq_conf, "grad_conf:", grad_conf, "len_conf:", len_conf)
-
-    tot_conf = uniq_conf + grad_conf + len_conf
-    return tot_conf
-
-
 # find segments where a certain value repeats. this filter ignores parts
 # where the signal deviates from the unique value momentarily.
 def uniq_filter_neo(signal, filter_i):
@@ -897,6 +855,52 @@ def find_flat_segments(signal, rel_sensitive_length=0.07, relative_sensitivity=0
 
     return lengths, start_is, end_is
 
+
+# TODO fix confidences
+# calculate a goodness value (a value determining how likely a flat segment
+# has been wrongly detected by find_flat_segments) for a segment in a
+# signal. a goodness value is increased if a segment has no clear trend,
+# has a small fraction of unique values and is long.
+# goodness > 1 -> bad
+# goodness < 1 -> good/suspicious
+# goodness < 0 -> very good
+def cal_goodness_flat(signal, start_i, end_i,
+                      uniq_w=1.5, grad_sensitivity=0.5 * 10 ** (-13),
+                      grad_w=10 ** 12, len_w=1, max_len=2900):
+    segment = signal[start_i: end_i]
+    uniqs = np.unique(segment)
+
+    uniquevals = len(uniqs)
+    totvals = len(segment)
+    frac_of_uniq = 1 - uniquevals / totvals
+
+    uniq_conf = uniq_w * frac_of_uniq
+
+    grad_average = abs(average_of_gradient(signal, start_i, end_i))
+    print("grad_average: ", grad_average)
+
+    if grad_average < grad_sensitivity:
+        grad_conf = 0
+    else:
+        grad_conf = - grad_w * grad_average
+
+    rel_len = (end_i - start_i) / max_len
+    sig_len = len(signal)
+    # print(len(signal))
+
+    if sig_len >= max_len/2:
+        len_w = 1.5 * len_w
+        grad_conf *= 1.5
+
+    len_conf = rel_len * len_w
+
+    print("uniq_conf:", uniq_conf, "grad_conf:", grad_conf, "len_conf:", len_conf)
+
+    tot_conf = uniq_conf + grad_conf + len_conf
+    print("tot_conf:", tot_conf)
+    return tot_conf
+
+
 # find segments where the value stays the same value for a long period.
 # also recalculates the tail of the signal and calculates
 # a confidence value for the segment
@@ -934,7 +938,7 @@ def flat_filter(signal, grad_sens=0.5 * 10 ** (-13)):
 
     confidences = []
     for segment in comb_segs:
-        confidences.append(cal_goodness_seg(signal, segment[0], segment[1], grad_sensitivity=grad_sens))
+        confidences.append(cal_goodness_flat(signal, segment[0], segment[1], grad_sensitivity=grad_sens))
 
     return comb_segs, confidences
 
@@ -979,7 +983,7 @@ def cal_goodness_spike(gradient, spikes, all_diffs, max_sensitivities=None,
 
     n = len(spikes)
 
-    if n == 0:
+    if n <= 1:
         return [], None
 
     score = .5
@@ -1398,7 +1402,7 @@ def find_saturation_point_from_fft(i_x, i_arr, filter_i, fft_window, sdev_window
         seg_len = length_of_segments([sdev_span])
         highsdev = span_sdev_ave > abs_sdev_thresh
         span_start_i = where_above_sdev[0]
-        print(span_sdev_ave, seg_len, span_start_i)
+        print("span_sdev_ave", span_sdev_ave, "seg_len", seg_len, "span_start_i", span_start_i)
 
         if seg_len < 500:
             local_err = True
@@ -1406,9 +1410,10 @@ def find_saturation_point_from_fft(i_x, i_arr, filter_i, fft_window, sdev_window
             local_err = False
 
         if highsdev and local_err and span_start_i > 6:
-            print("localized error")
+            print("saturation point found")
             error_start = sdev_span[0] + fft_window + sdev_window
         else:
+            print("no saturation point found")
             error_start = None
 
         return rms_x, fft_sdev, error_start, sdev_thresh, sdev_span
