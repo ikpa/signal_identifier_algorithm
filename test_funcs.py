@@ -1582,7 +1582,7 @@ def test_fft_full():
 
 def test_fft():
     # SUS ONES: sd37: 2214
-    fname = datadir + "sample_data27.npz"
+    fname = datadir + "many_many_successful.npz"
     #channels = ["MEG0311", "MEG1114"]
     channels = ["MEG*1", "MEG*4"]
     signals, names, timex, n_chan = fr.get_signals(fname, channels=channels)
@@ -1846,3 +1846,23 @@ def test_ffft():
 
         plt.show()
         print()
+
+def show_pca():
+    fname = datadir + "sample_data30.npz"
+    signals, names, timex, n_chan = fr.get_signals(fname)
+
+    detecs = np.load("array120_trans_newnames.npz")
+
+    signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals, names, n_chan,
+                                                                                                badness_sensitivity=.5)
+
+    all_diffs, all_rel_diffs, chan_dict = sa.check_all_phys(signals, detecs, names, n_chan, bad_segment_list, suspicious_segment_list,
+                                                            ave_window=100, ave_sens=5 * 10 ** (-13))
+
+    phys_stat, phys_conf = sa.analyse_phys_dat(all_diffs, names, all_rel_diffs, chan_dict)
+
+    show_bads = False
+
+    for i in range(n_chan):
+        name = names[i]
+        signal = signals[i]

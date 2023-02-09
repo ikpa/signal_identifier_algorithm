@@ -36,7 +36,7 @@ def plot_in_order_ver3(signals, names, n_chan, statuses,
     plt.rcParams.update({'font.size': 42})
     for i in range(n_chan):
         name = names[i]
-        print(name)
+        # print(name)
         signal = signals[i]
         bad = statuses[i]
         bad_segs = bad_seg_list[i]
@@ -353,3 +353,28 @@ def find_good_segs(i_x_target, bad_seg_list, i_x_tot):
             print(good_is)
 
     return good_seg_is
+
+# finds and returns signals based on channel names
+def find_signals(channels, signals, names):
+    indices = []
+
+    for channel in channels:
+        i = names.index(channel)
+        indices.append(i)
+
+    signals_to_return = []
+
+    for index in indices:
+        signals_to_return.append(signals[index])
+
+    return signals_to_return
+
+# reformats signals so that a single array contains one signal instead of
+# one array containing one point in time
+def reorganize_signals(signals, n):
+    new_signals = []
+    for i in range(n):
+        signal = signals[:, i]
+        new_signals.append(signal)
+
+    return new_signals

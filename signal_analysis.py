@@ -3,6 +3,7 @@ import math
 import numpy as np
 import time
 import helper_funcs as hf
+import file_handler as fh
 from operator import itemgetter
 
 
@@ -117,7 +118,7 @@ def crop_all_sigs(signals, xs, bad_segs):
 # calculates a magnetic field vector as a function of time from a set of signals
 # and their vectors. the magnetic fields are calculated from averaged
 # signals. averaging window can be changed using ave_window
-def calc_magn_field_from_signals(signals, xs, vectors, ave_window=400):
+def calc_magn_field_from_signals(signals, xs, vectors, printer, ave_window=400):
     # crop signals if needed
     if len(xs) == 1:
         cropped_signals = signals
@@ -136,7 +137,7 @@ def calc_magn_field_from_signals(signals, xs, vectors, ave_window=400):
 
     # if there are less than 3 signals, the calculation is not performed
     if len(signals) < 3:
-        print("not enough signals to calculate magnetic field vector")
+        printer.extended_write("not enough signals to calculate magnetic field vector")
         return [], [], cropped_signals, new_x, averaged_sigs
 
     magn_vectors = []
@@ -205,12 +206,12 @@ def reconstruct(mag, v):
 # average total difference for all signals in total, the reconstructed and cropped
 # signals and their x values. increasing ave_window decreases calculation time
 # and accuracy
-def rec_and_diff(signals, xs, vs, ave_window=1):
+def rec_and_diff(signals, xs, vs, printer, ave_window=1):
     if len(signals) == 0:
         return None, None, None, None, None, None, None
 
     # calculate magnetic field vector
-    magn_vectors, mag_is, cropped_signals, new_x, averaged_signals = calc_magn_field_from_signals(signals, xs, vs,
+    magn_vectors, mag_is, cropped_signals, new_x, averaged_signals = calc_magn_field_from_signals(signals, xs, vs, printer,
                                                                                                   ave_window=ave_window)
 
     if len(magn_vectors) == 0:
@@ -252,10 +253,10 @@ def rec_and_diff(signals, xs, vs, ave_window=1):
 # 10**(-13) 1
 # 10**(-12) 100
 # 5*10**(-13) 100 CHECK THIS
-def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, sus_segs, ave_sens=10 ** (-13), ave_window=1,
+def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, sus_segs, printer, ave_sens=10 ** (-13), ave_window=1,
                            min_sigs=4):
     if len(signals) <= min_sigs:
-        print("too few signals, stopping")
+        printer.extended_write("too few signals, stopping")
         return [], [], [], []
 
     # find the index of the channel to exclude. favors channels with suspicious
@@ -294,19 +295,19 @@ def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, sus_segs, ave_sens=
     # crop signals
     cropped_signals, new_x = crop_all_sigs(signals, xs, bad_segs)
 
-    print("analysing " + str(len(cropped_signals)) + " signals")
+    printer.extended_write("analysing " + str(len(cropped_signals)) + " signals")
     temp_sigs = cropped_signals[:]
     temp_names = names[:]
     temp_vs = vs[:]
     temp_sus = sus_segs[:]
 
     # calculate initial reconstruction
-    ave_of_aves, aves, diffs, rec_sigs, magis, cropped_signals, new_new_x = rec_and_diff(cropped_signals, [new_x], vs,
+    ave_of_aves, aves, diffs, rec_sigs, magis, cropped_signals, new_new_x = rec_and_diff(cropped_signals, [new_x], vs, printer,
                                                                                          ave_window=ave_window)
-    print("average at start:", ave_of_aves)
+    printer.extended_write("average at start:", ave_of_aves)
 
     if ave_of_aves < ave_sens:
-        print("no optimisation needed, stopping")
+        printer.extended_write("no optimisation needed, stopping")
         return [], new_x, [], []
 
     excludes = []
@@ -314,10 +315,10 @@ def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, sus_segs, ave_sens=
     rel_diffs = []
     while ave_of_aves > ave_sens:
 
-        print(len(temp_sigs), "signals left")
+        printer.extended_write(len(temp_sigs), "signals left")
 
         if len(temp_sigs) <= min_sigs:
-            print("no optimal magnetic field found")
+            printer.extended_write("no optimal magnetic field found")
             return [], new_x, [], []
 
         new_aves = []
@@ -327,7 +328,7 @@ def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, sus_segs, ave_sens=
 
             if excl_name in excludes:
                 new_aves.append(100000)
-                print("skipping", i)
+                printer.extended_write("skipping", i)
                 continue
 
             sigs_without = temp_sigs[:i] + temp_sigs[i + 1:]
@@ -335,7 +336,7 @@ def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, sus_segs, ave_sens=
 
             # calculate reconstruction and average difference
             new_ave_of_aves, temp_aves, temp_diffs, temp_rec_sigs, temp_magis, temp_crop_sigs, temp_new_x = rec_and_diff(
-                sigs_without, [new_x], vs_without, ave_window=ave_window)
+                sigs_without, [new_x], vs_without, printer, ave_window=ave_window)
             new_aves.append(new_ave_of_aves)
 
         # choose the lowest average difference and permanently exclude this signal
@@ -346,7 +347,7 @@ def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, sus_segs, ave_sens=
         # all_diffs = [ave_of_aves - x for x in new_aves]
         diff = ave_of_aves - best_ave
         rel_diff = diff / ave_of_aves
-        print("average", best_ave)
+        printer.extended_write("average", best_ave)
         #print("names", temp_names)
         #print("all aves", new_aves)
         #print("all diffs", all_diffs)
@@ -355,7 +356,7 @@ def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, sus_segs, ave_sens=
         ave_diffs.append(diff)
         rel_diffs.append(rel_diff)
         ex_nam = temp_names[best_exclusion_i]
-        print(ex_nam + " excluded")
+        printer.extended_write(ex_nam + " excluded")
         excludes.append(ex_nam)
         temp_vs.pop(best_exclusion_i)
         temp_sigs.pop(best_exclusion_i)
@@ -363,7 +364,7 @@ def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, sus_segs, ave_sens=
         temp_sus.pop(best_exclusion_i)
         ave_of_aves = best_ave
 
-    print(len(temp_names), "signals left at the end of calculation")
+    printer.extended_write(len(temp_names), "signals left at the end of calculation")
     return excludes, new_x, ave_diffs, rel_diffs
 
 
@@ -381,7 +382,7 @@ def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, sus_segs, ave_sens=
 # a dictionary of all the calculations it was included in and whether
 # it was excluded. also returns the absolute and relative improvement
 # each signal's exclusion caused to the average total difference.
-def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, sus_seg_list, smooth_window=401,
+def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, sus_seg_list, printer, smooth_window=401,
                    badness_sens=.3, ave_window=1, ave_sens=10 ** (-13), smooth_only=False):
     import file_handler as fr
 
@@ -402,7 +403,7 @@ def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, sus_seg_list, s
     for k in range(n_chan):
         # choose central detector and find nearby detectors
         comp_detec = names[k]
-        print(comp_detec)
+        printer.extended_write(comp_detec)
 
         nearby_names = find_nearby_detectors(comp_detec, detecs)
         nearby_names.append(comp_detec)
@@ -427,11 +428,11 @@ def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, sus_seg_list, s
             bad = len(bad_segs) != 0
 
             if bad:
-                print("excluding " + nam + " from calculation due to presense of bad segments")
+                printer.extended_write("excluding " + nam + " from calculation due to presense of bad segments")
                 continue
 
             if sig_len < smooth_window:
-                print("excluding " + nam + " from calculation due to shortness")
+                printer.extended_write("excluding " + nam + " from calculation due to shortness")
                 continue
 
             new_near.append(nam)
@@ -442,11 +443,11 @@ def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, sus_seg_list, s
         # print("detector group:", new_near)
 
         if len(new_near) == 0:
-            print("no signals in group\n")
+            printer.extended_write("no signals in group\n")
             continue
 
         if new_near in tested_groups:
-            print("already calculated, skipping\n")
+            printer.extended_write("already calculated, skipping\n")
             continue
 
         tested_groups.append(new_near)
@@ -458,9 +459,9 @@ def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, sus_seg_list, s
             near_vs.append(detecs[name][:3, 2])
             near_rs.append(detecs[name][:3, 3])
 
-        near_sigs = fr.find_signals(new_near, signals, names)
-        near_bad_segs = fr.find_signals(new_near, bad_seg_list, names)
-        near_sus_segs = fr.find_signals(new_near, sus_seg_list, names)
+        near_sigs = hf.find_signals(new_near, signals, names)
+        near_bad_segs = hf.find_signals(new_near, bad_seg_list, names)
+        near_sus_segs = hf.find_signals(new_near, sus_seg_list, names)
 
         smooth_sigs = []
         xs = []
@@ -476,7 +477,7 @@ def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, sus_seg_list, s
 
         # calculate which signals in the cluster to exclude
         exclude_chans, new_x, diffs, rel_diffs = filter_unphysical_sigs(smooth_sigs, new_near, xs, near_vs,
-                                                                        near_bad_segs, near_sus_segs, ave_window=ave_window,
+                                                                        near_bad_segs, near_sus_segs, printer, ave_window=ave_window,
                                                                         ave_sens=ave_sens)
 
         if len(new_x) != 0:
@@ -484,9 +485,9 @@ def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, sus_seg_list, s
                 chan_dict[nam][comp_detec] = 0
 
         if len(new_x) > 1:
-            print("analysed segment between", new_x[0], new_x[len(new_x) - 1])
+            printer.extended_write("analysed segment between", new_x[0], new_x[len(new_x) - 1])
 
-        print("excluded", exclude_chans)
+        printer.extended_write("excluded", exclude_chans)
 
         # log and print data
         for j in range(len(exclude_chans)):
@@ -501,11 +502,11 @@ def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, sus_seg_list, s
             tot = np.float64(len(chan_dat))
             ex = np.float64(len([x for x in chan_dat if chan_dat[x] == 1]))
 
-            print(chan, "times excluded:", ex, ", times in calculation:", tot,
+            printer.extended_write(chan, "times excluded:", ex, ", times in calculation:", tot,
                   ", fraction excluded:", float(ex / tot),
                   "average relative difference:", np.mean(all_rel_diffs[chan]))
 
-        print()
+        printer.extended_write()
 
     return all_diffs, all_rel_diffs, chan_dict
 
@@ -864,7 +865,7 @@ def find_flat_segments(signal, rel_sensitive_length=0.07, relative_sensitivity=0
 # goodness > 1 -> bad
 # goodness < 1 -> good/suspicious
 # goodness < 0 -> very good
-def cal_goodness_flat(signal, start_i, end_i,
+def cal_goodness_flat(signal, start_i, end_i, printer,
                       uniq_w=1.5, grad_sensitivity=0.5 * 10 ** (-13),
                       grad_w=10 ** 12, len_w=1, max_len=2900):
     segment = signal[start_i: end_i]
@@ -877,7 +878,7 @@ def cal_goodness_flat(signal, start_i, end_i,
     uniq_conf = uniq_w * frac_of_uniq
 
     grad_average = abs(average_of_gradient(signal, start_i, end_i))
-    print("grad_average: ", grad_average)
+    printer.extended_write("grad_average: ", grad_average)
 
     if grad_average < grad_sensitivity:
         grad_conf = 0
@@ -894,17 +895,17 @@ def cal_goodness_flat(signal, start_i, end_i,
 
     len_conf = rel_len * len_w
 
-    print("uniq_conf:", uniq_conf, "grad_conf:", grad_conf, "len_conf:", len_conf)
+    printer.extended_write("uniq_conf:", uniq_conf, "grad_conf:", grad_conf, "len_conf:", len_conf)
 
     tot_conf = uniq_conf + grad_conf + len_conf
-    print("tot_conf:", tot_conf)
+    printer.extended_write("tot_conf:", tot_conf)
     return tot_conf
 
 
 # find segments where the value stays the same value for a long period.
 # also recalculates the tail of the signal and calculates
 # a confidence value for the segment
-def flat_filter(signal, grad_sens=0.5 * 10 ** (-13)):
+def flat_filter(signal, printer, grad_sens=0.5 * 10 ** (-13)):
     lengths, start_is, end_is = find_flat_segments(signal)
 
     if len(start_is) == 0:
@@ -913,7 +914,7 @@ def flat_filter(signal, grad_sens=0.5 * 10 ** (-13)):
     final_i = end_is[len(end_is) - 1]
     seg_is = reformat_segments(start_is, end_is)
 
-    print("number of segments found ", len(seg_is))
+    printer.extended_write("number of segments found ", len(seg_is))
 
     # recheck tail
     if final_i != len(signal) - 1:
@@ -933,18 +934,18 @@ def flat_filter(signal, grad_sens=0.5 * 10 ** (-13)):
 
     comb_segs = combine_segments(seg_is)
 
-    print("number of segments outputted", len(comb_segs))
+    printer.extended_write("number of segments outputted", len(comb_segs))
     # print(comb_segs)
 
     confidences = []
     for segment in comb_segs:
-        confidences.append(cal_goodness_flat(signal, segment[0], segment[1], grad_sensitivity=grad_sens))
+        confidences.append(cal_goodness_flat(signal, segment[0], segment[1], printer, grad_sensitivity=grad_sens))
 
     return comb_segs, confidences
 
 
 # TODO test with more datasets: compare with segment_filter_neo
-def segment_filter_thorough(signal, filter_i, smooth_window=401):
+def segment_filter_thorough(signal, filter_i, printer, smooth_window=401):
     offset = int(smooth_window / 2)
     sig_len = len(signal)
 
@@ -957,7 +958,7 @@ def segment_filter_thorough(signal, filter_i, smooth_window=401):
     for j in range(filter_i, sig_len):
         new_smooth.append(smooth_signal[j + offset - filter_i])
 
-    segs, confs = flat_filter(new_smooth, grad_sens=2 * 10 ** (-13))
+    segs, confs = flat_filter(new_smooth, printer, grad_sens=2 * 10 ** (-13))
 
     fix_segs = hf.fix_segs(segs, filter_i)
 
@@ -971,7 +972,7 @@ def segment_filter_thorough(signal, filter_i, smooth_window=401):
 # at the first spike and ends at the last.
 # goodness > 1 -> bad
 # goodness < 1 -> good
-def cal_goodness_spike(gradient, spikes, all_diffs, max_sensitivities=None,
+def cal_goodness_spike(gradient, spikes, all_diffs, printer, max_sensitivities=None,
                        n_sensitivities=None,
                        grad_sensitivity=2 * 10 ** (-13),
                        sdens_sensitivity=0.1):
@@ -1037,7 +1038,7 @@ def cal_goodness_spike(gradient, spikes, all_diffs, max_sensitivities=None,
 
     score = score / 1.5
 
-    print("num_spikes", n, "av_diff", av_max, "grad_ave", grad_ave,
+    printer.extended_write("num_spikes", n, "av_diff", av_max, "grad_ave", grad_ave,
           "spike_density", spike_density, "badness", score)
 
     return [seg_start, seg_end], score
@@ -1073,10 +1074,10 @@ def find_spikes(gradient, filter_i, grad_sensitivity, len_sensitivity=6, start_s
 
 
 # finds segments with steep spikes in the signal and calculates their goodness
-def spike_filter_neo(signal, filter_i, grad_sensitivity=10 ** (-10)):
+def spike_filter_neo(signal, filter_i, printer, grad_sensitivity=10 ** (-10)):
     gradient = np.gradient(signal)
     spikes, all_diffs = find_spikes(gradient, filter_i, grad_sensitivity)
-    seg_is, confidence = cal_goodness_spike(gradient, spikes, all_diffs)
+    seg_is, confidence = cal_goodness_spike(gradient, spikes, all_diffs, printer)
 
     if len(seg_is) == 0:
         return [], []
@@ -1217,12 +1218,12 @@ def get_ffft_alt(signal, freq_range, magic_factor=1.5e7):
 # before calculating the ffts the trend of the signal is removed by first
 # calculating a rolling average with a very large smoothing window and then
 # getting the difference between the smoothed signal and the original.
-def calc_fft_indices(signal, indices=None, window=400, smooth_window=401, filter_offset=0, goertzel=False):
+def calc_fft_indices(signal, printer, indices=None, window=400, smooth_window=401, filter_offset=0, goertzel=False):
     if indices is None:
         indices = [1, 2, 6]
 
     if len(signal) < window:
-        print("stopping fft, window larger than signal")
+        printer.extended_write("stopping fft, window larger than signal")
         return None, None, None, None, None
 
     if goertzel:
@@ -1284,8 +1285,8 @@ def calc_fft_indices(signal, indices=None, window=400, smooth_window=401, filter
 # 0 = good
 # 1 = bad
 # 2 = undetermined
-def stats_from_i(i_arr, i_x, bad_segs, fft_window, cut_length=70, max_sig_len=800):
-    print("filtering fft:")
+def stats_from_i(i_arr, i_x, bad_segs, fft_window, printer, cut_length=70, max_sig_len=800):
+    printer.extended_write("filtering fft:")
     offset = int(len(i_arr) * 0.0875)
     filter_i_i = filter_start(i_arr, offset=offset, max_rel=.175)
 
@@ -1311,10 +1312,10 @@ def stats_from_i(i_arr, i_x, bad_segs, fft_window, cut_length=70, max_sig_len=80
 
     grad_rmsd = np.sqrt(np.mean([(grad_ave - x) ** 2 for x in cut_grad]))
 
-    print("i ave:", i_arr_ave, " i sdev:", i_arr_sdev)  # ave < 10e-09 - 5e-09 => SUS, sdev > 3e-09 => SUS
-    print("grad rmsd", grad_rmsd)  # sus thresh: 2.5e-11, bad tresh: 7e-11 (raise this possibly)
-    print("grad ave", grad_ave)  # > 1e-12 => SUS
-    print("filtered fft length ", len(cut_i_arr))
+    printer.extended_write("i ave:", i_arr_ave, " i sdev:", i_arr_sdev)  # ave < 10e-09 - 5e-09 => SUS, sdev > 3e-09 => SUS
+    printer.extended_write("grad rmsd", grad_rmsd)  # sus thresh: 2.5e-11, bad tresh: 7e-11 (raise this possibly)
+    printer.extended_write("grad ave", grad_ave)  # > 1e-12 => SUS
+    printer.extended_write("filtered fft length ", len(cut_i_arr))
 
     def change_status(new_stat, old_stat):
         if old_stat > 0:
@@ -1327,64 +1328,64 @@ def stats_from_i(i_arr, i_x, bad_segs, fft_window, cut_length=70, max_sig_len=80
     sus_score = 0
 
     if len(cut_i_arr) < 400:
-        print("SIGNAL TOO SHORT")
+        printer.extended_write("SIGNAL TOO SHORT")
         status = change_status(3, status)
         short = True
         return nu_i_arr, nu_i_x, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score, short
 
     if len(cut_i_arr) < max_sig_len:
-        print("NOT ENOUGH SIGNAL FOR ERROR LOCALIZATION")
+        printer.extended_write("NOT ENOUGH SIGNAL FOR ERROR LOCALIZATION")
         # status = change_status(3, status)
         short = True
         # return nu_i_arr, nu_i_x, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score
 
     # sus: 1e-08 - 5e-09, bad < 5e-09
     if i_arr_ave < 1 * 10 ** (-14): # 1.5e-09
-        print("NO 50HZ DETECTED")
+        printer.extended_write("NO 50HZ DETECTED")
         status = change_status(1, status)
     elif i_arr_ave < 6 * 10 ** (-9):
-        print("NOT ENOUGH 50HZ")
+        printer.extended_write("NOT ENOUGH 50HZ")
         status = change_status(2, status)
     elif i_arr_ave < 1.5 * 10 ** (-8):
-        print("LOW 50HZ")
+        printer.extended_write("LOW 50HZ")
         sus_score += 1
 
     grad_ave_thresh = 2 * 10 ** (-12)
     # maybe 8.5e-12
     # TODO check value for cropped signals
     if grad_ave > 10 ** (-11):
-        print("EXTREMELY HIGH GRADIENT AVERAGE")
+        printer.extended_write("EXTREMELY HIGH GRADIENT AVERAGE")
         status = change_status(1, status)
     elif grad_ave > 2 * 10 ** (-12):
-        print("INCREASING 50HZ")
+        printer.extended_write("INCREASING 50HZ")
         sus_score += 1
 
     if 3.5 * 10 ** (-11) < grad_rmsd < 2 * 10 ** (-10):
-        print("SUSPICIOUS RMS")
+        printer.extended_write("SUSPICIOUS RMS")
         sus_score += 1
     elif grad_rmsd > 2 * 10 ** (-10):
-        print("EXTREMELY HIGH RMS")
+        printer.extended_write("EXTREMELY HIGH RMS")
         status = change_status(1, status)
 
     if 3.5 * 10 ** (-9) < i_arr_sdev < 10 ** (-8):
-        print("SUSPICIOUS SDEV")
+        printer.extended_write("SUSPICIOUS SDEV")
         sus_score += 1
     elif i_arr_sdev > 10 ** (-8):
-        print("EXTREMELY HIGH SDEV")
+        printer.extended_write("EXTREMELY HIGH SDEV")
         status = change_status(1, status)
 
     if sus_score >= 3:
-        print("BAD SIGNAL")
+        printer.extended_write("BAD SIGNAL")
         status = change_status(1, status)
     elif sus_score >= 2:
-        print("SUSPICIOUS SIGNAL")
+        printer.extended_write("SUSPICIOUS SIGNAL")
         status = change_status(2, status)
 
     return nu_i_arr, nu_i_x, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score, short
 
 
 # TODO increase abs sdev thresh and/or rel sdev thresh, abs_dev maybe 1.4e-10
-def find_saturation_point_from_fft(i_x, i_arr, filter_i, fft_window, sdev_window=10, rel_sdev_thresh=1.75,
+def find_saturation_point_from_fft(i_x, i_arr, filter_i, fft_window, printer, sdev_window=10, rel_sdev_thresh=1.75,
                                    abs_sdev_thresh=1.4 * 10 ** (-10)):
     if len(i_arr) == 0:
         return None, None, None, None, None
@@ -1402,7 +1403,7 @@ def find_saturation_point_from_fft(i_x, i_arr, filter_i, fft_window, sdev_window
         seg_len = length_of_segments([sdev_span])
         highsdev = span_sdev_ave > abs_sdev_thresh
         span_start_i = where_above_sdev[0]
-        print("span_sdev_ave", span_sdev_ave, "seg_len", seg_len, "span_start_i", span_start_i)
+        printer.extended_write("span_sdev_ave", span_sdev_ave, "seg_len", seg_len, "span_start_i", span_start_i)
 
         if seg_len < 500:
             local_err = True
@@ -1410,10 +1411,10 @@ def find_saturation_point_from_fft(i_x, i_arr, filter_i, fft_window, sdev_window
             local_err = False
 
         if highsdev and local_err and span_start_i > 6:
-            print("saturation point found")
+            printer.extended_write("saturation point found")
             error_start = sdev_span[0] + fft_window + sdev_window
         else:
-            print("no saturation point found")
+            printer.extended_write("no saturation point found")
             error_start = None
 
         return rms_x, fft_sdev, error_start, sdev_thresh, sdev_span
@@ -1421,7 +1422,7 @@ def find_saturation_point_from_fft(i_x, i_arr, filter_i, fft_window, sdev_window
     return rms_x, fft_sdev, None, sdev_thresh, None
 
 
-def fft_filter(signal, filter_i, bad_segs, fft_window=400, indices=[2], badness_sens=.5, debug=False, fft_cut=70, min_length=400,
+def fft_filter(signal, filter_i, bad_segs, printer, fft_window=400, indices=[2], badness_sens=.5, debug=False, fft_cut=70, min_length=400,
                goertzel=False):
     normal_sig = signal[filter_i:]
     sig_len = len(normal_sig)
@@ -1441,7 +1442,7 @@ def fft_filter(signal, filter_i, bad_segs, fft_window=400, indices=[2], badness_
     rel_bad_len = bad_len / sig_len
 
     if rel_bad_len >= badness_sens or good_len < min_length:
-        print("NOT ENOUGH SIGNAL FOR FFT")
+        printer.extended_write("NOT ENOUGH SIGNAL FOR FFT")
         if debug:
             return None, None, None, None, None, None, None, None, 2, 0, None, None, None, None, None
         else:
@@ -1457,12 +1458,12 @@ def fft_filter(signal, filter_i, bad_segs, fft_window=400, indices=[2], badness_
             return [], []
 
     cut_i_arr, cut_i_x, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score, short = stats_from_i(
-        i_arr[0], i_x, bad_segs, fft_window, cut_length=fft_cut)
+        i_arr[0], i_x, bad_segs, fft_window, printer, cut_length=fft_cut)
 
     if not short:
         rms_x, fft_sdev, error_start, sdev_thresh, sdev_span = find_saturation_point_from_fft(cut_i_x, cut_i_arr,
                                                                                               filter_i_i,
-                                                                                              fft_window)
+                                                                                              fft_window, printer)
     else:
         rms_x, fft_sdev, error_start, sdev_thresh, sdev_span = None, None, None, None, None
 
@@ -1582,7 +1583,7 @@ def find_default_y(arr, num_points=5000, step=.1 * 10 ** (-7)):
 # UNUSED
 # this function would be used in conjunction with find_default_y to
 # find the segments where the signal is no longer periodic.
-def get_spans_from_fft(fft_i2, hseg, fft_window=400):
+def get_spans_from_fft(fft_i2, hseg, printer, fft_window=400):
     segs = []
     all_fft_segs = []
 
@@ -1595,16 +1596,16 @@ def get_spans_from_fft(fft_i2, hseg, fft_window=400):
         val_in_hseg = hseg[0] < fft_val < hseg[1]
 
         if (i_max != -1 and i_min != - 1) and (not val_in_hseg or fft_i == len(fft_i2) - 1):
-            print("in", i_min, i_max)
+            printer.extended_write("in", i_min, i_max)
             if temp_seg[0] < i_min < temp_seg[1]:
                 temp_seg = [temp_seg[0], i_max]
-                print("between", temp_seg)
+                printer.extended_write("between", temp_seg)
             elif temp_seg == [-1, -1]:
                 temp_seg = [i_min, i_max]
-                print("none", temp_seg)
+                printer.extended_write("none", temp_seg)
             else:
                 segs.append(temp_seg)
-                print("append", temp_seg)
+                printer.extended_write("append", temp_seg)
                 temp_seg = [i_min, i_max]
 
             i_min = -1
@@ -1622,7 +1623,7 @@ def get_spans_from_fft(fft_i2, hseg, fft_window=400):
                 i_max = i_max_temp
 
     if temp_seg != [-1, -1]:
-        print("final append")
+        printer.extended_write("final append")
         segs.append(temp_seg)
 
     return segs
@@ -1740,7 +1741,7 @@ def final_analysis(signal_length, segments, confidences, badness_sensitivity=.8)
 # the function returns lists containing all bad and suspicious segments
 # as well as ones containing whether the signal is bad (boolean value) and
 # the time it took to analyse each signal.
-def analyse_all_neo(signals, names, chan_num,
+def analyse_all_neo(signals, names, chan_num, printer,
                     filters=None,
                     badness_sensitivity=.5, filter_beginning=True,
                     fft_goertzel=False):
@@ -1757,7 +1758,7 @@ def analyse_all_neo(signals, names, chan_num,
     suspicious_segment_list = []
 
     for i in range(chan_num):
-        print(names[i])
+        printer.extended_write(names[i])
         signal = signals[i]
         signal_length = len(signal)
         segments = []
@@ -1772,35 +1773,35 @@ def analyse_all_neo(signals, names, chan_num,
             filter_i = 0
 
         for fltr in filters:
-            print("beginning analysis with " + fltr + " filter")
+            printer.extended_write("beginning analysis with " + fltr + " filter")
 
             if fltr == "uniq":
                 seg_is, confs = uniq_filter_neo(signal, filter_i)
 
             if fltr == "flat":
-                seg_is, confs = flat_filter(signal)
+                seg_is, confs = flat_filter(signal, printer)
 
             if fltr == "spike":
-                seg_is, confs = spike_filter_neo(signal, filter_i)
+                seg_is, confs = spike_filter_neo(signal, filter_i, printer)
 
             # UNUSED
             if fltr == "seg_thorough":
-                seg_is, confs = segment_filter_thorough(signal, filter_i)
+                seg_is, confs = segment_filter_thorough(signal, filter_i, printer)
 
             if fltr == "fft":
                 temp_bad, temp_bad_segs, temp_suspicious_segs = final_analysis(signal_length, segments, confidences,
                                                                                badness_sensitivity=badness_sensitivity)
-                seg_is, confs = fft_filter(signal, filter_i, temp_bad_segs, goertzel=fft_goertzel)
+                seg_is, confs = fft_filter(signal, filter_i, temp_bad_segs, printer, goertzel=fft_goertzel)
 
             new_segs = len(seg_is)
 
             if new_segs == 0:
-                print("no segments found")
+                printer.extended_write("no segments found")
             else:
-                print(new_segs, "segment(s) found:")
+                printer.extended_write(new_segs, "segment(s) found:")
 
                 for seg in seg_is:
-                    print(seg)
+                    printer.extended_write(seg)
 
             segments += seg_is
             confidences += confs
@@ -1809,10 +1810,10 @@ def analyse_all_neo(signals, names, chan_num,
                                                         badness_sensitivity=badness_sensitivity)
         num_bad = len(bad_segs)
         num_sus = len(suspicious_segs)
-        print(num_sus, "suspicious and", num_bad, " bad segment(s) found in total")
+        printer.extended_write(num_sus, "suspicious and", num_bad, " bad segment(s) found in total")
 
         if not bad:
-            print("signal not marked as bad")
+            printer.extended_write("signal not marked as bad")
 
         signal_statuses.append(bad)
         bad_segment_list.append(bad_segs)
@@ -1820,9 +1821,9 @@ def analyse_all_neo(signals, names, chan_num,
 
         end_time = time.time()
         exec_time = end_time - start_time
-        print("execution time:", exec_time)
+        printer.extended_write("execution time:", exec_time)
         exec_times.append(exec_time)
 
-        print()
+        printer.extended_write()
 
     return signal_statuses, bad_segment_list, suspicious_segment_list, exec_times
