@@ -6,7 +6,8 @@ import numpy as np
 import helper_funcs
 import helper_funcs as hf
 import file_handler as fr
-import signal_analysis as sa
+import pca
+import fdfs as sa
 import matplotlib.pyplot as plt
 import signal_generator as sg
 
@@ -124,7 +125,7 @@ def compare_nearby2():
         # fft_grad = np.gradient(fft)
         og_fft_ave = np.mean(fft)
 
-        nearby_chans = sa.find_nearby_detectors(name, detecs)
+        nearby_chans = helper_funcs.find_nearby_detectors(name, detecs)
         near_sigs = fr.find_signals(nearby_chans, signals, names)
         filtered_sigs = []
         near_ffts = []
@@ -238,7 +239,7 @@ def compare_nearby():
             fft_i2, smooth_signal, smooth_x, detrended_signal = sa.calc_fft_indices(signal, indices=[2], window=window)
             fft_i2 = np.gradient(fft_i2[0])
             # diffs = sa.calc_similarity_between_signals(og_fft, fft_i2, v_dut, og_v, angle_w=0)
-            diffs, x_diffs = sa.calc_diff(og_fft, fft_i2, og_fft_x, x_fft)
+            diffs, x_diffs = helper_funcs.calc_diff(og_fft, fft_i2, og_fft_x, x_fft)
             diff_sens = .2 * 10 ** (-10)
             diffs_under_sens = [x for x in diffs if x < diff_sens]
             frac_under = len(diffs_under_sens) / len(diffs)
@@ -294,7 +295,7 @@ def compare_nearby():
                                                                              window=window)
         fft = np.gradient(fft[0])
 
-        near_chans = sa.find_nearby_detectors(name, detecs)
+        near_chans = helper_funcs.find_nearby_detectors(name, detecs)
         all_sigs = fr.find_signals(near_chans, signals, names)
 
         plot_fft_components(name, filtered_signal, og_x, fft, v, near_chans, all_sigs, detecs, window=window,
@@ -393,7 +394,7 @@ def simo():
 def nearby():
     detecs = np.load("array120_trans_newnames.npz")
     dut = "MEG1011"
-    nears = sa.find_nearby_detectors(dut, detecs)
+    nears = helper_funcs.find_nearby_detectors(dut, detecs)
     print(nears)
     matrixes, names, bads = hf.regex_filter(detecs)
     bads.append(nears)
@@ -630,7 +631,7 @@ def detrend_grad():
         filtered_signal = signal[filter_i:]
         x = list(range(filter_i, len(signal)))
 
-        smooth_signal = sa.smooth(filtered_signal, window_len=smooth_window)
+        smooth_signal = helper_funcs.smooth(filtered_signal, window_len=smooth_window)
         smooth_x = [x - offset + filter_i for x in list(range(len(smooth_signal)))]
         new_smooth = []
         for i in range(len(filtered_signal)):
@@ -654,7 +655,7 @@ def detrend_grad():
         smooth_xs = []
         smooth_grads = []
 
-        near_names = sa.find_nearby_detectors(name, detecs)
+        near_names = helper_funcs.find_nearby_detectors(name, detecs)
         near_sigs = fr.find_signals(near_names, signals, names)
 
         for j in range(len(near_names)):
@@ -722,7 +723,7 @@ def test_magn():
         comp_v = detecs[comp_detec][:3, 2]
         comp_r = detecs[comp_detec][:3, 3]
 
-        nearby_names = sa.find_nearby_detectors(comp_detec, detecs)
+        nearby_names = helper_funcs.find_nearby_detectors(comp_detec, detecs)
         nearby_names.append(comp_detec)
         # near_segs = fr.find_signals(nearby_names, bad_segment_list, names)
 
@@ -771,7 +772,7 @@ def test_magn():
             calc_vs.append(near_vs[i])
             calc_rs.append(near_rs[i])
 
-        magnus, mag_is, cropped_sigs, new_x = sa.calc_magn_field_from_signals(filtered_sigs, xs, calc_vs, ave_window=1)
+        magnus, mag_is, cropped_sigs, new_x = pca.calc_magn_field_from_signals(filtered_sigs, xs, calc_vs, ave_window=1)
 
         reconst_sigs = []
         all_diffs = []
@@ -789,7 +790,7 @@ def test_magn():
 
             reconst_sigs.append(reconst_sig)
 
-            diffs, diff_x = sa.calc_diff(reconst_sig, cropped_sigs[i], mag_is, new_x)
+            diffs, diff_x = helper_funcs.calc_diff(reconst_sig, cropped_sigs[i], mag_is, new_x)
             # print(diffs)
             all_diffs.append(diffs)
             diff_xs.append(diff_x)
@@ -835,9 +836,9 @@ def test_magn():
 
         print(good_names)
 
-        ave_of_aves, aves, diffs, rec_sigs = sa.rec_and_diff(cropped_sigs, xs, near_vs)
+        ave_of_aves, aves, diffs, rec_sigs = pca.rec_and_diff(cropped_sigs, xs, near_vs)
         # print(diffs)
-        good_ave_of_aves, good_aves, good_diffs, good_rec_sigs = sa.rec_and_diff(good_sigs, good_xs, good_vs)
+        good_ave_of_aves, good_aves, good_diffs, good_rec_sigs = pca.rec_and_diff(good_sigs, good_xs, good_vs)
 
         colors = plt.cm.rainbow(np.linspace(0, 1, len(nearby_names)))
         good_colors = []
@@ -911,7 +912,7 @@ def test_magn2():
 
     for i in range(len(signals)):
         comp_detec = names[i]
-        nearby_names = sa.find_nearby_detectors(comp_detec, detecs)
+        nearby_names = helper_funcs.find_nearby_detectors(comp_detec, detecs)
         nearby_names.append(comp_detec)
 
         new_names = []
@@ -972,18 +973,18 @@ def test_magn2():
         # for signal in smooth_sigs:
         # print(len(signal))
 
-        cropped_signals, o_new_x = sa.crop_all_sigs(smooth_sigs, xs, [])
+        cropped_signals, o_new_x = helper_funcs.crop_all_sigs(smooth_sigs, xs, [])
         # print(len(new_x))
 
         # print(len(cropped_signals))
-        ave_of_aves, aves, all_diffs, rec_sigs, mag_is, new_cropped_signals, crop_x = sa.rec_and_diff(cropped_signals,
-                                                                                                      [o_new_x],
-                                                                                                      near_vs,
-                                                                                                      ave_window=ave_window)
+        ave_of_aves, aves, all_diffs, rec_sigs, mag_is, new_cropped_signals, crop_x = pca.rec_and_diff(cropped_signals,
+                                                                                                       [o_new_x],
+                                                                                                       near_vs,
+                                                                                                       ave_window=ave_window)
 
-        excludes, new_x, ave_diffs, rel_diffs = sa.filter_unphysical_sigs(smooth_sigs, new_names, xs, near_vs,
-                                                                          near_bads, near_sus,
-                                                                          ave_window=ave_window, ave_sens=ave_sens)
+        excludes, new_x, ave_diffs, rel_diffs = pca.filter_unphysical_sigs(smooth_sigs, new_names, xs, near_vs,
+                                                                           near_bads, near_sus,
+                                                                           ave_window=ave_window, ave_sens=ave_sens)
 
         # print(o_new_x, new_x)
 
@@ -1008,7 +1009,7 @@ def test_magn2():
             # good_xs.append(xs[k])
             good_xs.append(o_new_x)
 
-        good_ave_of_aves, good_aves, good_all_diffs, good_rec_sigs, good_mag_is, good_cropped_signals, good_crop_x = sa.rec_and_diff(
+        good_ave_of_aves, good_aves, good_all_diffs, good_rec_sigs, good_mag_is, good_cropped_signals, good_crop_x = pca.rec_and_diff(
             good_sigs, [o_new_x], good_vs, ave_window=ave_window)
 
         colors = plt.cm.rainbow(np.linspace(0, 1, len(new_names)))
@@ -1069,7 +1070,8 @@ def test_new_excluder():
     smooth_window = 401
     offset = int(smooth_window / 2)
 
-    crop = True
+    printer = fr.Printer("print")
+    crop = False
 
     fname = datadir + "sample_data34.npz"
     signals, names, timex, n_chan = fr.get_signals(fname)
@@ -1077,23 +1079,23 @@ def test_new_excluder():
     if crop:
         time_window = [0.22, 0.25]
         signals, ix, i_seg = hf.crop_signals_time(time_window, timex, signals, 200)
-        signals, ix = sa.crop_all_sigs(signals, ix, [])
+        signals, ix = helper_funcs.crop_all_sigs(signals, ix, [])
 
     detecs = np.load("array120_trans_newnames.npz")
 
     # times_excluded = np.zeros(n_chan)
     # times_in_calc = np.zeros(n_chan)
 
-    signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals, names, n_chan,
+    signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals, names, n_chan, printer,
                                                                                                 badness_sensitivity=.5,
                                                                                                 filter_beginning=(not crop))
 
     start_time = time.time()
-    all_diffs, all_rel_diffs, chan_dict = sa.check_all_phys(signals, detecs, names, n_chan, bad_segment_list, suspicious_segment_list,
-                                                            ave_window=100, ave_sens=10 ** (-13), smooth_only=crop)
+    all_diffs, all_rel_diffs, chan_dict = pca.check_all_phys(signals, detecs, names, n_chan, bad_segment_list, suspicious_segment_list,
+                                                             printer, ave_window=100, ave_sens=10 ** (-13), smooth_only=crop)
     end_time = time.time()
 
-    status, confidence = sa.analyse_phys_dat_alt(all_diffs, names, all_rel_diffs, chan_dict)
+    status, confidence = pca.analyse_phys_dat_alt(all_diffs, names, all_rel_diffs, chan_dict)
 
     ex_time = (end_time - start_time) / 60
     print("execution time:", ex_time, "mins")
@@ -1142,8 +1144,8 @@ def test_new_excluder():
         signal = signals[i]
         segs = bad_segment_list[i]
 
-        nearby_names = sa.find_nearby_detectors(nam, detecs)
-        sigs = fr.find_signals(nearby_names, signals, names)
+        nearby_names = helper_funcs.find_nearby_detectors(nam, detecs)
+        sigs = hf.find_signals(nearby_names, signals, names)
 
         # if num_exc == 0:
         #    continue
@@ -1191,7 +1193,7 @@ def test_excluder():
         # comp_v = detecs[comp_detec][:3, 2]
         # comp_r = detecs[comp_detec][:3, 3]
 
-        nearby_names = sa.find_nearby_detectors(comp_detec, detecs)
+        nearby_names = helper_funcs.find_nearby_detectors(comp_detec, detecs)
         nearby_names.append(comp_detec)
         # new_near = nearby_names
 
@@ -1232,8 +1234,8 @@ def test_excluder():
             smooth_sigs.append(np.gradient(new_smooth))
             xs.append(x)
 
-        exclude_chans, new_x, ave_diffs, rel_diffs = sa.filter_unphysical_sigs(smooth_sigs, new_near, xs, near_vs, cluster_bad_segs,
-                                                         ave_window=1)
+        exclude_chans, new_x, ave_diffs, rel_diffs = pca.filter_unphysical_sigs(smooth_sigs, new_near, xs, near_vs, cluster_bad_segs,
+                                                                                ave_window=1)
 
         if len(new_x) != 0:
             for nam in new_near:
@@ -1360,7 +1362,7 @@ def test_gradient():
         filt_sig = signal[filter_i:]
         filt_x = list(range(filter_i, sig_len))
 
-        smooth_signal = sa.smooth(filt_sig, window_len=smooth_window)
+        smooth_signal = helper_funcs.smooth(filt_sig, window_len=smooth_window)
         smooth_x = [x - offset + filter_i for x in list(range(len(smooth_signal)))]
 
         new_smooth = []
@@ -1477,8 +1479,8 @@ def test_smooth_seg():
 
         gradient = np.gradient(filt_sig)
 
-        smooth_signal = sa.smooth(filt_sig, window_len=smooth_window)
-        smooth_grad = sa.smooth(gradient, window_len=smooth_window)
+        smooth_signal = helper_funcs.smooth(filt_sig, window_len=smooth_window)
+        smooth_grad = helper_funcs.smooth(gradient, window_len=smooth_window)
         smooth_x = [x - offset + filter_i for x in list(range(len(smooth_signal)))]
 
         new_smooth = []
@@ -1586,6 +1588,7 @@ def test_fft():
     #channels = ["MEG0311", "MEG1114"]
     channels = ["MEG*1", "MEG*4"]
     signals, names, timex, n_chan = fr.get_signals(fname, channels=channels)
+    printer = fr.Printer("print")
 
     detecs = np.load("array120_trans_newnames.npz")
 
@@ -1593,10 +1596,11 @@ def test_fft():
     #cropped_signals, cropped_ix = hf.crop_signals_time(time_window, timex, signals, 200)
 
     signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals, names, n_chan,
+                                                                                                printer,
                                                                                                 badness_sensitivity=.5,
                                                                                                 filters=["uniq", "flat", "spike"],
                                                                                                 filter_beginning=True)
-    plt.rcParams.update({'font.size': 42})
+    #plt.rcParams.update({'font.size': 42})
     for i in range(n_chan):
         name = names[i]
         print(name)
@@ -1613,7 +1617,7 @@ def test_fft():
         fft_window = 400
 
         nu_i_x, nu_i_arr, u_filter_i_i, u_i_arr_ave, u_i_arr_sdev, u_cut_grad, u_grad_ave, u_grad_x, status, sus_score, rms_x, fft_sdev, error_start, sdev_thresh, sdev_span = sa.fft_filter(
-            signal, filter_i, bad_segs, indices=indices, fft_window=fft_window, debug=True, goertzel=True)
+            signal, filter_i, bad_segs, printer, indices=indices, fft_window=fft_window, debug=True, goertzel=False)
 
         if status == 0:
             s = "GOOD"
@@ -1624,7 +1628,7 @@ def test_fft():
         if status == 2:
             s = "UNDETERMINED"
 
-        print("SIGNAL FFT STATUS: " + s)
+        print("SIGNAL FFT STATUS: " + s, status)
         print("SUS SCORE:", sus_score)
 
         if nu_i_x is None:
@@ -1640,66 +1644,72 @@ def test_fft():
         #u_filter_i_i = u_filter_i_i
         #u_grad_x = [x for x in u_grad_x]
 
-        #fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, sharex=True)
+        fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, sharex=True)
 
-        fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True, figsize=(12, 10))
-        plt.tight_layout(rect=(0.045, 0.02, 0.99, 0.98))
-        linewidth = 4
+        #fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True, figsize=(12, 10))
+        #plt.tight_layout(rect=(0.045, 0.02, 0.99, 0.98))
+        linewidth = 1
 
-        ax1.plot(timex[full_x], signal, linewidth=linewidth)
-        hf.plot_spans(ax1, hf.seg_to_time(timex, bad_segs), color="darkred")
+        #ax1.plot(timex[full_x], signal, linewidth=linewidth)
+        ax1.plot(full_x, signal)
+        #hf.plot_spans(ax1, hf.seg_to_time(timex, bad_segs), color="darkred")
+        hf.plot_spans(ax1, bad_segs)
 
         if error_start is not None:
-            hf.plot_spans(ax1, hf.seg_to_time(timex, [[error_start, len(signal) - 1]]), color="red")
+            #hf.plot_spans(ax1, hf.seg_to_time(timex, [[error_start, len(signal) - 1]]), color="red")
+            hf.plot_spans(ax1, [[error_start, len(signal) - 1]], color="red")
         elif status == 1:
-            hf.plot_spans(ax1, hf.seg_to_time(timex, [[filter_i, len(signal) - 1]]), color="red")
+            #hf.plot_spans(ax1, hf.seg_to_time(timex, [[filter_i, len(signal) - 1]]), color="red")
+            hf.plot_spans(ax1, [[filter_i, len(signal) - 1]], color="red")
         elif status == 2:
-            hf.plot_spans(ax1, hf.seg_to_time(timex, [[filter_i, len(signal) - 1]]), color="yellow")
+            #hf.plot_spans(ax1, hf.seg_to_time(timex, [[filter_i, len(signal) - 1]]), color="yellow")
+            hf.plot_spans(ax1, [[filter_i, len(signal) - 1]], color="yellow")
 
         ax1.grid()
         ax1.set_ylabel("Mag. Field [T]")
 
-        if nu_i_x is not None:
-            ax2.plot(timex[nu_i_x], nu_i_arr, linewidth=linewidth)
+        # if nu_i_x is not None:
+        #     #ax2.plot(timex[nu_i_x], nu_i_arr, linewidth=linewidth)
+        #     ax2.plot(nu_i_x, nu_i_arr)
 
         ax2.set_ylim(-0.1 * 10 ** (-7), 1.2 * 10 ** (-7))
         ax2.grid()
         ax2.set_xlabel("Time [s]")
         ax2.set_ylabel("FT Amplitude")
 
-        # ax1.grid()
-        #
-        # if nu_i_x is not None:
-        #     ax2.plot(nu_i_x, nu_i_arr)
-        #
-        # # ax2.legend()
-        #
-        # ax2.axvline(u_filter_i_i, linestyle="--", color="black")
-        # ax3.set_ylim(-.25 * 10 ** (-9), .25 * 10 ** (-9))
-        #
-        # ax3.plot(u_grad_x, u_cut_grad, label="orig")
-        #
-        # # fig2, ax11 = plt.subplots()
-        #
-        # # rms_x, fft_sdev, error_start, sdev_thresh, sdev_span = sa.find_saturation_point_from_fft(nu_i_x, nu_i_arr, u_filter_i_i, fft_window)
-        #
-        # if error_start is not None:
-        #     ax1.axvline(error_start, linestyle="--", color="red")
-        #
-        # if sdev_span is not None:
-        #     hf.plot_spans(ax4, [sdev_span])
-        #     ax4.plot(rms_x, fft_sdev, label="sdev")
-        #     ax4.axhline(sdev_thresh, linestyle="--", color="black")
-        #
-        # # ax4.plot(rms_x, fft_rms, label="rms")
-        # ax4.legend()
-        # # ax4.set_ylim(0, 2 * 10 ** (-9))
-        #
-        # ax1.legend()
-        # ax2.set_ylim(0, 10 ** (-7))
+        ax1.grid()
+
+        if nu_i_x is not None:
+            ax2.plot(nu_i_x, nu_i_arr)
+
+        # ax2.legend()
+
+        ax2.axvline(u_filter_i_i, linestyle="--", color="black")
+        ax3.set_ylim(-.25 * 10 ** (-9), .25 * 10 ** (-9))
+
+        ax3.plot(u_grad_x, u_cut_grad, label="orig")
+
+        # fig2, ax11 = plt.subplots()
+
+        # rms_x, fft_sdev, error_start, sdev_thresh, sdev_span = sa.find_saturation_point_from_fft(nu_i_x, nu_i_arr, u_filter_i_i, fft_window)
+
+        if error_start is not None:
+            ax1.axvline(error_start, linestyle="--", color="red")
+
+        if sdev_span is not None:
+            hf.plot_spans(ax4, [sdev_span])
+            ax4.plot(rms_x, fft_sdev, label="sdev")
+            ax4.axhline(sdev_thresh, linestyle="--", color="black")
+
+        # ax4.plot(rms_x, fft_rms, label="rms")
+        ax4.legend()
+        # ax4.set_ylim(0, 2 * 10 ** (-9))
+
+        #ax1.legend()
+        #ax2.set_ylim(0, 10 ** (-7))
 
         # fig, (ax1) = plt.subplots(1, 1, sharex=True)
-
+        #
         # ax4.set_ylim(-.5 * 10 ** (-9), .5 * 10 ** (-9))
         # ax3.axhline(thresh, linestyle="--", color="black")
         # ax3.axhline(-thresh, linestyle="--", color="black")
@@ -1742,44 +1752,6 @@ def show():
         hf.plot_spans(ax, sus_segs, color="yellow")
 
         plt.show()
-
-
-def test_seg_finder():
-    fname = datadir + "many_successful.npz"
-    channels = ["MEG2*1"]
-    time_window = (0.210, 0.50)
-    signals, names, timex, n_chan = fr.get_signals(fname, time_win=time_window)
-
-    signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals, names, n_chan,
-                                                                                                badness_sensitivity=.5)
-
-    window_to_check = [0.4, 0.45]
-
-    good_names, good_times, good_is = hf.find_sigs_with_good_segs(window_to_check, timex, names, bad_segment_list)
-
-    print(good_is)
-    good_i = 0
-
-    for i in range(len(names)):
-        signal = signals[i]
-        name = names[i]
-        bad_segs = bad_segment_list[i]
-        print(name)
-
-        fig, ax = plt.subplots()
-        ax.plot(signal)
-        hf.plot_spans(ax, bad_segs, color="red")
-        if name in good_names:
-            good_seg = good_is[good_i]
-            hf.plot_spans(ax, good_seg)
-            print(good_seg, good_times[good_i])
-            good_i +=1
-
-        print()
-        plt.show()
-
-        # print(good_names[i], good_times[i])
-
 
 def test_crop():
     fname = datadir + "sample_data40.npz"
@@ -1848,21 +1820,134 @@ def test_ffft():
         print()
 
 def show_pca():
-    fname = datadir + "sample_data30.npz"
+    # mms 1241 -> bad exc
+    skp = "MEG1044"
+    fname = datadir + "many_many_successful.npz"
     signals, names, timex, n_chan = fr.get_signals(fname)
-
     detecs = np.load("array120_trans_newnames.npz")
+    printer = fr.Printer("print")
+    skip = False
 
-    signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals, names, n_chan,
+    start_t = time.time()
+    signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals, names, n_chan, printer,
                                                                                                 badness_sensitivity=.5)
+    all_diffs, all_rel_diffs, chan_dict = pca.check_all_phys(signals, detecs, names, n_chan, bad_segment_list, suspicious_segment_list,
+                                                             printer, ave_window=100, ave_sens=5 * 10 ** (-13))
+    phys_stat, phys_conf = pca.analyse_phys_dat_alt(all_diffs, names, all_rel_diffs, chan_dict)
 
-    all_diffs, all_rel_diffs, chan_dict = sa.check_all_phys(signals, detecs, names, n_chan, bad_segment_list, suspicious_segment_list,
-                                                            ave_window=100, ave_sens=5 * 10 ** (-13))
+    end_t = time.time()
 
-    phys_stat, phys_conf = sa.analyse_phys_dat(all_diffs, names, all_rel_diffs, chan_dict)
+    print(end_t - start_t)
 
-    show_bads = False
+    # plt.rcParams.update({'font.size': 21})
+    remove_bads = True
+
+    for i in range(n_chan):
+        name = names[i]
+        print(name)
+        if skip and not name == skp:
+            continue
+        near_names = helper_funcs.find_nearby_detectors(name, detecs, names)
+        near_names.append(name)
+        sigs = hf.find_signals(near_names, signals, names)
+        phys_stats = hf.find_signals(near_names, phys_stat, names)
+        fracs = hf.find_signals(near_names, phys_conf, names)
+
+        if remove_bads:
+            bads = hf.find_signals(near_names, bad_segment_list, names)
+            index_list = []
+            for ind in range(len(bads)):
+                b = bads[ind]
+                if len(b) != 0:
+                    index_list.append(ind)
+                    print("removing " + near_names[ind])
+
+            if len(index_list) > 0:
+                for indy in sorted(index_list, reverse=True):
+                    del sigs[indy]
+                    del near_names[indy]
+                    del phys_stats[indy]
+                    del fracs[indy]
+
+        if len(sigs) == 0:
+            continue
+
+        phys_stats_string = []
+        for stat in phys_stats:
+            if stat == 0:
+                strng = "consistent"
+
+            if stat == 1:
+                strng = "inconsistent"
+
+            if stat == 2:
+                strng = "undetermined"
+
+            if stat == 3:
+                strng = "not used"
+
+            phys_stats_string.append(strng)
+
+        colors = plt.cm.rainbow(np.linspace(0, 1, len(near_names)))
+        fig, ax = plt.subplots(figsize=(12, 10))
+        plt.tight_layout(rect=(0.02, 0.02, 0.98, 0.98))
+
+        for j in range(len(near_names)):
+            nam = near_names[j]
+            sig = sigs[j]
+            status = phys_stats_string[j]
+            frac = fracs[j]
+
+            lbl = nam + ": " + status
+            if not status == "not used":
+                lbl += ", exc. frac.:" + str(round(frac, 2))
+
+
+            if nam == name:
+                c = "black"
+            else:
+                c = colors[j]
+
+            ax.plot(timex, sig, color=c, label=lbl, linewidth=4)
+
+        ax.grid()
+        ax.legend()
+        ax.set_xlabel("Time [s]")
+        ax.set_ylabel("Magnetic Field [T]")
+        plt.show()
+
+        print()
+
+
+def test_fft_emergency():
+    fname = datadir + "many_many_successful.npz"
+    signals, names, timex, n_chan = fr.get_signals(fname)
+    detecs = np.load("array120_trans_newnames.npz")
+    printer = fr.Printer("print")
+
+
 
     for i in range(n_chan):
         name = names[i]
         signal = signals[i]
+        filter_i = sa.filter_start(signal)
+        filt_sig = signal[filter_i:]
+        orig_x = list(range(len(signal)))
+
+        indices = list(range(1, 11))
+        i_arr, nu_x, smooth_signal, smooth_x, filtered_signal = sa.calc_fft_indices(filt_sig, printer, indices)
+
+        fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
+        ax1.plot(orig_x, signal)
+        for j in range(len(i_arr)):
+            ind = str(indices[j])
+            fft = i_arr[j]
+
+            ax2.plot(nu_x, fft, label=ind)
+
+        ax1.set_title(name)
+        ax2.legend()
+        ax2.set_ylim(-0.1 * 10 ** (-7), 1.2 * 10 ** (-7))
+
+        plt.show()
+

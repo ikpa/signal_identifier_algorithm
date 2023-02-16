@@ -3,7 +3,9 @@ import time
 
 import matplotlib.pyplot as plt
 
-import signal_analysis as sa
+import helper_funcs
+import pca
+import fdfs as sa
 import file_handler as fr
 import helper_funcs as hf
 import numpy as np
@@ -55,8 +57,8 @@ def print_results(names, signals, filt_statuses, bad_segs, suspicious_segs, prin
             printer.extended_write("signal not marked as bad")
 
         sig_len = len(signal)
-        bad_len = sa.length_of_segments(bad_seg)
-        sus_len = sa.length_of_segments(sus_seg)
+        bad_len = helper_funcs.length_of_segments(bad_seg)
+        sus_len = helper_funcs.length_of_segments(sus_seg)
 
         rel_bad_len = bad_len / sig_len
         rel_sus_len = sus_len / sig_len
@@ -122,10 +124,10 @@ def thirdver(fname, filters, phys, plot, print_mode, log_fname):
         printer.extended_write("", additional_mode="print")
         start_time = time.time()
         # ave_sens = 10**(-12)
-        all_diffs, all_rel_diffs, chan_dict = sa.check_all_phys(signals, detecs, names, n_chan, bad_segs, suspicious_segs, printer,
-                                                                ave_window=100, ave_sens=5 * 10 ** (-13))
+        all_diffs, all_rel_diffs, chan_dict = pca.check_all_phys(signals, detecs, names, n_chan, bad_segs, suspicious_segs, printer,
+                                                                 ave_window=100, ave_sens=5 * 10 ** (-13))
 
-        phys_stat, phys_conf = sa.analyse_phys_dat(all_diffs, names, all_rel_diffs, chan_dict)
+        phys_stat, phys_conf = pca.analyse_phys_dat_alt(all_diffs, names, all_rel_diffs, chan_dict)
         end_time = time.time()
         phys_time = (end_time - start_time)
         printer.extended_write()
@@ -141,8 +143,20 @@ def thirdver(fname, filters, phys, plot, print_mode, log_fname):
     printer.extended_write("-----------------------------------------------------", additional_mode="print")
     printer.extended_write("", additional_mode="print")
 
-    print_results(names, signals, signal_statuses, bad_segs, suspicious_segs, printer,
-                        phys_stat, phys_conf, all_rel_diffs, chan_dict)
+    #print_results(names, signals, signal_statuses, bad_segs, suspicious_segs, printer,
+    #                    phys_stat, phys_conf, all_rel_diffs, chan_dict)
+
+    i_x = list(range(len(t)))
+    bad_segs_time = hf.segs_from_i_to_time(i_x, t, bad_segs)
+    sus_segs_time = hf.segs_from_i_to_time(i_x, t, suspicious_segs)
+    col_names = ["name", "bad segments", "suspicious segments"]
+    write_data = [names, bad_segs_time, sus_segs_time]
+
+    if phys:
+        write_data.append(phys_stat)
+        write_data.append(phys_conf)
+        col_names.append("pca status")
+        col_names.append("pca fraction")
 
 
     printer.extended_write("total time elapsed: " + str(tot_time) + " secs", additional_mode="print")
@@ -154,10 +168,11 @@ def thirdver(fname, filters, phys, plot, print_mode, log_fname):
     if print_mode == "file":
         file.close()
 
+    return col_names, write_data
 
-# TODO finish this + make fft faster
-# TODO physicality analysis next!!!
-def partial_analysis(time_seg, fname, print_mode, log_fname, channels=["MEG*1", "MEG*4"], filters=default_filters, seg_extend=200, phys=False):
+
+def partial_analysis(time_seg, fname, print_mode, output="output_test.txt", log_fname="test.log", channels=["MEG*1", "MEG*4"],
+                     filters=default_filters, seg_extend=200, phys=False):
     signals, names, t, n_chan = fr.get_signals(fname, channels=channels)
 
     if print_mode == "file":
@@ -171,14 +186,14 @@ def partial_analysis(time_seg, fname, print_mode, log_fname, channels=["MEG*1", 
     good_seg_list = hf.find_good_segs(seg_i, bad_segs, cropped_ix[0])
 
     if phys:
-        all_diffs, all_rel_diffs, chan_dict = sa.check_all_phys(cropped_signals, detecs, names, n_chan, bad_segs,
-                                                                suspicious_segs, printer,
-                                                                ave_window=100, ave_sens=5 * 10 ** (-13))
+        all_diffs, all_rel_diffs, chan_dict = pca.check_all_phys(cropped_signals, detecs, names, n_chan, bad_segs,
+                                                                 suspicious_segs, printer,
+                                                                 ave_window=100, ave_sens=5 * 10 ** (-13))
 
-        phys_stat, phys_conf = sa.analyse_phys_dat(all_diffs, names, all_rel_diffs, chan_dict)
+        phys_stat, phys_conf = pca.analyse_phys_dat(all_diffs, names, all_rel_diffs, chan_dict)
 
-    bad_segs_time = hf.segs_from_i_to_time(cropped_ix, t, bad_segs)
-    sus_segs_time = hf.segs_from_i_to_time(cropped_ix, t, suspicious_segs)
+    #bad_segs_time = hf.segs_from_i_to_time(cropped_ix, t, bad_segs)
+    #sus_segs_time = hf.segs_from_i_to_time(cropped_ix, t, suspicious_segs)
     good_segs_time = hf.segs_from_i_to_time(cropped_ix, t, good_seg_list)
 
     col_names = ["name", "good segments"]
@@ -188,36 +203,41 @@ def partial_analysis(time_seg, fname, print_mode, log_fname, channels=["MEG*1", 
         write_data.append(phys_stat)
         write_data.append(phys_conf)
         col_names.append("pca status")
-        col_names.append("pca confidence")
+        col_names.append("pca fraction")
 
-    fr.write_data_compact("output_test.txt", write_data, col_names)
+    if output is not None:
+        fr.write_data_compact(output, write_data, col_names)
 
-    for i in range(n_chan):
-        i_x = cropped_ix[i]
-        t_x = t[i_x]
-        name = names[i]
-        bad_seg_plot = bad_segs_time[i]
-        sus_segs_plot = sus_segs_time[i]
-        good_segs_plot = good_segs_time[i]
-        cropped_sig = cropped_signals[i]
-        p_stat = phys_stat[i]
-        p_conf = phys_conf[i]
-        figure, ax = plt.subplots()
-        plt.plot(t_x, cropped_sig)
-        hf.plot_spans(ax, bad_seg_plot, color="red")
-        hf.plot_spans(ax, sus_segs_plot, color="yellow")
-        hf.plot_spans(ax, good_segs_plot, color="green")
+    return col_names, write_data
 
-        ax.axvline(t[seg_i[0]], linestyle="--", color="black")
-        ax.axvline(t[seg_i[-1]], linestyle="--", color="black")
+    # if False:
+    #     for i in range(n_chan):
+    #         i_x = cropped_ix[i]
+    #         t_x = t[i_x]
+    #         name = names[i]
+    #         bad_seg_plot = bad_segs_time[i]
+    #         sus_segs_plot = sus_segs_time[i]
+    #         good_segs_plot = good_segs_time[i]
+    #         cropped_sig = cropped_signals[i]
+    #         p_stat = phys_stat[i]
+    #         p_conf = phys_conf[i]
+    #         figure, ax = plt.subplots()
+    #         plt.plot(t_x, cropped_sig)
+    #         hf.plot_spans(ax, bad_seg_plot, color="red")
+    #         hf.plot_spans(ax, sus_segs_plot, color="yellow")
+    #         hf.plot_spans(ax, good_segs_plot, color="green")
+    #
+    #         ax.axvline(t[seg_i[0]], linestyle="--", color="black")
+    #         ax.axvline(t[seg_i[-1]], linestyle="--", color="black")
+    #
+    #         status = name + ", " + str(good_segs_plot)
+    #
+    #         if phys:
+    #             status += ", " + str(p_stat) + ", " + str(p_conf)
+    #
+    #         ax.set_title(status)
+    #         plt.show()
 
-        status = name + ", " + str(good_segs_plot)
-
-        if phys:
-            status += ", " + str(p_stat) + ", " + str(p_conf)
-
-        ax.set_title(status)
-        plt.show()
 
 def main():
     args = arg_parser()
@@ -231,18 +251,20 @@ def main():
     else:
         logfname = ""
 
-    thirdver(args.filename, args.filters, args.physicality, args.plot, args.print_mode, logfname)
-
+    col_names, data = thirdver(args.filename, args.filters, args.physicality, args.plot, args.print_mode, logfname)
+    fr.write_data_compact("output_test.txt", data, col_names)
 
 if __name__ == '__main__':
     main()
-    # tf.test_fft()
+    #tf.test_fft()
+    #tf.test_fft_emergency()
     # tf.show()
     # tf.test_new_excluder()
     # tf.test_magn2()
     # tf.test_seg_finder()
     #tf.test_crop()
     #tf.test_ffft()
+    #tf.show_pca()
     #datadir = "example_data_for_patrik/"
     #partial_analysis([0.3, 0.36], datadir + "many_many_successful.npz", phys=True)
 
