@@ -3,7 +3,6 @@ import math
 import numpy as np
 
 import helper_funcs as hf
-from helper_funcs import crop_all_sigs, averaged_signal, calc_diff, find_nearby_detectors
 
 
 def magn_from_point(a, point):
@@ -23,14 +22,13 @@ def calc_magn_field_from_signals(signals, xs, vectors, printer, ave_window=400):
         cropped_signals = signals
         new_x = xs[0]
     else:
-        cropped_signals, new_x = crop_all_sigs(signals, xs, [])
+        cropped_signals, new_x = hf.crop_all_sigs(signals, xs, [])
 
     averaged_sigs = []
     new_is = []
 
     for signal in cropped_signals:
-        ave_sig, new_i = averaged_signal(signal, ave_window, x=new_x)
-        # print(new_i)
+        ave_sig, new_i = hf.averaged_signal(signal, ave_window, x=new_x)
         averaged_sigs.append(ave_sig)
         new_is.append(new_i)
 
@@ -41,12 +39,6 @@ def calc_magn_field_from_signals(signals, xs, vectors, printer, ave_window=400):
 
     magn_vectors = []
     mag_is = []
-
-    # len_sig = len(new_x)
-    # max_i = len_sig - 1
-    # cont = True
-    # start_i = 0
-    # end_i = ave_window
 
     for i in range(len(averaged_sigs[0])):
         points = []
@@ -96,8 +88,7 @@ def rec_and_diff(signals, xs, vs, printer, ave_window=1):
         rec_sigs.append(rec_sig)
 
         # calculate difference between original and reconstructed signals
-        # diffs, diff_x = calc_diff(cropped_signals[i], rec_sig, new_x, mag_is)
-        diffs, diff_x = calc_diff(averaged_signals[i], rec_sig, mag_is, mag_is)
+        diffs, diff_x = hf.calc_diff(averaged_signals[i], rec_sig, mag_is, mag_is)
 
         # calculate averages
         ave = np.mean(diffs)
@@ -163,7 +154,7 @@ def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, sus_segs, printer, 
 
 
     # crop signals
-    cropped_signals, new_x = crop_all_sigs(signals, xs, bad_segs)
+    cropped_signals, new_x = hf.crop_all_sigs(signals, xs, bad_segs)
 
     printer.extended_write("analysing " + str(len(cropped_signals)) + " signals")
     temp_sigs = cropped_signals[:]
@@ -211,18 +202,10 @@ def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, sus_segs, printer, 
 
         # choose the lowest average difference and permanently exclude this signal
         # from the rest of the calculation
-        # best_ave = np.amin(new_aves)
-        # best_exclusion_i = new_aves.index(best_ave)
         best_ave, best_exclusion_i = exclude(new_aves, temp_sus)
-        # all_diffs = [ave_of_aves - x for x in new_aves]
         diff = ave_of_aves - best_ave
         rel_diff = diff / ave_of_aves
         printer.extended_write("average", best_ave)
-        #print("names", temp_names)
-        #print("all aves", new_aves)
-        #print("all diffs", all_diffs)
-        #print("sus", temp_sus)
-        # print(ave_of_aves, best_ave, diff)
         ave_diffs.append(diff)
         rel_diffs.append(rel_diff)
         ex_nam = temp_names[best_exclusion_i]
@@ -239,7 +222,7 @@ def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, sus_segs, printer, 
 
 
 def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, sus_seg_list, printer, smooth_window=401,
-                   badness_sens=.3, ave_window=1, ave_sens=10 ** (-13), smooth_only=False):
+                   ave_window=1, ave_sens=10 ** (-13), smooth_only=False):
     """goes through all detectors, does the filter_unphysical_sigs calculation for a
     signal cluster containing a given signal and all neighbouring signals and
     logs how many times each signal has been excluded and how many times it
@@ -277,24 +260,13 @@ def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, sus_seg_list, p
         comp_detec = names[k]
         printer.extended_write(comp_detec)
 
-        nearby_names = find_nearby_detectors(comp_detec, detecs, names)
+        nearby_names = hf.find_nearby_detectors(comp_detec, detecs, names)
         nearby_names.append(comp_detec)
 
         # exclude signals whose bad segments are too long
         new_near = []
         for nam in nearby_names:
             index = names.index(nam)
-            # sig_len = len(signals[index])
-            # last_i = sig_len - 1
-            # bad_segs = bad_seg_list[index]
-            #
-            # if len(bad_segs) != 0:
-            #     first_bad_i = bad_segs[0][0]
-            #     bad_len = last_i - first_bad_i
-            #     bad = bad_len / sig_len > badness_sens
-            # else:
-            #     bad = False
-
             sig_len = len(signals[index])
             bad_segs = bad_seg_list[index]
             bad = len(bad_segs) != 0
@@ -308,9 +280,6 @@ def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, sus_seg_list, p
                 continue
 
             new_near.append(nam)
-
-        # new_near = sorted(new_near)
-        # print("detector group:", new_near)
 
         if len(new_near) == 0:
             printer.extended_write("no signals in group\n")
@@ -338,7 +307,6 @@ def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, sus_seg_list, p
 
         # filter each signal, smooth and calculate gradient of smoothed and
         # filtered signals
-
         if not alt:
             for i in range(len(near_sigs)):
                 signal = near_sigs[i]
@@ -458,7 +426,6 @@ def analyse_phys_dat(all_diffs, names, all_rel_diffs, chan_dict, frac_w=2.5,
 
             frac_conf = frac_w * (1 - frac_excluded / (2.5 * unphys_sensitivity))
 
-        # print(num_conf / (diff_w + frac_w + num_w))
         conf = (diff_conf + frac_conf + num_conf) / (diff_w + frac_w + num_w)
 
         if conf < conf_sens:

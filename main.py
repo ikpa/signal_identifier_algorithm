@@ -3,7 +3,6 @@ import time
 
 import matplotlib.pyplot as plt
 
-import helper_funcs
 import pca
 import fdfs as sa
 import file_handler as fr
@@ -57,8 +56,8 @@ def print_results(names, signals, filt_statuses, bad_segs, suspicious_segs, prin
             printer.extended_write("signal not marked as bad")
 
         sig_len = len(signal)
-        bad_len = helper_funcs.length_of_segments(bad_seg)
-        sus_len = helper_funcs.length_of_segments(sus_seg)
+        bad_len = hf.length_of_segments(bad_seg)
+        sus_len = hf.length_of_segments(sus_seg)
 
         rel_bad_len = bad_len / sig_len
         rel_sus_len = sus_len / sig_len
@@ -93,7 +92,7 @@ def print_results(names, signals, filt_statuses, bad_segs, suspicious_segs, prin
 
 
 # current version of the program.
-def thirdver(fname, filters, phys, plot, print_mode, log_fname):
+def thirdver(fname, filters, phys, print_mode, log_fname):
     detecs = np.load("array120_trans_newnames.npz")
 
     warnings.filterwarnings("ignore", category=RuntimeWarning)
@@ -161,14 +160,12 @@ def thirdver(fname, filters, phys, plot, print_mode, log_fname):
 
     printer.extended_write("total time elapsed: " + str(tot_time) + " secs", additional_mode="print")
 
-
-    if plot:
-        hf.plot_in_order_ver3(signals, names, n_chan, signal_statuses, bad_segs, suspicious_segs, physicality=phys_stat, time_x=t)
-
     if print_mode == "file":
         file.close()
 
-    return col_names, write_data
+    plot_dat = [signals, names, n_chan, signal_statuses, bad_segs, suspicious_segs, phys_stat, t]
+
+    return col_names, write_data, plot_dat
 
 
 def partial_analysis(time_seg, fname, print_mode, output="output_test.txt", log_fname="test.log", channels=["MEG*1", "MEG*4"],
@@ -192,8 +189,6 @@ def partial_analysis(time_seg, fname, print_mode, output="output_test.txt", log_
 
         phys_stat, phys_conf = pca.analyse_phys_dat(all_diffs, names, all_rel_diffs, chan_dict)
 
-    #bad_segs_time = hf.segs_from_i_to_time(cropped_ix, t, bad_segs)
-    #sus_segs_time = hf.segs_from_i_to_time(cropped_ix, t, suspicious_segs)
     good_segs_time = hf.segs_from_i_to_time(cropped_ix, t, good_seg_list)
 
     col_names = ["name", "good segments"]
@@ -251,8 +246,15 @@ def main():
     else:
         logfname = ""
 
-    col_names, data = thirdver(args.filename, args.filters, args.physicality, args.plot, args.print_mode, logfname)
+    col_names, data, plot_dat = thirdver(args.filename, args.filters, args.physicality, args.print_mode, logfname)
+
+    signals, names, n_chan, signal_statuses, bad_segs, suspicious_segs, phys_stat, t = plot_dat
+
     fr.write_data_compact("output_test.txt", data, col_names)
+
+    if args.plot:
+        hf.plot_in_order_ver3(signals, names, n_chan, signal_statuses, bad_segs, suspicious_segs, physicality=phys_stat, time_x=t)
+
 
 if __name__ == '__main__':
     main()

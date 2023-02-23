@@ -1,9 +1,13 @@
 import dataio as dat
-from helper_funcs import reorganize_signals
+import helper_funcs as hf
 
 time_window = (0.210, 0.50)
 
 def write_data_compact(fname, data, col_names, divider=";\t"):
+    """write data into a file separated by the string in divider. data must
+    be a 2d array, the first axis containing the different columns you want to write,
+    and the second containing the data value for each detector. the names in
+    col_names are written in the header"""
     f = open(fname, "w")
     header = ""
 
@@ -31,24 +35,25 @@ def write_data_compact(fname, data, col_names, divider=";\t"):
 
     f.close()
 
-# load all data from file
 def load_all(fname):
+    """load all data from npz file"""
     return dat.MultiChannelData.load_npz(fname)
 
-# get all reformatted signals from filename
 def get_signals(fname, channels=["MEG*1", "MEG*4"]):
-
+    """load data from file and reformat"""
     fname_full = fname
     data = load_all(fname_full).subpool(channels).clip(time_window)
     unorganized_signals = data.data
     names = data.names
     n_chan = data.n_channels
     time = data.time
-    signals = reorganize_signals(unorganized_signals, n_chan)
+    signals = hf.reorganize_signals(unorganized_signals, n_chan)
 
     return signals, names, time, n_chan
 
 class Printer:
+    """an alternate to the intrinsic print function. prints to stdout, file
+    or nowhere depending on mode."""
     def __init__(self, write_mode, file=None):
         self.mode = write_mode
         self.f = file

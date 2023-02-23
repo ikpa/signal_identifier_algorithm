@@ -27,20 +27,19 @@ def seg_to_time(x, segs):
     return new_segs
 
 def plot_in_order_ver3(signals, names, n_chan, statuses,
-                       bad_seg_list, suspicious_seg_list, exec_times=[],
+                       bad_seg_list, suspicious_seg_list,
                        physicality=[], time_x=None, ylims=None, showtitle=True):
-    """# plot all signals as well as show data calculated by the program"""
+    """plot all signals as well as show data calculated by the program"""
     print_phys = not len(physicality) == 0
 
     #plt.rcParams.update({'font.size': 42})
     for i in range(n_chan):
         name = names[i]
-        # print(name)
+        print(name)
         signal = signals[i]
         bad = statuses[i]
         bad_segs = bad_seg_list[i]
         suspicious_segs = suspicious_seg_list[i]
-        exec_time = exec_times[i] if len(exec_times) != 0 else 0
 
         if time_x is not None:
             bad_segs = seg_to_time(time_x, bad_segs)
@@ -81,6 +80,8 @@ def plot_in_order_ver3(signals, names, n_chan, statuses,
         ax.grid()
         ax.set_ylabel("Magnetic Field [T]")
         ax.set_xlabel("Time [s]")
+        if ylims is not None:
+            ax.set_ylim(ylims)
 
         if showtitle:
             title = name + ": " + status + phys_stat

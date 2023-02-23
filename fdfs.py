@@ -10,8 +10,6 @@ from operator import itemgetter
 experimentally and changing them will affect the accuracy of the program
 significantly"""
 
-from helper_funcs import split_into_lists, smooth, averaged_signal, length_of_segments
-
 sample_freq = 10000 # sampling frequency of the squids
 
 # filter the jump in the beginning of the signal
@@ -511,7 +509,7 @@ def calc_fft_indices(signal, printer, indices=None, window=400, smooth_window=40
 
     # calculate smoothed signal
     offset = int(smooth_window / 2)
-    smooth_signal = smooth(signal, window_len=smooth_window)
+    smooth_signal = hf.smooth(signal, window_len=smooth_window)
     # CHECK AGAIN IF THIS IS USED SOMEWHERE
     smooth_x = [x - offset + filter_offset for x in list(range(len(smooth_signal)))]
 
@@ -608,7 +606,6 @@ def stats_from_i(i_arr, i_x, bad_segs, fft_window, printer, cut_length=70, max_s
         printer.extended_write("NOT ENOUGH SIGNAL FOR ERROR LOCALIZATION")
         # status = change_status(3, status)
         short = True
-        # return nu_i_arr, nu_i_x, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score
 
     grad_ave_thresh = 2 * 10 ** (-12)
     # maybe 8.5e-12
@@ -662,7 +659,7 @@ def find_saturation_point_from_fft(i_x, i_arr, filter_i, fft_window, printer, sd
         return None, None, None, None, None
 
     x_start_i = np.where(i_x == filter_i)[0][0]
-    fft_sdev, rms_x = averaged_signal(i_arr[filter_i:], sdev_window, i_x[x_start_i:], mode=2)
+    fft_sdev, rms_x = hf.averaged_signal(i_arr[filter_i:], sdev_window, i_x[x_start_i:], mode=2)
 
     sdev_mean = np.mean(fft_sdev)
     sdev_sdev = np.std(fft_sdev)
@@ -671,7 +668,7 @@ def find_saturation_point_from_fft(i_x, i_arr, filter_i, fft_window, printer, sd
     if len(where_above_sdev) != 0:
         sdev_span = [rms_x[where_above_sdev[0]], rms_x[where_above_sdev[-1]]]
         span_sdev_ave = np.mean(fft_sdev[where_above_sdev[0]:where_above_sdev[-1]])
-        seg_len = length_of_segments([sdev_span])
+        seg_len = hf.length_of_segments([sdev_span])
         highsdev = span_sdev_ave > abs_sdev_thresh
         span_start_i = where_above_sdev[0]
         printer.extended_write("span_sdev_ave", span_sdev_ave, "seg_len", seg_len, "span_start_i", span_start_i)
@@ -815,7 +812,7 @@ def find_default_y(arr, num_points=5000, step=.1 * 10 ** (-7)):
     frac_arr = np.asarray(frac_arr)
     smooth_window = 201
     offset = int(smooth_window / 2)
-    smooth_frac = smooth(frac_arr, window_len=smooth_window)
+    smooth_frac = hf.smooth(frac_arr, window_len=smooth_window)
     smooth_x = [x - offset for x in list(range(len(smooth_frac)))]
 
     new_smooth = []
@@ -966,7 +963,7 @@ def fix_overlap(bad_segs, suspicious_segs):
             bad_list = list(range(bad_seg[0], bad_seg[1] + 1))
             sus_list = list(set(sus_list) - set(bad_list))
 
-        split_lists = split_into_lists(sus_list)
+        split_lists = hf.split_into_lists(sus_list)
         split_segs = []
 
         for lst in split_lists:
@@ -977,11 +974,9 @@ def fix_overlap(bad_segs, suspicious_segs):
     return new_suspicious_segs
 
 
-def final_analysis(signal_length, segments, confidences, badness_sensitivity=.8):
+def final_analysis(segments, confidences):
     """take all segments and their confidences and separate segments into good,
-    suspicious and bad, as well as fix the overlap between them. the function
-    also makes a decision whether or not the entire signal is concidered bad
-    based on how much of the signal the bad segments take up"""
+    suspicious and bad, as well as fix the overlap between them."""
     bad_segs, suspicious_segs = separate_segments(segments, confidences)
 
     bad_segs = combine_segments(bad_segs)
@@ -989,17 +984,12 @@ def final_analysis(signal_length, segments, confidences, badness_sensitivity=.8)
 
     suspicious_segs = fix_overlap(bad_segs, suspicious_segs)
 
-    # tot_bad_length = length_of_segments(bad_segs)
-    # rel_bad_length = tot_bad_length / signal_length
-    # badness = rel_bad_length >= badness_sensitivity
-    badness = len(bad_segs) >= 1
-
-    return badness, bad_segs, suspicious_segs
+    return bad_segs, suspicious_segs
 
 
 def analyse_all_neo(signals, names, chan_num, printer,
                     filters=None,
-                    badness_sensitivity=.5, filter_beginning=True,
+                    filter_beginning=True,
                     fft_goertzel=False):
     """go through all signals and determine suspicious and bad segments within them.
     this is done by running the signal through three different filters
@@ -1047,8 +1037,7 @@ def analyse_all_neo(signals, names, chan_num, printer,
                 seg_is, confs = spike_filter_neo(signal, filter_i, printer)
 
             if fltr == "fft":
-                temp_bad, temp_bad_segs, temp_suspicious_segs = final_analysis(signal_length, segments, confidences,
-                                                                               badness_sensitivity=badness_sensitivity)
+                temp_bad_segs, temp_suspicious_segs = final_analysis(segments, confidences)
                 seg_is, confs = fft_filter(signal, filter_i, temp_bad_segs, printer, goertzel=fft_goertzel)
 
             new_segs = len(seg_is)
@@ -1064,14 +1053,14 @@ def analyse_all_neo(signals, names, chan_num, printer,
             segments += seg_is
             confidences += confs
 
-        bad, bad_segs, suspicious_segs = final_analysis(signal_length, segments, confidences,
-                                                        badness_sensitivity=badness_sensitivity)
+        bad_segs, suspicious_segs = final_analysis(segments, confidences)
         num_bad = len(bad_segs)
+        bad = num_bad > 1
         num_sus = len(suspicious_segs)
         printer.extended_write(num_sus, "suspicious and", num_bad, " bad segment(s) found in total")
 
         if not bad:
-            printer.extended_write("signal not marked as bad")
+            printer.extended_write("no bad segments found")
 
         signal_statuses.append(bad)
         bad_segment_list.append(bad_segs)
