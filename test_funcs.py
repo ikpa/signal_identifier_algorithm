@@ -879,8 +879,9 @@ def test_magn():
 def test_magn2():
     smooth_window = 401
     offset = int(smooth_window / 2)
-
-    crop = True
+    printer = fr.Printer("print")
+    plt.rcParams.update({'font.size': 42})
+    crop = False
 
     fname = datadir + "many_many_successful.npz"
     signals, names, timex, n_chan = fr.get_signals(fname)
@@ -907,12 +908,12 @@ def test_magn2():
     else:
         signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals,
                                                                                                     names,
-                                                                                                    len(signals),
+                                                                                                    len(signals), printer,
                                                                                                     filter_beginning=True)
 
     for i in range(len(signals)):
         comp_detec = names[i]
-        nearby_names = helper_funcs.find_nearby_detectors(comp_detec, detecs)
+        nearby_names = helper_funcs.find_nearby_detectors(comp_detec, detecs, names)
         nearby_names.append(comp_detec)
 
         new_names = []
@@ -927,7 +928,7 @@ def test_magn2():
 
             new_names.append(name)
 
-        print(len(new_names))
+        #print(len(new_names))
 
         if len(new_names) == 0:
             print()
@@ -942,12 +943,12 @@ def test_magn2():
 
         # nearby_names.append(comp_detec)
         if crop:
-            near_sigs = fr.find_signals(new_names, precropped_signals, names)
+            near_sigs = hf.find_signals(new_names, precropped_signals, names)
         else:
-            near_sigs = fr.find_signals(new_names, signals, names)
+            near_sigs = hf.find_signals(new_names, signals, names)
 
-        near_sus = fr.find_signals(new_names, suspicious_segment_list, names)
-        near_bads = fr.find_signals(new_names, bad_segment_list, names)
+        near_sus = hf.find_signals(new_names, suspicious_segment_list, names)
+        near_bads = hf.find_signals(new_names, bad_segment_list, names)
 
         smooth_sigs = []
         detrended_sigs = []
@@ -959,8 +960,24 @@ def test_magn2():
             # filt_sig = signal[filter_i:]
             filtered_signal, x, smooth_signal, smooth_x, new_smooth = hf.filter_and_smooth(signal, offset,
                                                                                            smooth_window, smooth_only=crop)
+
             smooth_sigs.append(np.gradient(new_smooth))
             xs.append(x)
+
+            if False:
+                fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True, figsize=(12, 10))
+                plt.tight_layout(rect=(0.045, 0.02, 0.99, 0.98))
+                linewidth = 4
+                ax1.plot(timex[x], filtered_signal, linewidth=linewidth)
+                ax2.plot(timex[x], new_smooth, linewidth=linewidth)
+                ax3.plot(timex[x], np.gradient(new_smooth), linewidth=linewidth)
+                ax3.set_xlabel("Time [s]")
+                ax1.set_ylabel("Magn. F. [T]")
+                ax2.set_ylabel("Magn. F. [T]")
+                ax3.set_ylabel("Magn. F. \nDeriv. [T/s]")
+                ax1.grid()
+                ax2.grid()
+                ax3.grid()
 
             # i_arr, ix, smooth_signal, smooth_x, detrended_signal = sa.calc_fft_indices(filt_sig, [2])
             # smooth_sigs.append(i_arr[0])
@@ -974,16 +991,28 @@ def test_magn2():
         # print(len(signal))
 
         cropped_signals, o_new_x = helper_funcs.crop_all_sigs(smooth_sigs, xs, [])
+
         # print(len(new_x))
 
         # print(len(cropped_signals))
         ave_of_aves, aves, all_diffs, rec_sigs, mag_is, new_cropped_signals, crop_x = pca.rec_and_diff(cropped_signals,
                                                                                                        [o_new_x],
-                                                                                                       near_vs,
+                                                                                                       near_vs, printer,
                                                                                                        ave_window=ave_window)
 
+        if False:
+            fig, ax = plt.subplots(figsize=(12, 10))
+            plt.tight_layout(rect=(0.045, 0.02, 0.99, 0.98))
+            linewidth = 4
+            ax.plot(timex[xs[0]], smooth_sigs[0], linewidth=linewidth, label="Preprocessed signal")
+            ax.plot(timex[mag_is], rec_sigs[0], linewidth=linewidth, label="Reconstructed signal")
+            ax.set_ylabel("Magn. F. \nDeriv. [T/s]")
+            ax.set_xlabel("Time [s]")
+            ax.legend()
+            ax.grid()
+
         excludes, new_x, ave_diffs, rel_diffs = pca.filter_unphysical_sigs(smooth_sigs, new_names, xs, near_vs,
-                                                                           near_bads, near_sus,
+                                                                           near_bads, near_sus, printer,
                                                                            ave_window=ave_window, ave_sens=ave_sens)
 
         # print(o_new_x, new_x)
@@ -1010,7 +1039,7 @@ def test_magn2():
             good_xs.append(o_new_x)
 
         good_ave_of_aves, good_aves, good_all_diffs, good_rec_sigs, good_mag_is, good_cropped_signals, good_crop_x = pca.rec_and_diff(
-            good_sigs, [o_new_x], good_vs, ave_window=ave_window)
+            good_sigs, [o_new_x], good_vs, printer, ave_window=ave_window)
 
         colors = plt.cm.rainbow(np.linspace(0, 1, len(new_names)))
         good_colors = []
@@ -1021,35 +1050,50 @@ def test_magn2():
             good_colors.append(colors[k])
 
         fig1, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
+        #fig1, (ax1, ax2) = plt.subplots(2, 1, sharex=True, figsize=(12, 10))
+        #plt.tight_layout(rect=(0.045, 0.02, 0.99, 0.98))
+        linewidth = 4
 
         for k in range(len(cropped_signals)):
             color = colors[k]
             plot_name = new_names[k]
-            ax1.plot(xs[k], smooth_sigs[k], color=color, label=plot_name)
-            ax2.plot(mag_is, rec_sigs[k], color=color, label=plot_name)
-            ax3.plot(mag_is, all_diffs[k], color=color, label=aves[k])
+            ax1.plot(timex[xs[k]], smooth_sigs[k], color=color, label=plot_name, linewidth=linewidth)
+            ax2.plot(timex[mag_is], rec_sigs[k], color=color, label=plot_name, linewidth=linewidth)
+            #ax3.plot(mag_is, all_diffs[k], color=color, label=aves[k])
 
-        ax1.set_title(ave_of_aves)
-        ax2.legend()
-        ax3.legend()
+        #ax1.set_title(ave_of_aves)
+        #ax2.legend()
+        ax1.set_ylabel("Magn. F. \nDeriv. [T/s]")
+        ax2.set_ylabel("Magn. F. \nDeriv. [T/s]")
+        ax2.set_xlabel("Time [s]")
+        ax1.grid()
+        ax2.grid()
+        #ax3.legend()
 
-        fig2, (ax11, ax22, ax33) = plt.subplots(3, 1, sharex=True)
+        #fig2, (ax11, ax22, ax33) = plt.subplots(3, 1, sharex=True)
+        fig12, (ax11, ax22) = plt.subplots(2, 1, sharex=True, figsize=(12, 10))
+        plt.tight_layout(rect=(0.045, 0.02, 0.99, 0.98))
 
         for k in range(len(good_sigs)):
             color = good_colors[k]
             plot_name = good_names[k]
-            ax11.plot(good_xs[k], good_sigs[k], color=color, label=plot_name)
-            ax22.plot(good_mag_is, good_rec_sigs[k], color=color, label=plot_name)
-            ax33.plot(good_mag_is, good_all_diffs[k], color=color, label=good_aves[k])
+            ax11.plot(timex[good_xs[k]], good_sigs[k], color=color, label=plot_name, linewidth=linewidth)
+            ax22.plot(timex[good_mag_is], good_rec_sigs[k], color=color, label=plot_name, linewidth=linewidth)
+            #ax33.plot(good_mag_is, good_all_diffs[k], color=color, label=good_aves[k])
 
-        ax11.set_title(good_ave_of_aves)
-        ax22.legend()
-        ax33.legend()
+        #ax11.set_title(good_ave_of_aves)
+        #ax22.legend()
+        #ax33.legend()
+        ax11.set_ylabel("Magn. F. \nDeriv. [T/s]")
+        ax22.set_ylabel("Magn. F. \nDeriv. [T/s]")
+        ax22.set_xlabel("Time [s]")
+        ax11.grid()
+        ax22.grid()
 
         if len(new_x) != 0:
             print(new_x[0], new_x[-1])
-            hf.plot_spans(ax11, [[new_x[0], new_x[-1]]])
-            hf.plot_spans(ax1, [[new_x[0], new_x[-1]]])
+            #hf.plot_spans(ax11, [[new_x[0], new_x[-1]]])
+            #hf.plot_spans(ax1, [[new_x[0], new_x[-1]]])
         else:
             print("no span")
 
@@ -1456,123 +1500,9 @@ def test_gradient():
         plt.show()
 
 
-def test_smooth_seg():
-    smooth_window = 401
-    offset = int(smooth_window / 2)
-
-    fname = datadir + "many_successful.npz"
-    signals, names, timex, n_chan = fr.get_signals(fname)
-
-    grads = []
-    smooth_grads = []
-
-    smooth_sigs = []
-    smooth_xs = []
-    for i in range(n_chan):
-        signal = signals[i]
-        sig_len = len(signal)
-        name = names[i]
-        # print(name)
-        filter_i = sa.filter_start(signal)
-        filt_sig = signal[filter_i:]
-        filt_x = list(range(filter_i, sig_len))
-
-        gradient = np.gradient(filt_sig)
-
-        smooth_signal = helper_funcs.smooth(filt_sig, window_len=smooth_window)
-        smooth_grad = helper_funcs.smooth(gradient, window_len=smooth_window)
-        smooth_x = [x - offset + filter_i for x in list(range(len(smooth_signal)))]
-
-        new_smooth = []
-        new_grad = []
-        for j in range(filter_i, sig_len):
-            new_smooth.append(smooth_signal[j + offset - filter_i])
-            new_grad.append(smooth_grad[j + offset - filter_i])
-
-        smooth_sigs.append(new_smooth)
-        grads.append(gradient)
-        smooth_grads.append(new_grad)
-        smooth_xs.append(filt_x)
-
-    u_stats, u_bad_segs, u_sus_segs, u_exec_times = sa.analyse_all_neo(signals, names, n_chan,
-                                                                       filters=["uniq", "segment", "spike"])
-    print()
-    print("-------------------------------------------------------------")
-    print()
-    o_stats, o_bad_segs, o_sus_segs, o_exec_times = sa.analyse_all_neo(signals, names, n_chan, filters=["segment"])
-    print()
-    print("-------------------------------------------------------------")
-    print()
-    stats, bad_segs, sus_segs, exec_times = sa.analyse_all_neo(signals, names, n_chan, filters=["seg_thorough"])
-    print()
-    print("-------------------------------------------------------------")
-    print()
-    g_stats, g_bad_segs, g_sus_segs, g_exec_times = sa.analyse_all_neo(grads, names, n_chan, filters=["segment"])
-
-    def fix_segs(segs, offset):
-        new_segs = []
-        for seg in segs:
-            new_segs.append([seg[0] + offset, seg[1] + offset])
-
-        return new_segs
-
-    for i in range(n_chan):
-        smooth_sig = smooth_sigs[i]
-        sig = signals[i]
-        name = names[i]
-        print(name)
-        print()
-        x = smooth_xs[i]
-
-        grad = grads[i]
-        smooth_grad = smooth_grads[i]
-
-        bads = bad_segs[i]
-        suss = sus_segs[i]
-
-        # if len(bads) != 0:
-        #     bads = fix_segs(bads, x[0])
-        #
-        # if len(suss) != 0:
-        #     suss = fix_segs(suss, x[0])
-
-        o_bads = o_bad_segs[i]
-        o_suss = o_sus_segs[i]
-
-        u_bads = u_bad_segs[i]
-        u_suss = u_sus_segs[i]
-
-        g_bads = g_bad_segs[i]
-        g_suss = g_sus_segs[i]
-
-        fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, sharex=True)
-        ax1.plot(sig, label="signal")
-        ax2.plot(sig)
-        ylims = ax1.get_ylim()
-        ax3.plot(x, smooth_sig, label="smooth signal")
-        ax3.set_ylim(bottom=ylims[0], top=ylims[1])
-
-        ax4.plot(x, grad)
-        ax4.plot(x, smooth_grad)
-        # ax.legend()
-        ax2.set_title(name)
-        hf.plot_spans(ax3, bads, color="red")
-        hf.plot_spans(ax3, suss, color="yellow")
-
-        hf.plot_spans(ax2, o_bads, color="red")
-        hf.plot_spans(ax2, o_suss, color="yellow")
-
-        hf.plot_spans(ax1, u_bads, color="red")
-        hf.plot_spans(ax1, u_suss, color="yellow")
-
-        hf.plot_spans(ax4, g_bads, color="red")
-        hf.plot_spans(ax4, g_suss, color="yellow")
-
-        plt.show()
-
 
 def test_fft_full():
-    fname = datadir + "sample_data39.npz"
+    fname = datadir + "sample_data28.npz"
     channels = ["MEG2*1"]
     signals, names, timex, n_chan = fr.get_signals(fname)
 
@@ -1584,7 +1514,7 @@ def test_fft_full():
 
 def test_fft():
     # SUS ONES: sd37: 2214
-    fname = datadir + "many_many_successful.npz"
+    fname = datadir + "sample_data27.npz"
     #channels = ["MEG0311", "MEG1114"]
     channels = ["MEG*1", "MEG*4"]
     signals, names, timex, n_chan = fr.get_signals(fname, channels=channels)
@@ -1597,10 +1527,9 @@ def test_fft():
 
     signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals, names, n_chan,
                                                                                                 printer,
-                                                                                                badness_sensitivity=.5,
                                                                                                 filters=["uniq", "flat", "spike"],
                                                                                                 filter_beginning=True)
-    #plt.rcParams.update({'font.size': 42})
+    #plt.rcParams.update({'font.size': 31})
     for i in range(n_chan):
         name = names[i]
         print(name)
@@ -1610,13 +1539,13 @@ def test_fft():
         filter_i = sa.filter_start(signal)
 
         #normal_sig = signal[filter_i:]
-        #normal_x = list(range(filter_i, len(signal)))
+        normal_x = list(range(filter_i, len(signal)))
         full_x = list(range(len(signal)))
 
         indices = [2]
         fft_window = 400
 
-        nu_i_x, nu_i_arr, u_filter_i_i, u_i_arr_ave, u_i_arr_sdev, u_cut_grad, u_grad_ave, u_grad_x, status, sus_score, rms_x, fft_sdev, error_start, sdev_thresh, sdev_span = sa.fft_filter(
+        nu_i_x, nu_i_arr, u_filter_i_i, u_i_arr_ave, u_i_arr_sdev, u_cut_grad, u_grad_ave, u_grad_x, status, sus_score, rms_x, fft_sdev, error_start, sdev_thresh, sdev_span, detrended_sig = sa.fft_filter(
             signal, filter_i, bad_segs, printer, indices=indices, fft_window=fft_window, debug=True, goertzel=False)
 
         if status == 0:
@@ -1644,65 +1573,72 @@ def test_fft():
         #u_filter_i_i = u_filter_i_i
         #u_grad_x = [x for x in u_grad_x]
 
-        fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, sharex=True)
+        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
 
-        #fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True, figsize=(12, 10))
+        #fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True, figsize=(12, 10))
         #plt.tight_layout(rect=(0.045, 0.02, 0.99, 0.98))
-        linewidth = 1
+        linewidth = 1.5
 
-        #ax1.plot(timex[full_x], signal, linewidth=linewidth)
-        ax1.plot(full_x, signal)
+        #error_start = None
+        #status = -1
+        ax1.plot(timex[full_x], signal, linewidth=linewidth)
+        #ax2.plot(timex[normal_x], detrended_sig, linewidth=linewidth)
+        #ax2.set_yticklabels([])
+        ax2.grid()
+        #ax1.plot(full_x, signal)
         #hf.plot_spans(ax1, hf.seg_to_time(timex, bad_segs), color="darkred")
-        hf.plot_spans(ax1, bad_segs)
+        #hf.plot_spans(ax1, bad_segs)
 
         if error_start is not None:
-            #hf.plot_spans(ax1, hf.seg_to_time(timex, [[error_start, len(signal) - 1]]), color="red")
-            hf.plot_spans(ax1, [[error_start, len(signal) - 1]], color="red")
+            hf.plot_spans(ax1, hf.seg_to_time(timex, [[error_start, len(signal) - 1]]), color="red")
+            #hf.plot_spans(ax1, [[error_start, len(signal) - 1]], color="red")
         elif status == 1:
-            #hf.plot_spans(ax1, hf.seg_to_time(timex, [[filter_i, len(signal) - 1]]), color="red")
-            hf.plot_spans(ax1, [[filter_i, len(signal) - 1]], color="red")
+            hf.plot_spans(ax1, hf.seg_to_time(timex, [[filter_i, len(signal) - 1]]), color="red")
+            #hf.plot_spans(ax1, [[filter_i, len(signal) - 1]], color="red")
         elif status == 2:
-            #hf.plot_spans(ax1, hf.seg_to_time(timex, [[filter_i, len(signal) - 1]]), color="yellow")
-            hf.plot_spans(ax1, [[filter_i, len(signal) - 1]], color="yellow")
+            hf.plot_spans(ax1, hf.seg_to_time(timex, [[filter_i, len(signal) - 1]]), color="yellow")
+            #hf.plot_spans(ax1, [[filter_i, len(signal) - 1]], color="yellow")
 
-        ax1.grid()
-        ax1.set_ylabel("Mag. Field [T]")
-
-        # if nu_i_x is not None:
-        #     #ax2.plot(timex[nu_i_x], nu_i_arr, linewidth=linewidth)
-        #     ax2.plot(nu_i_x, nu_i_arr)
-
-        ax2.set_ylim(-0.1 * 10 ** (-7), 1.2 * 10 ** (-7))
-        ax2.grid()
-        ax2.set_xlabel("Time [s]")
-        ax2.set_ylabel("FT Amplitude")
-
-        ax1.grid()
+        #ax1.grid()
+        #ax1.set_ylabel("Mag. F. [T]")
+        #ax2.set_ylabel("Mag. F. [T]")
 
         if nu_i_x is not None:
-            ax2.plot(nu_i_x, nu_i_arr)
+             #ax2.plot(timex[nu_i_x], nu_i_arr, linewidth=linewidth)
+             ax2.plot(timex[nu_i_x], nu_i_arr)
+
+        ax2.set_ylim(-0.1 * 10 ** (-7), 1.2 * 10 ** (-7))
+        ax3.grid()
+        ax3.set_xlabel("Time [s]")
+        #ax3.set_ylabel("FT Amp.")
+
+        ax1.grid()
+
+        #if nu_i_x is not None:
+        #    ax3.plot(timex[nu_i_x], nu_i_arr, linewidth=linewidth)
 
         # ax2.legend()
 
-        ax2.axvline(u_filter_i_i, linestyle="--", color="black")
-        ax3.set_ylim(-.25 * 10 ** (-9), .25 * 10 ** (-9))
+        ax2.axvline(timex[u_filter_i_i], linestyle="--", color="black")
+        #ax3.set_ylim(-.25 * 10 ** (-9), .25 * 10 ** (-9))
 
-        ax3.plot(u_grad_x, u_cut_grad, label="orig")
+        #ax3.plot(u_grad_x, u_cut_grad, label="orig")
 
         # fig2, ax11 = plt.subplots()
 
         # rms_x, fft_sdev, error_start, sdev_thresh, sdev_span = sa.find_saturation_point_from_fft(nu_i_x, nu_i_arr, u_filter_i_i, fft_window)
 
         if error_start is not None:
-            ax1.axvline(error_start, linestyle="--", color="red")
+            ax1.axvline(timex[error_start], linestyle="--", color="red")
 
         if sdev_span is not None:
-            hf.plot_spans(ax4, [sdev_span])
-            ax4.plot(rms_x, fft_sdev, label="sdev")
-            ax4.axhline(sdev_thresh, linestyle="--", color="black")
-
-        # ax4.plot(rms_x, fft_rms, label="rms")
-        ax4.legend()
+             hf.plot_spans(ax3, hf.seg_to_time(timex, [sdev_span + filter_i]))
+             rms_x = [x + filter_i for x in rms_x]
+             ax3.plot(timex[rms_x], fft_sdev, label="sdev")
+             ax3.axhline(sdev_thresh, linestyle="--", color="black")
+        #
+        # # ax4.plot(rms_x, fft_rms, label="rms")
+        # ax4.legend()
         # ax4.set_ylim(0, 2 * 10 ** (-9))
 
         #ax1.legend()
@@ -1722,34 +1658,37 @@ def test_fft():
 
 def show():
     channels = ["MEG0511", "MEG0541"]
-    fname = datadir + "sample_data21.npz"
+    fname = datadir + "many_successful.npz"
     signals, names, timex, n_chan = fr.get_signals(fname)
 
     #print(1/0.0001)
 
-    signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals, names, n_chan,
-                                                                                                badness_sensitivity=.5,
-                                                                                                filter_beginning=True)
+    #signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals, names, n_chan,
+    #                                                                                            badness_sensitivity=.5,
+    #filter_beginning=True)
 
+    plt.rcParams.update({'font.size': 42})
     for i in range(n_chan):
         signal = signals[i]
         name = names[i]
-        bad_segs = bad_segment_list[i]
-        sus_segs = suspicious_segment_list[i]
+        #bad_segs = bad_segment_list[i]
+        #sus_segs = suspicious_segment_list[i]
 
         print(name)
         print()
 
         # plt.plot(timex, signal)
-        fig, ax = plt.subplots()
-        plt.plot(signal)
-        plt.title(name)
+        fig, ax = plt.subplots(figsize=(12, 10))
+        plt.tight_layout(rect=(0.02, 0.02, 0.98, 0.98))
+        linewidth = 4
+        plt.plot(timex, signal, linewidth=linewidth)
+        #plt.title(name)
         plt.ylabel("Magnetic Field [T]")
         plt.xlabel("Time [s]")
         plt.grid()
 
-        hf.plot_spans(ax, bad_segs, color="red")
-        hf.plot_spans(ax, sus_segs, color="yellow")
+        #hf.plot_spans(ax, bad_segs, color="red")
+        #hf.plot_spans(ax, sus_segs, color="yellow")
 
         plt.show()
 

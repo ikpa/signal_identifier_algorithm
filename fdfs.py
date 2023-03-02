@@ -12,8 +12,9 @@ significantly"""
 
 sample_freq = 10000 # sampling frequency of the squids
 
-# filter the jump in the beginning of the signal
 def filter_start(signal, offset=50, max_rel=0.05):
+    """filter the jump in the beginning of the signal. returns the index
+    where the jump has ended."""
     max_i = int(max_rel * len(signal))
     grad = np.gradient(signal)
     new_grad = grad[:max_i]
@@ -34,10 +35,11 @@ def filter_start(signal, offset=50, max_rel=0.05):
 
     rel_max = abs(max_val/grad_ave)
 
-    # print(max_val, grad_ave, rel_max)
+    print("filter i max val grad ave", max_val, grad_ave)
 
     # TODO convert to absolute values
-    if rel_max < 10.0:
+    #2-3 * 10e-10
+    if max_val < 1*10**(-10):
         return np.int64(0)
 
     # print("filter_i", farther_i)
@@ -149,9 +151,9 @@ def find_flat_segments(signal, rel_sensitive_length=0.07, relative_sensitivity=0
 
 
 # TODO fix confidences
-def cal_goodness_flat(signal, start_i, end_i, printer,
-                      uniq_w=1.5, grad_sensitivity=0.5 * 10 ** (-13),
-                      grad_w=10 ** 12, len_w=1, max_len=2900):
+def cal_seg_score_flat(signal, start_i, end_i, printer,
+                       uniq_w=1.5, grad_sensitivity=0.5 * 10 ** (-13),
+                       grad_w=10 ** 12, len_w=1, max_len=2900):
     """calculate a goodness value (a value determining how likely a flat segment
     has been wrongly detected by find_flat_segments) for a segment in a
     signal. a goodness value is increased if a segment has no clear trend,
@@ -230,15 +232,15 @@ def flat_filter(signal, printer, grad_sens=0.5 * 10 ** (-13)):
 
     confidences = []
     for segment in comb_segs:
-        confidences.append(cal_goodness_flat(signal, segment[0], segment[1], printer, grad_sensitivity=grad_sens))
+        confidences.append(cal_seg_score_flat(signal, segment[0], segment[1], printer, grad_sensitivity=grad_sens))
 
     return comb_segs, confidences
 
 
-def cal_goodness_spike(gradient, spikes, all_diffs, printer, max_sensitivities=None,
-                       n_sensitivities=None,
-                       grad_sensitivity=2 * 10 ** (-13),
-                       sdens_sensitivity=0.1):
+def cal_seg_score_spike(gradient, spikes, all_diffs, printer, max_sensitivities=None,
+                        n_sensitivities=None,
+                        grad_sensitivity=2 * 10 ** (-13),
+                        sdens_sensitivity=0.1):
     """calculate a goodness value for a segment found by find_spikes. the confidence
     depends on the steepness of the spikes and their number,
     average gradient of the segment and the density of spikes.
@@ -347,7 +349,7 @@ def spike_filter_neo(signal, filter_i, printer, grad_sensitivity=10 ** (-10)):
     """finds segments with steep spikes in the signal and calculates their goodness"""
     gradient = np.gradient(signal)
     spikes, all_diffs = find_spikes(gradient, filter_i, grad_sensitivity)
-    seg_is, confidence = cal_goodness_spike(gradient, spikes, all_diffs, printer)
+    seg_is, confidence = cal_seg_score_spike(gradient, spikes, all_diffs, printer)
 
     if len(seg_is) == 0:
         return [], []
@@ -609,7 +611,6 @@ def stats_from_i(i_arr, i_x, bad_segs, fft_window, printer, cut_length=70, max_s
 
     grad_ave_thresh = 2 * 10 ** (-12)
     # maybe 8.5e-12
-    # TODO check value for cropped signals
     if grad_ave > 10 ** (-11):
         printer.extended_write("EXTREMELY HIGH GRADIENT AVERAGE")
         status = change_status(1, status)
@@ -652,7 +653,7 @@ def stats_from_i(i_arr, i_x, bad_segs, fft_window, printer, cut_length=70, max_s
     return nu_i_arr, nu_i_x, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score, short
 
 
-# TODO increase abs sdev thresh and/or rel sdev thresh, abs_dev maybe 1.4e-10
+#TODO keep testing
 def find_saturation_point_from_fft(i_x, i_arr, filter_i, fft_window, printer, sdev_window=10, rel_sdev_thresh=1.75,
                                    abs_sdev_thresh=1.4 * 10 ** (-10)):
     if len(i_arr) == 0:
@@ -669,15 +670,19 @@ def find_saturation_point_from_fft(i_x, i_arr, filter_i, fft_window, printer, sd
         sdev_span = [rms_x[where_above_sdev[0]], rms_x[where_above_sdev[-1]]]
         span_sdev_ave = np.mean(fft_sdev[where_above_sdev[0]:where_above_sdev[-1]])
         seg_len = hf.length_of_segments([sdev_span])
-        highsdev = span_sdev_ave > abs_sdev_thresh
+        #highsdev = span_sdev_ave > abs_sdev_thresh
+        ave_diff = span_sdev_ave - sdev_mean
+        highsdev = ave_diff > 2.5*10**(-11)
         span_start_i = where_above_sdev[0]
         printer.extended_write("span_sdev_ave", span_sdev_ave, "seg_len", seg_len, "span_start_i", span_start_i)
+        printer.extended_write("ave diff", ave_diff)
 
         if seg_len < 500:
             local_err = True
         else:
             local_err = False
 
+        # ave diff 2.5-6e-11
         if highsdev and local_err and span_start_i > 6:
             printer.extended_write("saturation point found")
             error_start = sdev_span[0] + fft_window + sdev_window
@@ -712,7 +717,7 @@ def fft_filter(signal, filter_i, bad_segs, printer, fft_window=400, indices=[2],
     if rel_bad_len >= badness_sens or good_len < min_length:
         printer.extended_write("NOT ENOUGH SIGNAL FOR FFT")
         if debug:
-            return None, None, None, None, None, None, None, None, 2, 0, None, None, None, None, None
+            return None, None, None, None, None, None, None, None, 2, 0, None, None, None, None, None, None
         else:
             return [], []
 
@@ -721,7 +726,7 @@ def fft_filter(signal, filter_i, bad_segs, printer, fft_window=400, indices=[2],
 
     if i_arr is None:
         if debug:
-            return None, None, None, None, None, None, None, None, 2, 0, None, None, None, None, None
+            return None, None, None, None, None, None, None, None, 2, 0, None, None, None, None, None, None
         else:
             return [], []
 
@@ -736,7 +741,7 @@ def fft_filter(signal, filter_i, bad_segs, printer, fft_window=400, indices=[2],
         rms_x, fft_sdev, error_start, sdev_thresh, sdev_span = None, None, None, None, None
 
     if debug:
-        return cut_i_x, cut_i_arr, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score, rms_x, fft_sdev, error_start, sdev_thresh, sdev_span
+        return cut_i_x, cut_i_arr, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score, rms_x, fft_sdev, error_start, sdev_thresh, sdev_span, detrended_sig
 
     return score_fft_segment(status, error_start, final_i_fullsignal, filter_i)
 

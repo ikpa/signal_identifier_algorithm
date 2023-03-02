@@ -187,7 +187,7 @@ def partial_analysis(time_seg, fname, print_mode, output="output_test.txt", log_
                                                                  suspicious_segs, printer,
                                                                  ave_window=100, ave_sens=5 * 10 ** (-13))
 
-        phys_stat, phys_conf = pca.analyse_phys_dat(all_diffs, names, all_rel_diffs, chan_dict)
+        phys_stat, phys_conf = pca.analyse_phys_dat_alt(all_diffs, names, all_rel_diffs, chan_dict)
 
     good_segs_time = hf.segs_from_i_to_time(cropped_ix, t, good_seg_list)
 
@@ -257,8 +257,8 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
-    #tf.test_fft()
+    # main()
+    tf.test_fft()
     #tf.test_fft_emergency()
     # tf.show()
     # tf.test_new_excluder()
@@ -268,7 +268,7 @@ if __name__ == '__main__':
     #tf.test_ffft()
     #tf.show_pca()
     #datadir = "example_data_for_patrik/"
-    #partial_analysis([0.3, 0.36], datadir + "many_many_successful.npz", phys=True)
+    #partial_analysis([0.3, 0.36], datadir + "many_many_successful.npz", "print", phys=True)
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
