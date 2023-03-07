@@ -1502,7 +1502,7 @@ def test_gradient():
 
 
 def test_fft_full():
-    fname = datadir + "sample_data28.npz"
+    fname = datadir + "many_many_successful2.npz"
     channels = ["MEG2*1"]
     signals, names, timex, n_chan = fr.get_signals(fname)
 
@@ -1514,7 +1514,7 @@ def test_fft_full():
 
 def test_fft():
     # SUS ONES: sd37: 2214
-    fname = datadir + "sample_data27.npz"
+    fname = datadir + "sample_data37.npz"
     #channels = ["MEG0311", "MEG1114"]
     channels = ["MEG*1", "MEG*4"]
     signals, names, timex, n_chan = fr.get_signals(fname, channels=channels)
@@ -1586,17 +1586,17 @@ def test_fft():
         #ax2.set_yticklabels([])
         ax2.grid()
         #ax1.plot(full_x, signal)
-        #hf.plot_spans(ax1, hf.seg_to_time(timex, bad_segs), color="darkred")
+        hf.plot_spans(ax1, hf.seg_to_time(timex, bad_segs), color="darkred")
         #hf.plot_spans(ax1, bad_segs)
 
         if error_start is not None:
             hf.plot_spans(ax1, hf.seg_to_time(timex, [[error_start, len(signal) - 1]]), color="red")
             #hf.plot_spans(ax1, [[error_start, len(signal) - 1]], color="red")
         elif status == 1:
-            hf.plot_spans(ax1, hf.seg_to_time(timex, [[filter_i, len(signal) - 1]]), color="red")
+            hf.plot_spans(ax1, hf.seg_to_time(timex, [[u_filter_i_i, len(signal) - 1]]), color="red")
             #hf.plot_spans(ax1, [[filter_i, len(signal) - 1]], color="red")
         elif status == 2:
-            hf.plot_spans(ax1, hf.seg_to_time(timex, [[filter_i, len(signal) - 1]]), color="yellow")
+            hf.plot_spans(ax1, hf.seg_to_time(timex, [[u_filter_i_i, len(signal) - 1]]), color="yellow")
             #hf.plot_spans(ax1, [[filter_i, len(signal) - 1]], color="yellow")
 
         #ax1.grid()

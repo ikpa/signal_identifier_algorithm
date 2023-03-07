@@ -35,9 +35,8 @@ def filter_start(signal, offset=50, max_rel=0.05):
 
     rel_max = abs(max_val/grad_ave)
 
-    print("filter i max val grad ave", max_val, grad_ave)
+    #print("filter i max val grad ave", max_val, grad_ave)
 
-    # TODO convert to absolute values
     #2-3 * 10e-10
     if max_val < 1*10**(-10):
         return np.int64(0)
@@ -670,17 +669,13 @@ def find_saturation_point_from_fft(i_x, i_arr, filter_i, fft_window, printer, sd
         sdev_span = [rms_x[where_above_sdev[0]], rms_x[where_above_sdev[-1]]]
         span_sdev_ave = np.mean(fft_sdev[where_above_sdev[0]:where_above_sdev[-1]])
         seg_len = hf.length_of_segments([sdev_span])
-        #highsdev = span_sdev_ave > abs_sdev_thresh
+        highsdev = span_sdev_ave > abs_sdev_thresh
         ave_diff = span_sdev_ave - sdev_mean
-        highsdev = ave_diff > 2.5*10**(-11)
+        #highsdev = ave_diff > 2.5*10**(-11)
         span_start_i = where_above_sdev[0]
         printer.extended_write("span_sdev_ave", span_sdev_ave, "seg_len", seg_len, "span_start_i", span_start_i)
         printer.extended_write("ave diff", ave_diff)
-
-        if seg_len < 500:
-            local_err = True
-        else:
-            local_err = False
+        local_err = 200 <= seg_len <= 500
 
         # ave diff 2.5-6e-11
         if highsdev and local_err and span_start_i > 6:
@@ -743,10 +738,10 @@ def fft_filter(signal, filter_i, bad_segs, printer, fft_window=400, indices=[2],
     if debug:
         return cut_i_x, cut_i_arr, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score, rms_x, fft_sdev, error_start, sdev_thresh, sdev_span, detrended_sig
 
-    return score_fft_segment(status, error_start, final_i_fullsignal, filter_i)
+    return score_fft_segment(status, error_start, final_i_fullsignal, filter_i_i)
 
 
-def score_fft_segment(status, error_start, final_i_fullsignal, filter_i):
+def score_fft_segment(status, error_start, final_i_fullsignal, filter_i_i):
     if status == 0:
         score = -.5
 
@@ -763,7 +758,7 @@ def score_fft_segment(status, error_start, final_i_fullsignal, filter_i):
         segments = [[error_start, final_i_fullsignal]]
         score = 1.5
     elif score > 0:
-        segments = [[filter_i, final_i_fullsignal]]
+        segments = [[filter_i_i, final_i_fullsignal]]
     else:
         segments = []
 
