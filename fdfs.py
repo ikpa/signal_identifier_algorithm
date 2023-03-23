@@ -12,6 +12,7 @@ significantly"""
 
 sample_freq = 10000 # sampling frequency of the squids
 
+# TODO find better way to differentiate between actual large spikes and spikes in random noisy data
 def filter_start(signal, offset=50, max_rel=0.05):
     """filter the jump in the beginning of the signal. returns the index
     where the jump has ended."""
@@ -124,7 +125,8 @@ def find_flat_segments(signal, rel_sensitive_length=0.07, relative_sensitivity=0
     end_is = []
     lock_val = None  # subsequent values are compared to this value
 
-    sensitive_length = len(signal) * rel_sensitive_length
+    #sensitive_length = len(signal) * rel_sensitive_length
+    sensitive_length = 200
     length = 1
     for i in range(len(signal)):
         val = signal[i]
@@ -132,9 +134,12 @@ def find_flat_segments(signal, rel_sensitive_length=0.07, relative_sensitivity=0
         if lock_val is None:
             is_close = False
         else:
-            is_close = abs(abs(val - lock_val) / lock_val) < relative_sensitivity
+            #print("rel", abs(abs(val - lock_val) / lock_val), "abs", abs(val - lock_val))
+            #is_close = abs(abs(val - lock_val) / lock_val) < relative_sensitivity
+            is_close = abs(val - lock_val) <= 2*10**(-10)
 
         if not is_close or (is_close and i == len(signal) - 1):
+            #print("cut")
             if length > sensitive_length:
                 start_is.append(start_i)
                 end_is.append(i)
@@ -149,7 +154,7 @@ def find_flat_segments(signal, rel_sensitive_length=0.07, relative_sensitivity=0
     return lengths, start_is, end_is
 
 
-# TODO fix confidences
+# TODO fix confidences (?)
 def cal_seg_score_flat(signal, start_i, end_i, printer,
                        uniq_w=1.5, grad_sensitivity=0.5 * 10 ** (-13),
                        grad_w=10 ** 12, len_w=1, max_len=2900):
@@ -456,7 +461,6 @@ def goertzel(samples, sample_rate, *freqs):
     return freqs, results
 
 
-# TODO do it better
 def get_ffft_alt(signal, freq_range, magic_factor=1.5e7):
     # N = len(signal)
     #const = 2 * np.pi / N
@@ -627,7 +631,7 @@ def stats_from_i(i_arr, i_x, bad_segs, fft_window, printer, cut_length=70, max_s
     if 3.5 * 10 ** (-9) < i_arr_sdev < 10 ** (-8):
         printer.extended_write("SUSPICIOUS SDEV")
         sus_score += 1
-    elif i_arr_sdev > 10 ** (-8):
+    elif i_arr_sdev > 10 ** (-8): # TODO increase maybe??
         printer.extended_write("EXTREMELY HIGH SDEV")
         status = change_status(1, status)
 
@@ -642,6 +646,7 @@ def stats_from_i(i_arr, i_x, bad_segs, fft_window, printer, cut_length=70, max_s
         printer.extended_write("LOW 50HZ")
         sus_score += 1
 
+    # TODO maybe dont do this?
     if sus_score >= 3:
         printer.extended_write("BAD SIGNAL")
         status = change_status(1, status)
@@ -652,9 +657,8 @@ def stats_from_i(i_arr, i_x, bad_segs, fft_window, printer, cut_length=70, max_s
     return nu_i_arr, nu_i_x, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score, short
 
 
-#TODO keep testing
 def find_saturation_point_from_fft(i_x, i_arr, filter_i, fft_window, printer, sdev_window=10, rel_sdev_thresh=1.75,
-                                   abs_sdev_thresh=1.4 * 10 ** (-10)):
+                                   abs_sdev_thresh=1.35 * 10 ** (-10)):
     if len(i_arr) == 0:
         return None, None, None, None, None
 
@@ -675,7 +679,7 @@ def find_saturation_point_from_fft(i_x, i_arr, filter_i, fft_window, printer, sd
         span_start_i = where_above_sdev[0]
         printer.extended_write("span_sdev_ave", span_sdev_ave, "seg_len", seg_len, "span_start_i", span_start_i)
         printer.extended_write("ave diff", ave_diff)
-        local_err = 200 <= seg_len <= 500
+        local_err = 200 <= seg_len <= 500 # TODO increase upper bound?
 
         # ave diff 2.5-6e-11
         if highsdev and local_err and span_start_i > 6:

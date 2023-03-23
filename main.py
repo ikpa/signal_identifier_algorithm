@@ -168,6 +168,7 @@ def thirdver(fname, filters, phys, print_mode, log_fname):
     return col_names, write_data, plot_dat
 
 
+# TODO test with larger values of seg_extend
 def partial_analysis(time_seg, fname, print_mode, output="output_test.txt", log_fname="test.log", channels=["MEG*1", "MEG*4"],
                      filters=default_filters, seg_extend=200, phys=False):
     signals, names, t, n_chan = fr.get_signals(fname, channels=channels)
@@ -257,8 +258,9 @@ def main():
 
 
 if __name__ == '__main__':
-    # main()
-    tf.test_fft()
+    #main()
+    # tf.test_fft()
+    # tf.show_helmet()
     #tf.test_fft_emergency()
     # tf.show()
     # tf.test_new_excluder()
@@ -266,9 +268,10 @@ if __name__ == '__main__':
     # tf.test_seg_finder()
     #tf.test_crop()
     #tf.test_ffft()
-    #tf.show_pca()
+    tf.show_pca()
+    # tf.test_flat_new()
     #datadir = "example_data_for_patrik/"
-    #partial_analysis([0.3, 0.36], datadir + "many_many_successful.npz", "print", phys=True)
+    #partial_analysis([0.3, 0.36], datadir + "many_many_successful2.npz", "print", phys=True)
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/

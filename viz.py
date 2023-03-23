@@ -101,7 +101,7 @@ def rotationmat(angle):
 def plot_sensor_data(channels, data, cmap = 'viridis',
                      bads = [], vmin=None, vmax=None, opacity=1.0,
                      pcolor=(0.5, 0.5, 0.5), group_coloring=False,
-                     plot_names=True):
+                     plot_names=False):
     """ Plot sensor data in the MEG helmet as colors on the pickup coils
 
         Parameters:

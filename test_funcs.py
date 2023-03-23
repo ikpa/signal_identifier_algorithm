@@ -3,6 +3,7 @@ import time
 #import helmet_vis as vis
 import numpy as np
 
+import fdfs
 import helper_funcs
 import helper_funcs as hf
 import file_handler as fr
@@ -10,6 +11,7 @@ import pca
 import fdfs as sa
 import matplotlib.pyplot as plt
 import signal_generator as sg
+import helmet_vis as vis
 
 # from sklearn import preprocessing
 
@@ -880,7 +882,7 @@ def test_magn2():
     smooth_window = 401
     offset = int(smooth_window / 2)
     printer = fr.Printer("print")
-    plt.rcParams.update({'font.size': 42})
+    #plt.rcParams.update({'font.size': 42})
     crop = False
 
     fname = datadir + "many_many_successful.npz"
@@ -1052,14 +1054,14 @@ def test_magn2():
         fig1, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
         #fig1, (ax1, ax2) = plt.subplots(2, 1, sharex=True, figsize=(12, 10))
         #plt.tight_layout(rect=(0.045, 0.02, 0.99, 0.98))
-        linewidth = 4
+        linewidth = 1.5
 
         for k in range(len(cropped_signals)):
             color = colors[k]
             plot_name = new_names[k]
             ax1.plot(timex[xs[k]], smooth_sigs[k], color=color, label=plot_name, linewidth=linewidth)
             ax2.plot(timex[mag_is], rec_sigs[k], color=color, label=plot_name, linewidth=linewidth)
-            #ax3.plot(mag_is, all_diffs[k], color=color, label=aves[k])
+            ax3.plot(timex[mag_is], all_diffs[k], color=color, label=aves[k])
 
         #ax1.set_title(ave_of_aves)
         #ax2.legend()
@@ -1070,16 +1072,16 @@ def test_magn2():
         ax2.grid()
         #ax3.legend()
 
-        #fig2, (ax11, ax22, ax33) = plt.subplots(3, 1, sharex=True)
-        fig12, (ax11, ax22) = plt.subplots(2, 1, sharex=True, figsize=(12, 10))
-        plt.tight_layout(rect=(0.045, 0.02, 0.99, 0.98))
+        fig2, (ax11, ax22, ax33) = plt.subplots(3, 1, sharex=True)
+        #fig12, (ax11, ax22) = plt.subplots(2, 1, sharex=True, figsize=(12, 10))
+        #plt.tight_layout(rect=(0.045, 0.02, 0.99, 0.98))
 
         for k in range(len(good_sigs)):
             color = good_colors[k]
             plot_name = good_names[k]
             ax11.plot(timex[good_xs[k]], good_sigs[k], color=color, label=plot_name, linewidth=linewidth)
             ax22.plot(timex[good_mag_is], good_rec_sigs[k], color=color, label=plot_name, linewidth=linewidth)
-            #ax33.plot(good_mag_is, good_all_diffs[k], color=color, label=good_aves[k])
+            ax33.plot(timex[good_mag_is], good_all_diffs[k], color=color, label=good_aves[k])
 
         #ax11.set_title(good_ave_of_aves)
         #ax22.legend()
@@ -1131,7 +1133,6 @@ def test_new_excluder():
     # times_in_calc = np.zeros(n_chan)
 
     signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals, names, n_chan, printer,
-                                                                                                badness_sensitivity=.5,
                                                                                                 filter_beginning=(not crop))
 
     start_time = time.time()
@@ -1188,7 +1189,7 @@ def test_new_excluder():
         signal = signals[i]
         segs = bad_segment_list[i]
 
-        nearby_names = helper_funcs.find_nearby_detectors(nam, detecs)
+        nearby_names = hf.find_nearby_detectors(nam, detecs, names)
         sigs = hf.find_signals(nearby_names, signals, names)
 
         # if num_exc == 0:
@@ -1514,8 +1515,9 @@ def test_fft_full():
 
 def test_fft():
     # SUS ONES: sd37: 2214
-    fname = datadir + "sample_data37.npz"
-    #channels = ["MEG0311", "MEG1114"]
+    # sd 32 is weird
+    fname = datadir + "many_many_successful2.npz"
+    #channels = ["MEG0624"]
     channels = ["MEG*1", "MEG*4"]
     signals, names, timex, n_chan = fr.get_signals(fname, channels=channels)
     printer = fr.Printer("print")
@@ -1529,7 +1531,7 @@ def test_fft():
                                                                                                 printer,
                                                                                                 filters=["uniq", "flat", "spike"],
                                                                                                 filter_beginning=True)
-    #plt.rcParams.update({'font.size': 31})
+    plt.rcParams.update({'font.size': 41})
     for i in range(n_chan):
         name = names[i]
         print(name)
@@ -1573,18 +1575,18 @@ def test_fft():
         #u_filter_i_i = u_filter_i_i
         #u_grad_x = [x for x in u_grad_x]
 
-        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
+        #fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
 
-        #fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True, figsize=(12, 10))
-        #plt.tight_layout(rect=(0.045, 0.02, 0.99, 0.98))
-        linewidth = 1.5
+        fig, (ax1) = plt.subplots(1, 1, figsize=(12, 10))
+        plt.tight_layout(rect=(0.045, 0.02, 0.99, 0.98))
+        linewidth = 4
 
         #error_start = None
         #status = -1
         ax1.plot(timex[full_x], signal, linewidth=linewidth)
         #ax2.plot(timex[normal_x], detrended_sig, linewidth=linewidth)
         #ax2.set_yticklabels([])
-        ax2.grid()
+        #ax2.grid()
         #ax1.plot(full_x, signal)
         hf.plot_spans(ax1, hf.seg_to_time(timex, bad_segs), color="darkred")
         #hf.plot_spans(ax1, bad_segs)
@@ -1600,26 +1602,28 @@ def test_fft():
             #hf.plot_spans(ax1, [[filter_i, len(signal) - 1]], color="yellow")
 
         #ax1.grid()
-        #ax1.set_ylabel("Mag. F. [T]")
+        ax1.set_ylabel("Magnetic Field [T]")
         #ax2.set_ylabel("Mag. F. [T]")
 
         if nu_i_x is not None:
              #ax2.plot(timex[nu_i_x], nu_i_arr, linewidth=linewidth)
-             ax2.plot(timex[nu_i_x], nu_i_arr)
+             #ax2.plot(timex[nu_i_x], nu_i_arr)
+             pass
 
-        ax2.set_ylim(-0.1 * 10 ** (-7), 1.2 * 10 ** (-7))
-        ax3.grid()
-        ax3.set_xlabel("Time [s]")
+        #ax2.set_ylim(-0.1 * 10 ** (-7), 1.2 * 10 ** (-7))
+        #ax3.grid()
+        ax1.set_xlabel("Time [s]")
         #ax3.set_ylabel("FT Amp.")
 
         ax1.grid()
 
-        #if nu_i_x is not None:
-        #    ax3.plot(timex[nu_i_x], nu_i_arr, linewidth=linewidth)
+        if nu_i_x is not None:
+            pass
+            #ax2.plot(timex[nu_i_x], nu_i_arr, linewidth=linewidth)
 
         # ax2.legend()
 
-        ax2.axvline(timex[u_filter_i_i], linestyle="--", color="black")
+        #ax2.axvline(timex[u_filter_i_i], linestyle="--", color="black")
         #ax3.set_ylim(-.25 * 10 ** (-9), .25 * 10 ** (-9))
 
         #ax3.plot(u_grad_x, u_cut_grad, label="orig")
@@ -1629,13 +1633,15 @@ def test_fft():
         # rms_x, fft_sdev, error_start, sdev_thresh, sdev_span = sa.find_saturation_point_from_fft(nu_i_x, nu_i_arr, u_filter_i_i, fft_window)
 
         if error_start is not None:
+            #pass
             ax1.axvline(timex[error_start], linestyle="--", color="red")
 
         if sdev_span is not None:
-             hf.plot_spans(ax3, hf.seg_to_time(timex, [sdev_span + filter_i]))
-             rms_x = [x + filter_i for x in rms_x]
-             ax3.plot(timex[rms_x], fft_sdev, label="sdev")
-             ax3.axhline(sdev_thresh, linestyle="--", color="black")
+             pass
+             # hf.plot_spans(ax3, hf.seg_to_time(timex, [sdev_span + filter_i]))
+             # rms_x = [x + filter_i for x in rms_x]
+             # ax3.plot(timex[rms_x], fft_sdev, label="sdev")
+             # ax3.axhline(sdev_thresh, linestyle="--", color="black")
         #
         # # ax4.plot(rms_x, fft_rms, label="rms")
         # ax4.legend()
@@ -1761,15 +1767,14 @@ def test_ffft():
 def show_pca():
     # mms 1241 -> bad exc
     skp = "MEG1044"
-    fname = datadir + "many_many_successful.npz"
+    fname = datadir + "sample_data02.npz"
     signals, names, timex, n_chan = fr.get_signals(fname)
     detecs = np.load("array120_trans_newnames.npz")
     printer = fr.Printer("print")
     skip = False
 
     start_t = time.time()
-    signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals, names, n_chan, printer,
-                                                                                                badness_sensitivity=.5)
+    signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals, names, n_chan, printer)
     all_diffs, all_rel_diffs, chan_dict = pca.check_all_phys(signals, detecs, names, n_chan, bad_segment_list, suspicious_segment_list,
                                                              printer, ave_window=100, ave_sens=5 * 10 ** (-13))
     phys_stat, phys_conf = pca.analyse_phys_dat_alt(all_diffs, names, all_rel_diffs, chan_dict)
@@ -1890,3 +1895,49 @@ def test_fft_emergency():
 
         plt.show()
 
+def show_helmet():
+    fname = datadir + "many_many_successful.npz"
+    signals, names, timex, n_chan = fr.get_signals(fname)
+    detecs = np.load("array120_trans_newnames.npz")
+    names, signals = hf.order_lists(detecs, names, signals)
+
+    new_dat = []
+
+    for i in range(len(names)):
+        name = names[i]
+
+        if name[-1] == "4":
+            new_dat.append(1)
+        else:
+            new_dat.append(0)
+
+    vis.plot_all(names, new_dat)
+
+
+def test_flat_new():
+    fname = datadir + "sample_data23.npz"
+    signals, names, timex, n_chan = fr.get_signals(fname)
+    detecs = np.load("array120_trans_newnames.npz")
+    printer = fr.Printer("print")
+
+    signal_statuses, bad_segment_list, suspicious_segment_list, exec_times = sa.analyse_all_neo(signals, names, n_chan,
+                                                                                                printer)
+
+
+    for i in range(n_chan):
+        signal = signals[i]
+        name = names[i]
+        bad_segs = bad_segment_list[i]
+        sus_segs = suspicious_segment_list[i]
+
+        print(name)
+        #segs, scores = fdfs.flat_filter(signal, printer)
+
+        fig, ax = plt.subplots()
+        plt.plot(signal)
+        hf.plot_spans(ax, bad_segs, color="red")
+        hf.plot_spans(ax, sus_segs, color="yellow")
+        plt.title(name)
+
+        print()
+        plt.show()

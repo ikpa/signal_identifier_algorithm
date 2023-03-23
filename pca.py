@@ -5,10 +5,10 @@ import numpy as np
 import helper_funcs as hf
 
 
-def magn_from_point(a, point):
+def magn_from_point(a_pinv, point):
     """calculates the lengths of the magnetic field vector from a set of signal magnitudes (point)
     and detectors direction vectors (a) using pseudoinverse"""
-    a_pinv = np.linalg.pinv(a)
+    #a_pinv = np.linalg.pinv(a)
     magn = a_pinv.dot(point)
     return magn
 
@@ -45,7 +45,8 @@ def calc_magn_field_from_signals(signals, xs, vectors, printer, ave_window=400):
         for j in range(len(averaged_sigs)):
             points.append(averaged_sigs[j][i])
 
-        mag = magn_from_point(vectors, points)
+        vector_pinv = np.linalg.pinv(vectors)
+        mag = magn_from_point(vector_pinv, points)
         magn_vectors.append(mag)
         current_index = new_is[0][i]
         mag_is.append(current_index)
@@ -221,6 +222,7 @@ def filter_unphysical_sigs(signals, names, xs, vs, bad_segs, sus_segs, printer, 
     return excludes, new_x, ave_diffs, rel_diffs
 
 
+# TODO lower ave_sens
 def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, sus_seg_list, printer, smooth_window=401,
                    ave_window=1, ave_sens=10 ** (-13), smooth_only=False):
     """goes through all detectors, does the filter_unphysical_sigs calculation for a
