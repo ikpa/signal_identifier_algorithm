@@ -12,8 +12,8 @@ significantly"""
 
 sample_freq = 10000 # sampling frequency of the squids
 
-# TODO find better way to differentiate between actual large spikes and spikes in random noisy data
-def filter_start(signal, offset=50, max_rel=0.05):
+# TODO test this with fft filter
+def filter_start(signal, offset=50, max_rel=0.05, lol=False):
     """filter the jump in the beginning of the signal. returns the index
     where the jump has ended."""
     max_i = int(max_rel * len(signal))
@@ -40,12 +40,36 @@ def filter_start(signal, offset=50, max_rel=0.05):
 
     #2-3 * 10e-10
     if max_val < 1*10**(-10):
-        return np.int64(0)
+        result = np.int64(0)
+    else:
+        result = farther_i + offset
 
-    # print("filter_i", farther_i)
+    new_grad = abs(np.array(new_grad))
+    largest = sorted(new_grad, reverse=True)[0:20]
+    locations = sorted([np.where(new_grad == x)[0][0] for x in largest])
+
+    # print(largest)
+    #
+    # print("largest:", largest)
+    # print("locations:", locations)
+    # print(any(x >= 50 for x in np.gradient(locations)))
+    # largest[0] < 4 * 10**(-10)
+
+    # TODO decrease first threshold maybe
+    if largest[0] < 4 * 10 ** (-10) or any(x >= 50 for x in np.gradient(locations)):
+        #print("result:", 0)
+        result = np.int64(0)
+    else:
+        #print("result:", locations[0] + offset)
+        result = locations[0] + offset
 
     # farther_i = np.amax([max_grad_i, min_grad_i])
-    return farther_i + offset
+    if lol:
+
+
+        return locations, largest
+
+    return result
 
 
 def averages_are_close(signal, start_is, end_is, averages=None, std_sensitivity=0.015):
@@ -154,7 +178,6 @@ def find_flat_segments(signal, rel_sensitive_length=0.07, relative_sensitivity=0
     return lengths, start_is, end_is
 
 
-# TODO fix confidences (?)
 def cal_seg_score_flat(signal, start_i, end_i, printer,
                        uniq_w=1.5, grad_sensitivity=0.5 * 10 ** (-13),
                        grad_w=10 ** 12, len_w=1, max_len=2900):
@@ -555,14 +578,15 @@ def calc_fft_indices(signal, printer, indices=None, window=400, smooth_window=40
     return i_arr, nu_x, smooth_signal, smooth_x, filtered_signal
 
 
-def stats_from_i(i_arr, i_x, bad_segs, fft_window, printer, cut_length=70, max_sig_len=800):
+def stats_from_i(i_arr, i_x, bad_segs, fft_window, printer, cut_length=70, max_sig_len=800, lol=False):
     """ status:
     0 = good
     1 = bad
     2 = undetermined"""
     printer.extended_write("filtering fft:")
     offset = int(len(i_arr) * 0.0875)
-    filter_i_i = filter_start(i_arr, offset=offset, max_rel=.175)
+    filter_i_i = filter_start(i_arr, offset=offset, max_rel=.175, lol=lol)
+    #filter_i_i = filter_i_list[0]
 
     last_i = len(i_arr) - 1
 
@@ -605,6 +629,7 @@ def stats_from_i(i_arr, i_x, bad_segs, fft_window, printer, cut_length=70, max_s
         printer.extended_write("SIGNAL TOO SHORT")
         status = change_status(3, status)
         short = True
+        #return i_arr, nu_i_x, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score, short
         return nu_i_arr, nu_i_x, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score, short
 
     if len(cut_i_arr) < max_sig_len:
@@ -654,6 +679,7 @@ def stats_from_i(i_arr, i_x, bad_segs, fft_window, printer, cut_length=70, max_s
         printer.extended_write("SUSPICIOUS SIGNAL")
         status = change_status(2, status)
 
+    #return i_arr, nu_i_x, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score, short
     return nu_i_arr, nu_i_x, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score, short
 
 
@@ -695,7 +721,8 @@ def find_saturation_point_from_fft(i_x, i_arr, filter_i, fft_window, printer, sd
 
 
 def fft_filter(signal, filter_i, bad_segs, printer, fft_window=400, indices=[2], badness_sens=.5, debug=False, fft_cut=70, min_length=400,
-               goertzel=False):
+               goertzel=False, lol=False):
+
     normal_sig = signal[filter_i:]
     sig_len = len(normal_sig)
     final_i_filtsignal = sig_len - 1
@@ -730,7 +757,7 @@ def fft_filter(signal, filter_i, bad_segs, printer, fft_window=400, indices=[2],
             return [], []
 
     cut_i_arr, cut_i_x, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score, short = stats_from_i(
-        i_arr[0], i_x, bad_segs, fft_window, printer, cut_length=fft_cut)
+        i_arr[0], i_x, bad_segs, fft_window, printer, cut_length=fft_cut, lol=lol)
 
     if not short:
         rms_x, fft_sdev, error_start, sdev_thresh, sdev_span = find_saturation_point_from_fft(cut_i_x, cut_i_arr,

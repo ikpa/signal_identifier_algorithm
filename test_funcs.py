@@ -1516,7 +1516,7 @@ def test_fft_full():
 def test_fft():
     # SUS ONES: sd37: 2214
     # sd 32 is weird
-    fname = datadir + "many_many_successful2.npz"
+    fname = datadir + "sample_data37.npz"
     #channels = ["MEG0624"]
     channels = ["MEG*1", "MEG*4"]
     signals, names, timex, n_chan = fr.get_signals(fname, channels=channels)
@@ -1531,7 +1531,8 @@ def test_fft():
                                                                                                 printer,
                                                                                                 filters=["uniq", "flat", "spike"],
                                                                                                 filter_beginning=True)
-    plt.rcParams.update({'font.size': 41})
+    lol = False
+    #plt.rcParams.update({'font.size': 41})
     for i in range(n_chan):
         name = names[i]
         print(name)
@@ -1540,15 +1541,17 @@ def test_fft():
         bad_segs = bad_segment_list[i]
         filter_i = sa.filter_start(signal)
 
+        filter_i_list = sa.filter_start(signal, lol=True)[0]
+
         #normal_sig = signal[filter_i:]
-        normal_x = list(range(filter_i, len(signal)))
+        #normal_x = list(range(filter_i, len(signal)))
         full_x = list(range(len(signal)))
 
         indices = [2]
         fft_window = 400
 
         nu_i_x, nu_i_arr, u_filter_i_i, u_i_arr_ave, u_i_arr_sdev, u_cut_grad, u_grad_ave, u_grad_x, status, sus_score, rms_x, fft_sdev, error_start, sdev_thresh, sdev_span, detrended_sig = sa.fft_filter(
-            signal, filter_i, bad_segs, printer, indices=indices, fft_window=fft_window, debug=True, goertzel=False)
+            signal, filter_i, bad_segs, printer, indices=indices, fft_window=fft_window, debug=True, goertzel=False, lol=lol)
 
         if status == 0:
             s = "GOOD"
@@ -1567,26 +1570,48 @@ def test_fft():
             print()
             continue
 
-        nu_i_x = [x + filter_i for x in nu_i_x]
-        u_filter_i_i = u_filter_i_i + filter_i
-        u_grad_x = [x + filter_i for x in u_grad_x]
+
+        #u_filter_i_i = u_filter_i_i + filter_i[0]
+        #u_grad_x = [x + filter_i for x in u_grad_x]
 
         #nu_i_x = [x for x in nu_i_x]
         #u_filter_i_i = u_filter_i_i
         #u_grad_x = [x for x in u_grad_x]
 
-        #fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
+        fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, sharex=True)
 
-        fig, (ax1) = plt.subplots(1, 1, figsize=(12, 10))
-        plt.tight_layout(rect=(0.045, 0.02, 0.99, 0.98))
-        linewidth = 4
+        #fig, (ax1) = plt.subplots(1, 1, figsize=(12, 10))
+        #plt.tight_layout(rect=(0.045, 0.02, 0.99, 0.98))
+        linewidth = 1.5
 
         #error_start = None
         #status = -1
         ax1.plot(timex[full_x], signal, linewidth=linewidth)
+        ax1.axvline(timex[filter_i], linestyle="--", color="blue")
+        #[ax1.axvline(timex[x], linestyle="--", color="black", linewidth=0.5) for x in filter_i_list]
+
+        #filter_i = filter_i[0]
+        nu_i_x = [x + filter_i for x in nu_i_x]
+        #print(nu_i_arr)
+        #print("lol")
+        offset = int(len(nu_i_arr) * 0.0875)
+        filter_i_i_list, largest = sa.filter_start(nu_i_arr, offset=offset, max_rel=.175, lol=True)
+        figlol, (axlol1, axlol2) = plt.subplots(2, 1, sharex=True)
+        axlol1.plot(np.gradient(filter_i_i_list))
+        axlol2.plot(largest)
+        axlol2.set_ylim(0, 10*10**(-10))
+        axlol2.grid()
+        axlol1.grid()
+        ax3.plot(timex[nu_i_x], np.gradient(nu_i_arr))
+        #print(filter_i_i_list)
+        filter_i_i_list = [x + filter_i for x in filter_i_i_list]
+        u_filter_i_i = u_filter_i_i + filter_i
+        # [ax2.axvline(timex[x], linestyle="--", color="black", linewidth=0.5) for x in filter_i_i_list]
+        #u_filter_i_i = u_filter_i_i[0]
+
         #ax2.plot(timex[normal_x], detrended_sig, linewidth=linewidth)
         #ax2.set_yticklabels([])
-        #ax2.grid()
+        ax2.grid()
         #ax1.plot(full_x, signal)
         hf.plot_spans(ax1, hf.seg_to_time(timex, bad_segs), color="darkred")
         #hf.plot_spans(ax1, bad_segs)
@@ -1606,24 +1631,20 @@ def test_fft():
         #ax2.set_ylabel("Mag. F. [T]")
 
         if nu_i_x is not None:
-             #ax2.plot(timex[nu_i_x], nu_i_arr, linewidth=linewidth)
+             ax2.plot(timex[nu_i_x], nu_i_arr, linewidth=linewidth)
              #ax2.plot(timex[nu_i_x], nu_i_arr)
              pass
 
-        #ax2.set_ylim(-0.1 * 10 ** (-7), 1.2 * 10 ** (-7))
-        #ax3.grid()
+        ax2.set_ylim(-0.1 * 10 ** (-7), 1.2 * 10 ** (-7))
+        ax3.grid()
         ax1.set_xlabel("Time [s]")
         #ax3.set_ylabel("FT Amp.")
 
         ax1.grid()
 
-        if nu_i_x is not None:
-            pass
-            #ax2.plot(timex[nu_i_x], nu_i_arr, linewidth=linewidth)
-
         # ax2.legend()
 
-        #ax2.axvline(timex[u_filter_i_i], linestyle="--", color="black")
+        ax2.axvline(timex[u_filter_i_i], linestyle="--", color="blue", linewidth=0.5)
         #ax3.set_ylim(-.25 * 10 ** (-9), .25 * 10 ** (-9))
 
         #ax3.plot(u_grad_x, u_cut_grad, label="orig")
@@ -1637,11 +1658,12 @@ def test_fft():
             ax1.axvline(timex[error_start], linestyle="--", color="red")
 
         if sdev_span is not None:
-             pass
-             # hf.plot_spans(ax3, hf.seg_to_time(timex, [sdev_span + filter_i]))
-             # rms_x = [x + filter_i for x in rms_x]
-             # ax3.plot(timex[rms_x], fft_sdev, label="sdev")
-             # ax3.axhline(sdev_thresh, linestyle="--", color="black")
+
+            #pass
+            hf.plot_spans(ax4, hf.seg_to_time(timex, [sdev_span + filter_i]))
+            rms_x = [x + filter_i for x in rms_x]
+            ax4.plot(timex[rms_x], fft_sdev, label="sdev")
+            ax4.axhline(sdev_thresh, linestyle="--", color="black")
         #
         # # ax4.plot(rms_x, fft_rms, label="rms")
         # ax4.legend()

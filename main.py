@@ -259,7 +259,7 @@ def main():
 
 if __name__ == '__main__':
     #main()
-    # tf.test_fft()
+    tf.test_fft()
     # tf.show_helmet()
     #tf.test_fft_emergency()
     # tf.show()
@@ -268,7 +268,7 @@ if __name__ == '__main__':
     # tf.test_seg_finder()
     #tf.test_crop()
     #tf.test_ffft()
-    tf.show_pca()
+    # tf.show_pca()
     # tf.test_flat_new()
     #datadir = "example_data_for_patrik/"
     #partial_analysis([0.3, 0.36], datadir + "many_many_successful2.npz", "print", phys=True)
