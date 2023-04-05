@@ -1541,7 +1541,7 @@ def test_fft():
         bad_segs = bad_segment_list[i]
         filter_i = sa.filter_start(signal)
 
-        filter_i_list = sa.filter_start(signal, lol=True)[0]
+        filter_i_list = sa.filter_start(signal, debug=True)[0]
 
         #normal_sig = signal[filter_i:]
         #normal_x = list(range(filter_i, len(signal)))
@@ -1595,7 +1595,7 @@ def test_fft():
         #print(nu_i_arr)
         #print("lol")
         offset = int(len(nu_i_arr) * 0.0875)
-        filter_i_i_list, largest = sa.filter_start(nu_i_arr, offset=offset, max_rel=.175, lol=True)
+        filter_i_i_list, largest = sa.filter_start(nu_i_arr, offset=offset, max_rel=.175, debug=True)
         figlol, (axlol1, axlol2) = plt.subplots(2, 1, sharex=True)
         axlol1.plot(np.gradient(filter_i_i_list))
         axlol2.plot(largest)
@@ -1739,52 +1739,34 @@ def test_ffft():
     # channels = ["MEG1041"]
     signals, names, timex, n_chan = fr.get_signals(fname)
 
+    printer = fr.Printer("print")
     detecs = np.load("array120_trans_newnames.npz")
 
     indices = [2]
 
     for i in range(n_chan):
-        name = names[i]
         signal = signals[i]
+        name = names[i]
         print(name)
         filter_i = sa.filter_start(signal)
-        filt_signal = signal[filter_i:]
+        signal = signal[filter_i:]
 
-        start_t_o = time.time()
-        orig_i_arr, orig_nu_x, orig_smooth_signal, orig_smooth_x, orig_filtered_signal = sa.calc_fft_indices(filt_signal,
-                                                                                                             indices=indices)
-        end_t_o = time.time()
-        o_t = end_t_o - start_t_o
+        start_time = time.time()
+        i_arr, nu_x, smooth_signal, smooth_x, filtered_signal = sa.calc_fft_indices(signal, printer, indices=indices)
+        end_time = time.time()
+        orig_time = end_time - start_time
 
-        start_t_n = time.time()
-        new_i_arr, new_nu_x, new_smooth_signal, new_smooth_x, new_filtered_signal = sa.calc_fft_indices(
-            filt_signal, indices=indices, goertzel=True)
-        end_t_n = time.time()
-        n_t = end_t_n - start_t_n
+        start_time = time.time()
+        new_i_arr = sa.calc_fft_index_fast(signal)
+        end_time = time.time()
+        new_time = end_time - start_time
 
-        def normalize(dat):
-            return (dat - dat.min()) / (dat.max() - dat.min())
-
-
-        percent_decrease = 100 * (1 - n_t / o_t)
-
-        print("n_t / o_t:", n_t/o_t)
-        print(percent_decrease, "% faster")
-        print(np.mean(new_i_arr[0]),np.mean(orig_i_arr[0]),np.mean(new_i_arr[0]) / np.mean(orig_i_arr[0]))
-
-        fig1, ax1 = plt.subplots()
-        ax1.plot(orig_i_arr[0], label="original " + str(o_t))
-        ax1.plot(new_i_arr[0], label="new " + str(n_t))
-        ax1.legend()
-        ax1.set_title(name)
-        # ax2.legend()
-
-        # fig3, ax3 = plt.subplots()
-        # ax3.plot(filt_signal)
-        # ax3.set_title("signal " + name)
-
+        plt.plot(i_arr[0], label="orig, " + str(orig_time))
+        plt.plot(new_i_arr, label="new, " + str(new_time))
+        plt.legend()
         plt.show()
-        print()
+
+
 
 def show_pca():
     # mms 1241 -> bad exc

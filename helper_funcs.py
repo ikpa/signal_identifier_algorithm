@@ -214,6 +214,9 @@ def i_seg_from_time_seg(time_seg, t_x):
 
 
 def crop_signals_time(time_seg, t, signals, seg_extend):
+    if time_seg[0] > time_seg[1]:
+        raise Exception("start of segment cannot be greater than end of segment")
+
     final_i = len(t) - 1
     i_seg = i_seg_from_time_seg(time_seg, t)
     i_seg_extend = [i_seg[0] - seg_extend, i_seg[-1] + seg_extend]

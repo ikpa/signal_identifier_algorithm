@@ -170,7 +170,7 @@ def thirdver(fname, filters, phys, print_mode, log_fname):
 
 # TODO test with larger values of seg_extend
 def partial_analysis(time_seg, fname, print_mode, output="output_test.txt", log_fname="test.log", channels=["MEG*1", "MEG*4"],
-                     filters=default_filters, seg_extend=200, phys=False):
+                     filters=default_filters, seg_extend=400, phys=False):
     signals, names, t, n_chan = fr.get_signals(fname, channels=channels)
 
     if print_mode == "file":
@@ -204,35 +204,37 @@ def partial_analysis(time_seg, fname, print_mode, output="output_test.txt", log_
     if output is not None:
         fr.write_data_compact(output, write_data, col_names)
 
-    return col_names, write_data
+    if True:
+        bad_segs_time = hf.segs_from_i_to_time(cropped_ix, t, bad_segs)
+        sus_segs_time = hf.segs_from_i_to_time(cropped_ix, t, suspicious_segs)
+        for i in range(n_chan):
+            i_x = cropped_ix[i]
+            t_x = t[i_x]
+            name = names[i]
+            bad_seg_plot = bad_segs_time[i]
+            sus_segs_plot = sus_segs_time[i]
+            good_segs_plot = good_segs_time[i]
+            cropped_sig = cropped_signals[i]
+            p_stat = phys_stat[i]
+            p_conf = phys_conf[i]
+            figure, ax = plt.subplots()
+            plt.plot(t_x, cropped_sig)
+            hf.plot_spans(ax, bad_seg_plot, color="red")
+            hf.plot_spans(ax, sus_segs_plot, color="yellow")
+            hf.plot_spans(ax, good_segs_plot, color="green")
 
-    # if False:
-    #     for i in range(n_chan):
-    #         i_x = cropped_ix[i]
-    #         t_x = t[i_x]
-    #         name = names[i]
-    #         bad_seg_plot = bad_segs_time[i]
-    #         sus_segs_plot = sus_segs_time[i]
-    #         good_segs_plot = good_segs_time[i]
-    #         cropped_sig = cropped_signals[i]
-    #         p_stat = phys_stat[i]
-    #         p_conf = phys_conf[i]
-    #         figure, ax = plt.subplots()
-    #         plt.plot(t_x, cropped_sig)
-    #         hf.plot_spans(ax, bad_seg_plot, color="red")
-    #         hf.plot_spans(ax, sus_segs_plot, color="yellow")
-    #         hf.plot_spans(ax, good_segs_plot, color="green")
-    #
-    #         ax.axvline(t[seg_i[0]], linestyle="--", color="black")
-    #         ax.axvline(t[seg_i[-1]], linestyle="--", color="black")
-    #
-    #         status = name + ", " + str(good_segs_plot)
-    #
-    #         if phys:
-    #             status += ", " + str(p_stat) + ", " + str(p_conf)
-    #
-    #         ax.set_title(status)
-    #         plt.show()
+            ax.axvline(t[seg_i[0]], linestyle="--", color="black")
+            ax.axvline(t[seg_i[-1]], linestyle="--", color="black")
+
+            status = name + ", " + str(good_segs_plot)
+
+            if phys:
+                status += ", " + str(p_stat) + ", " + str(p_conf)
+
+            ax.set_title(status)
+            plt.show()
+
+    return col_names, write_data
 
 
 def main():
@@ -259,7 +261,7 @@ def main():
 
 if __name__ == '__main__':
     #main()
-    tf.test_fft()
+    #tf.test_fft()
     # tf.show_helmet()
     #tf.test_fft_emergency()
     # tf.show()
@@ -267,11 +269,11 @@ if __name__ == '__main__':
     # tf.test_magn2()
     # tf.test_seg_finder()
     #tf.test_crop()
-    #tf.test_ffft()
+    tf.test_ffft()
     # tf.show_pca()
     # tf.test_flat_new()
     #datadir = "example_data_for_patrik/"
-    #partial_analysis([0.3, 0.36], datadir + "many_many_successful2.npz", "print", phys=True)
+    #partial_analysis([0.46, 0.46], datadir + "sample_data38.npz", "print", phys=True)
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/

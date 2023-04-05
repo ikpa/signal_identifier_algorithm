@@ -12,51 +12,17 @@ significantly"""
 
 sample_freq = 10000 # sampling frequency of the squids
 
-# TODO test this with fft filter
-def filter_start(signal, offset=50, max_rel=0.05, lol=False):
+def filter_start(signal, offset=50, max_rel=0.05, debug=False):
     """filter the jump in the beginning of the signal. returns the index
     where the jump has ended."""
     max_i = int(max_rel * len(signal))
     grad = np.gradient(signal)
     new_grad = grad[:max_i]
-
-    grad_ave = np.mean(grad)
-    # max_grad_i = np.argmax(new_grad)
-    # min_grad_i = np.argmin(new_grad)
-
-    maxi = np.amax(new_grad)
-    mini = np.amin(new_grad)
-
-    if maxi > abs(mini):
-        max_val = maxi
-        farther_i = np.where(grad == maxi)[0][0]
-    else:
-        max_val = abs(mini)
-        farther_i = np.where(grad == mini)[0][0]
-
-    rel_max = abs(max_val/grad_ave)
-
-    #print("filter i max val grad ave", max_val, grad_ave)
-
-    #2-3 * 10e-10
-    if max_val < 1*10**(-10):
-        result = np.int64(0)
-    else:
-        result = farther_i + offset
-
     new_grad = abs(np.array(new_grad))
     largest = sorted(new_grad, reverse=True)[0:20]
     locations = sorted([np.where(new_grad == x)[0][0] for x in largest])
 
-    # print(largest)
-    #
-    # print("largest:", largest)
-    # print("locations:", locations)
-    # print(any(x >= 50 for x in np.gradient(locations)))
-    # largest[0] < 4 * 10**(-10)
-
-    # TODO decrease first threshold maybe
-    if largest[0] < 4 * 10 ** (-10) or any(x >= 50 for x in np.gradient(locations)):
+    if largest[0] < 2.5 * 10 ** (-10) or any(x >= 50 for x in np.gradient(locations)):
         #print("result:", 0)
         result = np.int64(0)
     else:
@@ -64,9 +30,7 @@ def filter_start(signal, offset=50, max_rel=0.05, lol=False):
         result = locations[0] + offset
 
     # farther_i = np.amax([max_grad_i, min_grad_i])
-    if lol:
-
-
+    if debug:
         return locations, largest
 
     return result
@@ -577,6 +541,67 @@ def calc_fft_indices(signal, printer, indices=None, window=400, smooth_window=40
 
     return i_arr, nu_x, smooth_signal, smooth_x, filtered_signal
 
+def calc_dft_constants(k, N):
+    const = -2 * np.pi / N
+    dft_factors = []
+    for n in range(N):
+        dft_factors.append(complex(np.cos(const * k * n), np.sin(const * k * n)))
+
+    return dft_factors
+
+def calc_fft_index_fast(signal, window=400, smooth_window=401, filter_offset=0):
+    sig_len = len(signal)
+    ftrans_points = sig_len - window
+
+    start_time = time.time()
+    # calculate smoothed signal
+    offset = int(smooth_window / 2)
+    smooth_signal = hf.smooth(signal, window_len=smooth_window)
+    # CHECK AGAIN IF THIS IS USED SOMEWHERE
+    smooth_x = [x - offset + filter_offset for x in list(range(len(smooth_signal)))]
+
+    # remove trailing values for the smooth signal
+    new_smooth = []
+    for i in range(sig_len):
+        new_smooth.append(smooth_signal[i + offset])
+
+    # remove trend from original signal
+    filtered_signal = [a - b for a, b in zip(signal, new_smooth)]
+    end_time = time.time()
+    print("smooth time", end_time - start_time)
+
+    start_time = time.time()
+    dft_consts = calc_dft_constants(2, window)
+    end_time = time.time()
+    print("const time", end_time - start_time)
+
+    # TODO try numpy vectorization or cython or parallelization
+    start_time = time.time()
+    fft_tseries = np.zeros(ftrans_points, dtype=np.complex)
+    for i in range(ftrans_points):
+        end_i = i + window
+        signal_windowed = filtered_signal[i: end_i]
+
+        # dft_sum = 0.0
+        # for j in range(window):
+        #     const = dft_consts[j]
+        #     x = signal_windowed[j]
+        #     dft_sum += x * const
+
+        dft_list = np.dot(signal_windowed, dft_consts)
+        dft_sum = np.sum(dft_list)
+
+        fft_tseries[i] = dft_sum
+
+    end_time = time.time()
+    print("iter time", end_time - start_time)
+
+    start_time = time.time()
+    fft_tseries = abs(fft_tseries)
+    end_time = time.time()
+    print("abs time", end_time - start_time)
+    return fft_tseries
+
 
 def stats_from_i(i_arr, i_x, bad_segs, fft_window, printer, cut_length=70, max_sig_len=800, lol=False):
     """ status:
@@ -585,7 +610,7 @@ def stats_from_i(i_arr, i_x, bad_segs, fft_window, printer, cut_length=70, max_s
     2 = undetermined"""
     printer.extended_write("filtering fft:")
     offset = int(len(i_arr) * 0.0875)
-    filter_i_i = filter_start(i_arr, offset=offset, max_rel=.175, lol=lol)
+    filter_i_i = filter_start(i_arr, offset=offset, max_rel=.175)
     #filter_i_i = filter_i_list[0]
 
     last_i = len(i_arr) - 1
@@ -642,7 +667,7 @@ def stats_from_i(i_arr, i_x, bad_segs, fft_window, printer, cut_length=70, max_s
     if grad_ave > 10 ** (-11):
         printer.extended_write("EXTREMELY HIGH GRADIENT AVERAGE")
         status = change_status(1, status)
-    elif grad_ave > 2 * 10 ** (-12):
+    elif grad_ave > 3.5 * 10 ** (-12):
         printer.extended_write("INCREASING 50HZ")
         sus_score += 1
 
@@ -700,11 +725,11 @@ def find_saturation_point_from_fft(i_x, i_arr, filter_i, fft_window, printer, sd
         span_sdev_ave = np.mean(fft_sdev[where_above_sdev[0]:where_above_sdev[-1]])
         seg_len = hf.length_of_segments([sdev_span])
         highsdev = span_sdev_ave > abs_sdev_thresh
-        ave_diff = span_sdev_ave - sdev_mean
+        # ave_diff = span_sdev_ave - sdev_mean
         #highsdev = ave_diff > 2.5*10**(-11)
         span_start_i = where_above_sdev[0]
         printer.extended_write("span_sdev_ave", span_sdev_ave, "seg_len", seg_len, "span_start_i", span_start_i)
-        printer.extended_write("ave diff", ave_diff)
+        # printer.extended_write("ave diff", ave_diff)
         local_err = 200 <= seg_len <= 500 # TODO increase upper bound?
 
         # ave diff 2.5-6e-11
