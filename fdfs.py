@@ -549,11 +549,18 @@ def calc_dft_constants(k, N):
 
     return dft_factors
 
-def calc_fft_index_fast(signal, window=400, smooth_window=401, filter_offset=0):
+def make_window(i, signal, window=400):
+    return signal[i:i + window]
+
+def calc_dft_point(segment, dft_consts):
+    dft_list = np.dot(segment, dft_consts)
+    dft_sum = np.sum(dft_list)
+    return dft_sum
+
+def calc_fft_index_fast(signal, printer, window=400, smooth_window=401, filter_offset=0):
     sig_len = len(signal)
     ftrans_points = sig_len - window
 
-    start_time = time.time()
     # calculate smoothed signal
     offset = int(smooth_window / 2)
     smooth_signal = hf.smooth(signal, window_len=smooth_window)
@@ -567,40 +574,18 @@ def calc_fft_index_fast(signal, window=400, smooth_window=401, filter_offset=0):
 
     # remove trend from original signal
     filtered_signal = [a - b for a, b in zip(signal, new_smooth)]
-    end_time = time.time()
-    print("smooth time", end_time - start_time)
 
-    start_time = time.time()
     dft_consts = calc_dft_constants(2, window)
-    end_time = time.time()
-    print("const time", end_time - start_time)
 
-    # TODO try numpy vectorization or cython or parallelization
-    start_time = time.time()
-    fft_tseries = np.zeros(ftrans_points, dtype=np.complex)
-    for i in range(ftrans_points):
-        end_i = i + window
-        signal_windowed = filtered_signal[i: end_i]
+    window_func = np.vectorize(make_window, signature="(),(m)->(k)")
+    windows = window_func(list(range(ftrans_points)), filtered_signal)
 
-        # dft_sum = 0.0
-        # for j in range(window):
-        #     const = dft_consts[j]
-        #     x = signal_windowed[j]
-        #     dft_sum += x * const
+    dft_func = np.vectorize(calc_dft_point, signature="(n),(n)->()")
+    fft_tseries = dft_func(windows, dft_consts)
 
-        dft_list = np.dot(signal_windowed, dft_consts)
-        dft_sum = np.sum(dft_list)
-
-        fft_tseries[i] = dft_sum
-
-    end_time = time.time()
-    print("iter time", end_time - start_time)
-
-    start_time = time.time()
     fft_tseries = abs(fft_tseries)
-    end_time = time.time()
-    print("abs time", end_time - start_time)
-    return fft_tseries
+
+    return fft_tseries, list(range(ftrans_points)), smooth_signal, smooth_x, filtered_signal
 
 
 def stats_from_i(i_arr, i_x, bad_segs, fft_window, printer, cut_length=70, max_sig_len=800, lol=False):
@@ -708,6 +693,7 @@ def stats_from_i(i_arr, i_x, bad_segs, fft_window, printer, cut_length=70, max_s
     return nu_i_arr, nu_i_x, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score, short
 
 
+# TODO check that this works properly
 def find_saturation_point_from_fft(i_x, i_arr, filter_i, fft_window, printer, sdev_window=10, rel_sdev_thresh=1.75,
                                    abs_sdev_thresh=1.35 * 10 ** (-10)):
     if len(i_arr) == 0:
@@ -772,8 +758,10 @@ def fft_filter(signal, filter_i, bad_segs, printer, fft_window=400, indices=[2],
         else:
             return [], []
 
-    i_arr, i_x, smooth_signal, smooth_x, detrended_sig = calc_fft_indices(normal_sig, printer, indices=indices, window=fft_window,
-                                                                          filter_offset=filter_i, goertzel=goertzel)
+    #i_arr, i_x, smooth_signal, smooth_x, detrended_sig = calc_fft_indices(normal_sig, printer, indices=indices, window=fft_window,
+                                                                          #filter_offset=filter_i, goertzel=goertzel)
+
+    i_arr, i_x, smooth_signal, smooth_x, detrended_sig = calc_fft_index_fast(normal_sig, printer, filter_offset=filter_i)
 
     if i_arr is None:
         if debug:
@@ -781,8 +769,11 @@ def fft_filter(signal, filter_i, bad_segs, printer, fft_window=400, indices=[2],
         else:
             return [], []
 
+    # cut_i_arr, cut_i_x, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score, short = stats_from_i(
+    #     i_arr[0], i_x, bad_segs, fft_window, printer, cut_length=fft_cut, lol=lol)
+
     cut_i_arr, cut_i_x, filter_i_i, i_arr_ave, i_arr_sdev, cut_grad, grad_ave, grad_x, status, sus_score, short = stats_from_i(
-        i_arr[0], i_x, bad_segs, fft_window, printer, cut_length=fft_cut, lol=lol)
+         i_arr, i_x, bad_segs, fft_window, printer, cut_length=fft_cut, lol=lol)
 
     if not short:
         rms_x, fft_sdev, error_start, sdev_thresh, sdev_span = find_saturation_point_from_fft(cut_i_x, cut_i_arr,
@@ -1111,7 +1102,7 @@ def analyse_all_neo(signals, names, chan_num, printer,
 
         bad_segs, suspicious_segs = final_analysis(segments, confidences)
         num_bad = len(bad_segs)
-        bad = num_bad > 1
+        bad = num_bad > 0
         num_sus = len(suspicious_segs)
         printer.extended_write(num_sus, "suspicious and", num_bad, " bad segment(s) found in total")
 

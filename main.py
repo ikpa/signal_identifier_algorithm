@@ -260,7 +260,7 @@ def main():
 
 
 if __name__ == '__main__':
-    #main()
+    main()
     #tf.test_fft()
     # tf.show_helmet()
     #tf.test_fft_emergency()
@@ -269,7 +269,7 @@ if __name__ == '__main__':
     # tf.test_magn2()
     # tf.test_seg_finder()
     #tf.test_crop()
-    tf.test_ffft()
+    #tf.test_ffft()
     # tf.show_pca()
     # tf.test_flat_new()
     #datadir = "example_data_for_patrik/"

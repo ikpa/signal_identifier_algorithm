@@ -1757,7 +1757,7 @@ def test_ffft():
         orig_time = end_time - start_time
 
         start_time = time.time()
-        new_i_arr = sa.calc_fft_index_fast(signal)
+        new_i_arr, nu_x, smooth_signal, smooth_x, filtered_signal = sa.calc_fft_index_fast(signal, printer)
         end_time = time.time()
         new_time = end_time - start_time
 
