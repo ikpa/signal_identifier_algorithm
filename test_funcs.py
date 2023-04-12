@@ -1605,7 +1605,7 @@ def test_fft():
         ax3.plot(timex[nu_i_x], np.gradient(nu_i_arr))
         #print(filter_i_i_list)
         filter_i_i_list = [x + filter_i for x in filter_i_i_list]
-        u_filter_i_i = u_filter_i_i + filter_i
+        #u_filter_i_i = u_filter_i_i + filter_i
         # [ax2.axvline(timex[x], linestyle="--", color="black", linewidth=0.5) for x in filter_i_i_list]
         #u_filter_i_i = u_filter_i_i[0]
 

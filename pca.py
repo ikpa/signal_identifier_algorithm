@@ -1,4 +1,5 @@
 import math
+import time
 
 import numpy as np
 
@@ -57,9 +58,11 @@ def calc_magn_field_from_signals(signals, xs, vectors, printer, ave_window=400):
 def reconstruct(mag, v):
     """reconstruct a signal using a magnetic vector (as a function of time) mag
     and a detector direction vector v"""
-    rec_sig = []
-    for mag_point in mag:
-        rec_sig.append(np.dot(mag_point, v))
+    # rec_sig = []
+    # for mag_point in mag:
+    #     rec_sig.append(np.dot(mag_point, v))
+
+    rec_sig = np.dot(mag, v)
 
     return rec_sig
 
@@ -259,13 +262,18 @@ def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, sus_seg_list, p
 
     for k in range(n_chan):
         # choose central detector and find nearby detectors
+
         comp_detec = names[k]
         printer.extended_write(comp_detec)
 
+        start_time = time.time()
         nearby_names = hf.find_nearby_detectors(comp_detec, detecs, names)
+        end_time = time.time()
         nearby_names.append(comp_detec)
 
+
         # exclude signals whose bad segments are too long
+        #start_time = time.time()
         new_near = []
         for nam in nearby_names:
             index = names.index(nam)
@@ -291,6 +299,8 @@ def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, sus_seg_list, p
             printer.extended_write("already calculated, skipping\n")
             continue
 
+        #end_time = time.time()
+
         tested_groups.append(new_near)
 
         near_vs = []
@@ -300,10 +310,14 @@ def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, sus_seg_list, p
             near_vs.append(detecs[name][:3, 2])
             near_rs.append(detecs[name][:3, 3])
 
+        #start_time = time.time()
         near_sigs = hf.find_signals(new_near, signals, names)
         near_bad_segs = hf.find_signals(new_near, bad_seg_list, names)
         near_sus_segs = hf.find_signals(new_near, sus_seg_list, names)
+        #end_time = time.time()
+        print("time to ahihfsahj", end_time - start_time)
 
+        start_time = time.time()
         smooth_sigs = []
         xs = []
 
@@ -320,11 +334,20 @@ def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, sus_seg_list, p
             smooth_sigs = near_sigs
             xs = hf.find_signals(new_near, all_xs, names)
 
+        end_time = time.time()
+        print("time to filter and smooth", end_time - start_time)
+
+        start_time = time.time()
         # calculate which signals in the cluster to exclude
         exclude_chans, new_x, diffs, rel_diffs = filter_unphysical_sigs(smooth_sigs, new_near, xs, near_vs,
                                                                         near_bad_segs, near_sus_segs, printer, ave_window=ave_window,
                                                                         ave_sens=ave_sens)
 
+        end_time = time.time()
+        print("time to exclude", end_time - start_time)
+
+
+        start_time = time.time()
         if len(new_x) != 0:
             for nam in new_near:
                 chan_dict[nam][comp_detec] = 0
@@ -352,7 +375,10 @@ def check_all_phys(signals, detecs, names, n_chan, bad_seg_list, sus_seg_list, p
                   ", fraction excluded:", float(ex / tot),
                   "average relative difference:", np.mean(all_rel_diffs[chan]))
 
+        end_time = time.time()
+        print("time to get stats", end_time - start_time)
         printer.extended_write()
+
 
     return all_diffs, all_rel_diffs, chan_dict
 

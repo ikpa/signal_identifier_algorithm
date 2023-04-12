@@ -515,6 +515,8 @@ def calc_diff(signal1, signal2, x1, x2):
 
     return diffs, new_x
 
+
+# TODO make faster
 def find_nearby_detectors(d_name, detectors, good_names, r_sens=0.06):
     """find detectors within a radius r_sens from a given detector. channels
     not in good_names are excluded."""
